@@ -1,0 +1,45 @@
+name: 🚀 Feature Request
+description: RFCs and ideas (English only) for Boost (CLI builders and MCP tools)
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please use English. Describe CLI UX (builders) and/or MCP JSON‑RPC methods you propose.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: A clear and concise description of the new feature
+    validations:
+      required: true
+  - type: textarea
+    id: cli-ux
+    attributes:
+      label: Proposed CLI UX (if applicable)
+      description: Example commands, flags, prompts, and sample outputs (--json)
+      value: |
+        ```bash
+        php vendor/bin/wire boost:<command> [options]
+        ```
+  - type: textarea
+    id: mcp-method
+    attributes:
+      label: Proposed MCP method (if applicable)
+      description: JSON‑RPC method name, params schema and example request/response
+      value: |
+        ```json
+        { "method": "pw_schema_read", "params": {}, "id": 1 }
+        ```
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: Realistic scenarios this feature enables or simplifies
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Backward Compatibility
+      description: Does this change break existing behavior? Deprecation path (if any)

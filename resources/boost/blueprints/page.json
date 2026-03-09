@@ -1,0 +1,13 @@
+{
+  "name": "ProcessWire Page",
+  "description": "The base structure for all ProcessWire pages",
+  "properties": {
+    "id": "Unique integer ID",
+    "name": "URL-friendly name/slug",
+    "path": "Full URL path",
+    "template": "Associated template object",
+    "parent": "Parent page object",
+    "created": "Unix timestamp of creation",
+    "modified": "Unix timestamp of last modification"
+  }
+}

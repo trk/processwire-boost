@@ -1,0 +1,29 @@
+{
+  "name": "trk/processwire-boost",
+  "description": "AI context bridge for ProcessWire CMS.",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.3"
+  },
+  "autoload": {
+    "psr-4": {
+      "Totoglu\\ProcessWire\\Boost\\": "src/"
+    }
+  },
+  "extra": {
+    "processwire-console": {
+      "commands": [
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostInstallCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\McpCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostGuidesBuildCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostSkillsBuildCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostApiScanCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBlueprintsBuildCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildAllCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostAssertCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostVersionCommand"
+      ]
+    }
+  }
+}

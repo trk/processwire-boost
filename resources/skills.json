@@ -1,0 +1,12 @@
+{
+  "skills": {
+    "manipulate_pages": "Can create/edit/delete any Page using the $pages API",
+    "hook_system": "Can intercept core methods using $wire->addHookBefore/After",
+    "schema_management": "Can define new Fields and Templates via CLI or API",
+    "schema_architect": "Expert in designing complex relationships between templates and fields",
+    "query_expert": "Master of the ProcessWire Selector engine for complex data retrieval",
+    "security_warden": "Enforces strict input sanitization and granular permission checks",
+    "module_scaffolder": "Can build specialized Fieldtype, Inputfield, and Process modules",
+    "system_admin": "Manages users, roles, system logs, and maintenance tasks"
+  }
+}
