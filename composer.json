@@ -4,7 +4,8 @@
   "type": "library",
   "license": "MIT",
   "require": {
-    "php": ">=8.3"
+    "php": ">=8.3",
+    "trk/processwire-console": "dev-main"
   },
   "autoload": {
     "psr-4": {
