@@ -36,18 +36,46 @@ final class DocIndex
         foreach ($files as $p) {
             $rel = str_starts_with($p, $this->projectRoot.'/') ? substr($p, strlen($this->projectRoot.'/')) : $p;
             if (str_starts_with($rel, 'wire/core/')) {
-                $classFiles[] = substr($rel, strlen('wire/core/'));
+                $classFiles[] = ['base' => 'wire/core', 'file' => substr($rel, strlen('wire/core/'))];
+            } elseif (str_starts_with($rel, 'wire/modules/')) {
+                $classFiles[] = ['base' => 'wire/modules', 'file' => substr($rel, strlen('wire/modules/'))];
             }
         }
         $this->discoveredTags = [];
         $this->synthesizedMethods = [];
         $this->classRelationships = [];
-        $index = $this->scan($classFiles);
-        foreach ($index as $fqcn => &$meta) {
-            $file = $meta['file'] ?? '';
-            $meta['file'] = $file;
+        return $this->scan($classFiles);
+    }
+
+    public function scanPath(string $base, array $excludes = []): array
+    {
+        $dir = $this->projectRoot . '/' . ltrim($base, '/');
+        if (!is_dir($dir)) {
+            return [];
         }
-        return $index;
+        $files = [];
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir));
+        foreach ($it as $file) {
+            if (!$file->isFile()) continue;
+            $fn = $file->getFilename();
+            $ok = false;
+            foreach (['php', 'module', 'module.php'] as $e) {
+                if (str_ends_with($fn, '.' . $e) || $fn === $e) { $ok = true; break; }
+            }
+            if (!$ok) continue;
+            $rel = ltrim(str_replace($dir . '/', '', $file->getPathname()), '/');
+            $skip = false;
+            foreach ($excludes as $ex) {
+                $pattern = '#^' . str_replace(['**','*'], ['.*','[^/]*'], preg_quote($ex, '#')) . '$#';
+                if (preg_match($pattern, $rel)) { $skip = true; break; }
+            }
+            if ($skip) continue;
+            $files[] = ['base' => $base, 'file' => $rel];
+        }
+        $this->discoveredTags = [];
+        $this->synthesizedMethods = [];
+        $this->classRelationships = [];
+        return $this->scan($files);
     }
 
     private function collectFiles(array $includes, array $excludes): array
@@ -81,8 +109,10 @@ final class DocIndex
     public function scan(array $classFiles): array
     {
         $results = [];
-        foreach ($classFiles as $file) {
-            $path = $this->projectRoot . '/wire/core/' . $file;
+        foreach ($classFiles as $item) {
+            $file = is_array($item) ? $item['file'] : $item;
+            $base = is_array($item) ? ($item['base'] ?? 'wire/core') : 'wire/core';
+            $path = $this->projectRoot . '/' . $base . '/' . $file;
             if (!is_file($path)) {
                 continue;
             }
@@ -139,7 +169,7 @@ final class DocIndex
                 $fqcn = ltrim($ns . '\\' . $class, '\\');
                 $this->trackRelatedClasses($fqcn, $methods);
                 $results[$fqcn] = [
-                    'file' => $file,
+                    'file' => $base . '/' . $file,
                     'summary' => $this->extractSummary($classDoc),
                     'since' => $this->extractSince($classDoc),
                     'methods' => $methods,

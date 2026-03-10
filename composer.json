@@ -22,6 +22,8 @@
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostApiScanCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBlueprintsBuildCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildAllCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildCoreCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildModulesCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostAssertCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostVersionCommand"
       ]

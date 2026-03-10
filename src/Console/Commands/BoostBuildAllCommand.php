@@ -24,7 +24,7 @@ final class BoostBuildAllCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('boost:build-all')->setDescription('Build blueprints, guides and skills using PHP builders and config.');
+        $this->setName('boost:build:all')->setDescription('Build blueprints, guides and skills for wire/core and wire/modules');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -32,21 +32,28 @@ final class BoostBuildAllCommand extends Command
         intro('ProcessWire Boost :: Build All');
         $projectRoot = getcwd();
         $cfg = (new ConfigReader($projectRoot))->read('.ai/docgen.yml');
-        $includes = $cfg['includes'] ?? ['wire/core','wire/modules','site/modules'];
         $excludes = $cfg['excludes'] ?? [];
 
-        $index = [];
-        $docIndex = null;
-        spin(function () use (&$index, &$docIndex, $projectRoot, $includes, $excludes) {
-            $docIndex = new DocIndex($projectRoot);
-            $index = $docIndex->scanPaths($includes, $excludes);
-        }, 'Scanning sources...');
-        info('Sources scanned');
+        $docIndex = new DocIndex($projectRoot);
 
-        spin(function () use ($index, $docIndex, $projectRoot) {
+        $indexCore = [];
+        spin(function () use (&$indexCore, $docIndex, $projectRoot, $excludes) {
+            $indexCore = $docIndex->scanPath('wire/core', $excludes);
+        }, 'Scanning wire/core...');
+        info('Core scanned');
+
+        $indexModules = [];
+        spin(function () use (&$indexModules, $docIndex, $projectRoot, $excludes) {
+            $indexModules = $docIndex->scanPath('wire/modules', $excludes);
+        }, 'Scanning wire/modules...');
+        info('Modules scanned');
+
+        $indexAll = array_merge($indexCore, $indexModules);
+
+        spin(function () use ($indexAll, $docIndex, $projectRoot) {
             $notes = new MasterArchitectNotes($projectRoot);
             $notes->setData(
-                $index,
+                $indexAll,
                 $docIndex->getDiscoveredTags(),
                 $docIndex->getSynthesizedMethods(),
                 $docIndex->getClassRelationships()
@@ -58,29 +65,53 @@ final class BoostBuildAllCommand extends Command
         }, 'Generating Master Architect Notes...');
         info('Master Architect Notes generated');
 
-        spin(function () use ($index, $projectRoot) {
+        spin(function () use ($indexCore, $projectRoot) {
             $bb = new BlueprintBuilder($projectRoot);
-            $bb->build($index, $projectRoot.'/.ai/blueprints/pw_core');
-        }, 'Building blueprints...');
-        info('Blueprints built');
+            $bb->build($indexCore, $projectRoot.'/.ai/blueprints/pw_core');
+        }, 'Building core blueprints...');
+        info('Core blueprints built');
 
-        spin(function () use ($index, $projectRoot) {
+        spin(function () use ($indexModules, $projectRoot) {
+            $bb = new BlueprintBuilder($projectRoot);
+            $bb->build($indexModules, $projectRoot.'/.ai/blueprints/pw_modules');
+        }, 'Building modules blueprints...');
+        info('Modules blueprints built');
+
+        spin(function () use ($indexCore, $projectRoot) {
             $gb = new GuideBuilder($projectRoot);
-            $gb->build($index, $projectRoot.'/.ai/guidelines/pw_core.md');
-        }, 'Building guide...');
-        info('Guide built');
+            $gb->build($indexCore, $projectRoot.'/.ai/guidelines/pw_core.md');
+        }, 'Building core guide...');
+        info('Core guide built');
 
-        spin(function () use ($index, $projectRoot) {
+        spin(function () use ($indexModules, $projectRoot) {
+            $gb = new GuideBuilder($projectRoot);
+            $gb->build($indexModules, $projectRoot.'/.ai/guidelines/pw_modules.md');
+        }, 'Building modules guide...');
+        info('Modules guide built');
+
+        spin(function () use ($indexCore, $projectRoot) {
             $glb = new GuidelineBuilder($projectRoot);
-            $glb->build($index, $projectRoot.'/.ai/guidelines/pw_core_guidelines.md');
-        }, 'Building guidelines...');
-        info('Guidelines built');
+            $glb->build($indexCore, $projectRoot.'/.ai/guidelines/pw_core_guidelines.md');
+        }, 'Building core guidelines...');
+        info('Core guidelines built');
 
-        spin(function () use ($index, $projectRoot) {
+        spin(function () use ($indexModules, $projectRoot) {
+            $glb = new GuidelineBuilder($projectRoot);
+            $glb->build($indexModules, $projectRoot.'/.ai/guidelines/pw_modules_guidelines.md');
+        }, 'Building modules guidelines...');
+        info('Modules guidelines built');
+
+        spin(function () use ($indexCore, $projectRoot) {
             $sb = new SkillBuilder($projectRoot);
-            $sb->buildSkillsFromGroups($index, $projectRoot . '/.ai/skills/pw_core');
-        }, 'Building skills from groups...');
-        info('Group skills built');
+            $sb->buildSkillsFromGroups($indexCore, $projectRoot . '/.ai/skills/pw_core');
+        }, 'Building core skills from groups...');
+        info('Core group skills built');
+
+        spin(function () use ($indexModules, $projectRoot) {
+            $sb = new SkillBuilder($projectRoot);
+            $sb->buildSkillsFromGroups($indexModules, $projectRoot . '/.ai/skills/pw_modules');
+        }, 'Building modules skills from groups...');
+        info('Modules group skills built');
 
         spin(function () use ($projectRoot) {
             $sb = new SkillBuilder($projectRoot);
