@@ -227,8 +227,8 @@ final class BoostInstallCommand extends Command
             $pathType = select(
                 label: 'Path type for MCP command?',
                 options: [
-                    'Relative (vendor/bin/wire)' => 'rel',
-                    'Absolute (/.../vendor/bin/wire)' => 'abs',
+                    'rel' => 'Relative (vendor/bin/wire)',
+                    'abs' => 'Absolute (/.../vendor/bin/wire)',
                 ],
                 default: 'rel'
             );
