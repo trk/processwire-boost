@@ -176,8 +176,10 @@ final class BoostInstallCommand extends Command
 
         $this->displaySummary($output, $feature, $selectedAgents, $selectedModules);
 
-        outro('Enjoy the boost 🚀 Check your AI agent\'s MD file in root.');
-        $output->writeln("\n  📦 <fg=cyan>https://github.com/trk/processwire-boost/</>\n");
+        $output->writeln("\n  ┌─────────────────────────────────────────────────────────────────┐");
+        $output->writeln("  │  Enjoy the boost 🚀 Check your AI agent's MD file in root.      │");
+        $output->writeln("  │  📦 https://github.com/trk/processwire-boost/                  │");
+        $output->writeln("  └─────────────────────────────────────────────────────────────────┘\n");
         return Command::SUCCESS;
     }
 
