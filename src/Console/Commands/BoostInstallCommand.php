@@ -51,12 +51,7 @@ final class BoostInstallCommand extends Command
         $installedFeatures = $config['features'] ?? [];
 
         $allFeatures = ['AI Guidelines', 'Agent Skills', 'Boost MCP Server Configuration'];
-        $featureOptions = [];
-        foreach ($allFeatures as $f) {
-            $isInstalled = in_array($f, $installedFeatures, true);
-            $status = $isInstalled ? ' [installed]' : '';
-            $featureOptions[$f . $status] = $f;
-        }
+        $featureOptions = array_combine($allFeatures, $allFeatures);
 
         $selectedFeatures = multiselect(
             label: 'Which Boost features would you like to have installed?',
@@ -78,12 +73,7 @@ final class BoostInstallCommand extends Command
 
         $selectedModules = [];
         if (!empty($moduleChoices)) {
-            $moduleOptions = [];
-            foreach ($moduleChoices as $m) {
-                $isInstalled = in_array($m, $installedModules, true);
-                $status = $isInstalled ? ' [installed]' : '';
-                $moduleOptions[$m . $status] = $m;
-            }
+            $moduleOptions = array_combine($moduleChoices, $moduleChoices);
             $selectedModules = multiselect(
                 label: 'Which third-party AI guidelines/skills would you like to install?',
                 options: $moduleOptions,
@@ -98,12 +88,7 @@ final class BoostInstallCommand extends Command
         $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
         $installedAgents = $config['agents'] ?? [];
 
-        $agentOptions = [];
-        foreach ($agentChoices as $a) {
-            $isInstalled = in_array($a, $installedAgents, true);
-            $status = $isInstalled ? ' [installed]' : '';
-            $agentOptions[$a . $status] = $a;
-        }
+        $agentOptions = array_combine($agentChoices, $agentChoices);
 
         $selectedAgents = multiselect(
             label: 'Which AI agents would you like to configure?',
