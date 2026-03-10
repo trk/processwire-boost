@@ -31,39 +31,64 @@ final class BoostInstallCommand extends Command
     {
         $this
             ->setName('boost:install')
-            ->setDescription('Initialize the AI helper setup (ProcessWire Boost) with a modern interface.');
+            ->setDescription('Manage AI helper setup (ProcessWire Boost). Select features to install/update, deselect to remove.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->displayBanner();
 
-        intro('Starting ProcessWire Boost installation...');
+        intro('Managing ProcessWire Boost installation...');
 
         $projectRoot = getcwd();
         $manager = new BoostManager($projectRoot);
+        $configPath = $projectRoot . '/.ai/boost.json';
 
-        $feature = select(
-            label: 'Which Boost feature would you like to configure first?',
-            options: [
-                'AI Guidelines' => 'AI Guidelines',
-                'Agent Skills' => 'Agent Skills',
-                'Boost MCP Server Configuration' => 'Boost MCP Server Configuration'
-            ],
-            default: 'AI Guidelines'
+        $config = ['version' => '1.0.0', 'features' => [], 'modules' => [], 'agents' => [], 'generated_at' => null];
+        if (file_exists($configPath)) {
+            $config = array_merge($config, json_decode(file_get_contents($configPath) ?: '{}', true) ?: []);
+        }
+        $installedFeatures = $config['features'] ?? [];
+
+        $allFeatures = ['AI Guidelines', 'Agent Skills', 'Boost MCP Server Configuration'];
+        $featureOptions = [];
+        foreach ($allFeatures as $f) {
+            $isInstalled = in_array($f, $installedFeatures, true);
+            $status = $isInstalled ? ' [installed]' : '';
+            $featureOptions[$f . $status] = $f;
+        }
+
+        $selectedFeatures = multiselect(
+            label: 'Which Boost features would you like to have installed?',
+            options: $featureOptions,
+            default: $installedFeatures,
+            hint: 'Select to install/update, deselect to remove. Space to toggle, Enter to confirm.',
+            required: false
         );
 
-        $features = [$feature];
+        $feature = select(
+            label: 'Which feature would you like to configure first?',
+            options: $selectedFeatures,
+            default: $selectedFeatures[0] ?? 'AI Guidelines'
+        );
 
         $availableModules = $manager->getDiscoverableModules();
         $moduleChoices = array_keys($availableModules);
+        $installedModules = $config['modules'] ?? [];
 
         $selectedModules = [];
         if (!empty($moduleChoices)) {
+            $moduleOptions = [];
+            foreach ($moduleChoices as $m) {
+                $isInstalled = in_array($m, $installedModules, true);
+                $status = $isInstalled ? ' [installed]' : '';
+                $moduleOptions[$m . $status] = $m;
+            }
             $selectedModules = multiselect(
                 label: 'Which third-party AI guidelines/skills would you like to install?',
-                options: array_combine($moduleChoices, $moduleChoices),
-                hint: 'Space to select, Enter to confirm',
+                options: $moduleOptions,
+                default: $installedModules,
+                hint: 'Select to install, deselect to remove.',
                 required: false
             );
         } else {
@@ -71,59 +96,84 @@ final class BoostInstallCommand extends Command
         }
 
         $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
-        
-        $configPath = $projectRoot . '/.ai/boost.json';
-        $savedAgents = [];
-        if (file_exists($configPath)) {
-            $config = json_decode(file_get_contents($configPath) ?: '', true);
-            $savedAgents = $config['agents'] ?? [];
+        $installedAgents = $config['agents'] ?? [];
+
+        $agentOptions = [];
+        foreach ($agentChoices as $a) {
+            $isInstalled = in_array($a, $installedAgents, true);
+            $status = $isInstalled ? ' [installed]' : '';
+            $agentOptions[$a . $status] = $a;
         }
-        
+
         $selectedAgents = multiselect(
             label: 'Which AI agents would you like to configure?',
-            options: array_combine($agentChoices, $agentChoices),
-            default: $savedAgents,
+            options: $agentOptions,
+            default: $installedAgents,
             required: false
         );
 
-        spin(
-            function () use ($manager, $features, $selectedModules, $selectedAgents) {
-                $manager->install($features, $selectedModules, $selectedAgents);
-            },
-            'Installing and Configuring Boost...'
-        );
+        $output->writeln("\n  <fg=yellow>Processing changes...</>\n");
 
-        if (!empty($selectedAgents)) {
-            foreach ($selectedAgents as $agent) {
-                $filename = strtoupper(str_replace(' ', '_', $agent)) . '.md';
-                if ($agent === 'Cursor') $filename = 'CURSOR.md';
-                if ($agent === 'Gemini CLI') $filename = 'GEMINI.md';
-                if ($agent === 'Claude Code') $filename = 'CLAUDE.md';
-                info("✓ Configured {$agent} ({$filename})");
+        $toInstall = array_diff($selectedFeatures, $installedFeatures);
+        $toRemove = array_diff($installedFeatures, $selectedFeatures);
+        $toUpdate = array_intersect($selectedFeatures, $installedFeatures);
+        $modulesToInstall = array_diff($selectedModules, $installedModules);
+        $modulesToRemove = array_diff($installedModules, $selectedModules);
+        $agentsToInstall = array_diff($selectedAgents, $installedAgents);
+        $agentsToRemove = array_diff($installedAgents, $selectedAgents);
+
+        foreach ($toRemove as $featureToRemove) {
+            $output->writeln("  <fg=red>✗ Removing {$featureToRemove}...</>");
+            $manager->uninstallFeature($featureToRemove);
+        }
+
+        foreach ($toInstall as $featureToInstall) {
+            $output->writeln("  <fg=green>✓ Installing {$featureToInstall}...</>");
+        }
+
+        if (!empty($toInstall) || !empty($toUpdate) || !empty($modulesToInstall) || !empty($modulesToRemove)) {
+            spin(function () use ($manager, $selectedFeatures, $selectedModules, $selectedAgents) {
+                $manager->sync($selectedFeatures, $selectedModules, $selectedAgents);
+            }, 'Syncing Boost configuration...');
+            $output->writeln("  <fg=green>✓ Sync complete</>\n");
+        }
+
+        foreach ($agentsToInstall as $agent) {
+            $filename = strtoupper(str_replace(' ', '_', $agent)) . '.md';
+            if ($agent === 'Cursor') $filename = 'CURSOR.md';
+            if ($agent === 'Gemini CLI') $filename = 'GEMINI.md';
+            if ($agent === 'Claude Code') $filename = 'CLAUDE.md';
+            $output->writeln("  <fg=green>✓ Configured {$agent} ({$filename})</>");
+        }
+
+        foreach ($agentsToRemove as $agent) {
+            $filename = strtoupper(str_replace(' ', '_', $agent)) . '.md';
+            if ($agent === 'Cursor') $filename = 'CURSOR.md';
+            if ($agent === 'Gemini CLI') $filename = 'GEMINI.md';
+            if ($agent === 'Claude Code') $filename = 'CLAUDE.md';
+            $agentFile = getcwd() . '/' . $filename;
+            if (file_exists($agentFile)) {
+                unlink($agentFile);
             }
+            $output->writeln("  <fg=red>✗ Removed {$agent} ({$filename})</>");
         }
 
-        if (in_array('Boost MCP Server Configuration', $features)) {
-            note("MCP Server is available via: ./vendor/bin/wire boost:mcp");
-        }
-
-        if ($feature === 'Agent Skills') {
+        if (in_array('Agent Skills', $selectedFeatures)) {
             if (in_array('Trae', $selectedAgents)) {
                 $sb = new SkillBuilder($projectRoot);
                 $trae = new TraeAgent();
                 spin(fn() => $sb->exportForAgent($trae, null, $projectRoot . '/.trae/skills'), 'Exporting Trae skills...');
-                info('Trae skills exported');
+                $output->writeln("  <fg=green>✓ Trae skills exported</>");
             }
-
             if (in_array('OpenCode', $selectedAgents)) {
                 $sb = new SkillBuilder($projectRoot);
                 $opencode = new OpenCodeAgent();
                 spin(fn() => $sb->exportForAgent($opencode, null, $projectRoot . '/.ai/skills'), 'Exporting OpenCode skills...');
-                info('OpenCode skills exported');
+                $output->writeln("  <fg=green>✓ OpenCode skills exported</>");
             }
         }
 
-        if ($feature === 'Boost MCP Server Configuration' && !empty($selectedAgents)) {
+        if (in_array('Boost MCP Server Configuration', $selectedFeatures) && !empty($selectedAgents)) {
             $pathType = select(
                 label: 'Path type for MCP command?',
                 options: [
@@ -155,25 +205,24 @@ final class BoostInstallCommand extends Command
                         $agent->installMcp($key, $command, $args, []);
                     }
                 }, 'Writing agent MCP configurations...');
-                info('Agent MCP configurations completed');
+                $output->writeln("  <fg=green>✓ MCP configurations written</>");
             }
         }
 
-        $configPath = $projectRoot . '/.ai/boost.json';
         $aiDir = $projectRoot . '/.ai';
         if (!is_dir($aiDir)) {
             mkdir($aiDir, 0755, true);
         }
         $config = [
             'version' => '1.0.0',
-            'agents' => $selectedAgents,
-            'modules' => $selectedModules,
-            'features' => $features,
+            'features' => array_values($selectedFeatures),
+            'modules' => array_values($selectedModules),
+            'agents' => array_values($selectedAgents),
             'generated_at' => date('Y-m-d H:i:s'),
         ];
         file_put_contents($configPath, json_encode($config, JSON_PRETTY_PRINT));
 
-        $this->displaySummary($output, $feature, $selectedAgents, $selectedModules);
+        $this->displaySummary($output, $selectedFeatures, $selectedAgents, $selectedModules);
 
         $output->writeln("\n  ┌─────────────────────────────────────────────────────────────────┐");
         $output->writeln("  │  Enjoy the boost 🚀 Check your AI agent's MD file in root.      │");
@@ -182,55 +231,39 @@ final class BoostInstallCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function displaySummary(OutputInterface $output, string $feature, array $selectedAgents, array $selectedModules): void
+    private function displaySummary(OutputInterface $output, array $selectedFeatures, array $selectedAgents, array $selectedModules): void
     {
         $output->writeln("\n  ┌─────────────────────────────────────────────────────────────┐");
         $output->writeln("  │                    Installation Summary                    │");
         $output->writeln("  └─────────────────────────────────────────────────────────────┘\n");
 
-        $guidelineCount = count(glob(getcwd() . '/.ai/guidelines/*.md')) ?: 0;
-        $skillCount = count(glob(getcwd() . '/.ai/skills/pw_core/*/SKILL.md')) ?: 0;
+        $projectRoot = getcwd();
+        $guidelineCount = count(glob($projectRoot . '/.ai/guidelines/*.md')) ?: 0;
+        $skillCount = count(glob($projectRoot . '/.ai/skills/pw_core/*/SKILL.md')) ?: 0;
         $agentsWithSkills = [];
         if (in_array('Trae', $selectedAgents)) $agentsWithSkills[] = 'Trae';
         if (in_array('OpenCode', $selectedAgents)) $agentsWithSkills[] = 'OpenCode';
 
-        $output->writeln("  📋 <fg=yellow>Feature:</> {$feature}\n");
+        $output->writeln("  📋 <fg=yellow>Installed Features:</> " . implode(', ', $selectedFeatures) . "\n");
 
-        if ($feature === 'AI Guidelines') {
-            $output->writeln("  ✅ Adding <fg=green>{$guidelineCount}</> guidelines to your selected agents:");
-            if (!empty($selectedAgents)) {
-                foreach ($selectedAgents as $agent) {
-                    $output->writeln("     • {$agent}");
-                }
-            } else {
-                $output->writeln("     <fg=gray>(none selected)</>");
-            }
+        if (in_array('AI Guidelines', $selectedFeatures)) {
+            $output->writeln("  ✅ <fg=green>{$guidelineCount}</> guidelines installed");
         }
 
-        if ($feature === 'Agent Skills') {
-            $output->writeln("  ✅ Syncing <fg=green>{$skillCount}</> skills for skills-capable agents:");
-            if (!empty($agentsWithSkills)) {
-                foreach ($agentsWithSkills as $agent) {
-                    $output->writeln("     • {$agent}");
-                }
-            } else {
-                $output->writeln("     <fg=gray>(none selected)</>");
-            }
+        if (in_array('Agent Skills', $selectedFeatures)) {
+            $output->writeln("  ✅ <fg=green>{$skillCount}</> skills synced");
         }
 
-        if ($feature === 'Boost MCP Server Configuration') {
-            $output->writeln("  ✅ Installing MCP servers to your selected agents:");
-            if (!empty($selectedAgents)) {
-                foreach ($selectedAgents as $agent) {
-                    $output->writeln("     • {$agent}");
-                }
-            } else {
-                $output->writeln("     <fg=gray>(none selected)</>");
-            }
+        if (in_array('Boost MCP Server Configuration', $selectedFeatures)) {
+            $output->writeln("  ✅ MCP servers configured");
         }
 
         if (!empty($selectedModules)) {
-            $output->writeln("\n  📦 Third-party modules processed: " . count($selectedModules));
+            $output->writeln("\n  📦 <fg=yellow>Third-party modules:</> " . implode(', ', $selectedModules));
+        }
+
+        if (!empty($selectedAgents)) {
+            $output->writeln("\n  🤖 <fg=yellow>AI Agents:</> " . implode(', ', $selectedAgents));
         }
 
         $output->writeln("");

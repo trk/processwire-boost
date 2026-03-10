@@ -388,4 +388,56 @@ final class BoostManager
         }
         return rmdir($dir);
     }
+
+    public function uninstallFeature(string $feature): void
+    {
+        if (!is_dir($this->targetDir)) {
+            return;
+        }
+
+        switch ($feature) {
+            case 'AI Guidelines':
+                $this->clearDirectory($this->targetDir . '/guidelines');
+                break;
+            case 'Blueprints':
+                $this->clearDirectory($this->targetDir . '/blueprints');
+                break;
+            case 'Agent Skills':
+                $this->clearDirectory($this->targetDir . '/skills');
+                break;
+        }
+    }
+
+    public function sync(array $features, array $modules, array $agents): void
+    {
+        if (!is_dir($this->targetDir)) {
+            mkdir($this->targetDir, 0755, true);
+        }
+
+        $this->generateMap($this->targetDir . '/map.json');
+
+        if (in_array('AI Guidelines', $features)) {
+            $this->clearDirectory($this->targetDir . '/guidelines');
+            $this->exportCoreResources($this->targetDir . '/guidelines', 'guidelines');
+        }
+
+        if (in_array('Blueprints', $features)) {
+            $this->clearDirectory($this->targetDir . '/blueprints');
+            $this->exportCoreResources($this->targetDir . '/blueprints', 'blueprints');
+        }
+
+        if (in_array('Agent Skills', $features)) {
+            $this->clearDirectory($this->targetDir . '/skills');
+            $this->exportCoreResources($this->targetDir . '/skills', 'skills');
+        }
+
+        $availableModules = $this->getDiscoverableModules();
+        foreach ($modules as $moduleName) {
+            if (isset($availableModules[$moduleName])) {
+                $this->aggregateResources($availableModules[$moduleName]['path'], $features);
+            }
+        }
+
+        $this->generateAgentFiles($agents, $features, $modules);
+    }
 }
