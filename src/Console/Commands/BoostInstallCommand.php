@@ -21,7 +21,6 @@ use Totoglu\ProcessWire\Boost\Install\Agents\Trae as TraeAgent;
 use function Laravel\Prompts\multiselect;
 use function Laravel\Prompts\select;
 use function Laravel\Prompts\intro;
-use function Laravel\Prompts\outro;
 use function Laravel\Prompts\spin;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
