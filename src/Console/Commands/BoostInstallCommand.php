@@ -76,16 +76,14 @@ final class BoostInstallCommand extends Command
 
         $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
         
-        $defaults = [];
-        foreach ($agentChoices as $agent) {
-            $filename = strtoupper(str_replace(' ', '_', $agent)) . '.md';
-            if ($agent === 'Cursor') $filename = 'CURSOR.md';
-            if ($agent === 'Gemini CLI') $filename = 'GEMINI.md';
-            if ($agent === 'Claude Code') $filename = 'CLAUDE.md';
-            if (file_exists($projectRoot . '/' . $filename)) {
-                $defaults[] = $agent;
-            }
+        $configPath = $projectRoot . '/.ai/boost.json';
+        $savedAgents = [];
+        if (file_exists($configPath)) {
+            $config = json_decode(file_get_contents($configPath) ?: '', true);
+            $savedAgents = $config['agents'] ?? [];
         }
+        
+        $defaults = !empty($savedAgents) ? $savedAgents : [];
         if (empty($defaults)) {
             $defaults = ['Cursor', 'Gemini CLI'];
         }
@@ -214,6 +212,20 @@ final class BoostInstallCommand extends Command
             info('OpenCode skills exported');
         }
 
+        $configPath = $projectRoot . '/.ai/boost.json';
+        $aiDir = $projectRoot . '/.ai';
+        if (!is_dir($aiDir)) {
+            mkdir($aiDir, 0755, true);
+        }
+        $config = [
+            'version' => '1.0.0',
+            'agents' => $selectedAgents,
+            'features' => $features,
+            'modules' => $selectedModules,
+            'generated_at' => date('Y-m-d H:i:s'),
+        ];
+        file_put_contents($configPath, json_encode($config, JSON_PRETTY_PRINT));
+        
         outro('Enjoy the boost 🚀 Check your AI agent\'s MD file in root.');
         return Command::SUCCESS;
     }
