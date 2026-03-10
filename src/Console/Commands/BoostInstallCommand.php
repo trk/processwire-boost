@@ -174,8 +174,65 @@ final class BoostInstallCommand extends Command
         ];
         file_put_contents($configPath, json_encode($config, JSON_PRETTY_PRINT));
 
+        $this->displaySummary($output, $feature, $selectedAgents, $selectedModules);
+
         outro('Enjoy the boost 🚀 Check your AI agent\'s MD file in root.');
+        $output->writeln("\n  📦 <fg=cyan>https://github.com/trk/processwire-boost/</>\n");
         return Command::SUCCESS;
+    }
+
+    private function displaySummary(OutputInterface $output, string $feature, array $selectedAgents, array $selectedModules): void
+    {
+        $output->writeln("\n  ┌─────────────────────────────────────────────────────────────┐");
+        $output->writeln("  │                    Installation Summary                    │");
+        $output->writeln("  └─────────────────────────────────────────────────────────────┘\n");
+
+        $guidelineCount = count(glob(getcwd() . '/.ai/guidelines/*.md')) ?: 0;
+        $skillCount = count(glob(getcwd() . '/.ai/skills/pw_core/*/SKILL.md')) ?: 0;
+        $agentsWithSkills = [];
+        if (in_array('Trae', $selectedAgents)) $agentsWithSkills[] = 'Trae';
+        if (in_array('OpenCode', $selectedAgents)) $agentsWithSkills[] = 'OpenCode';
+
+        $output->writeln("  📋 <fg=yellow>Feature:</> {$feature}\n");
+
+        if ($feature === 'AI Guidelines') {
+            $output->writeln("  ✅ Adding <fg=green>{$guidelineCount}</> guidelines to your selected agents:");
+            if (!empty($selectedAgents)) {
+                foreach ($selectedAgents as $agent) {
+                    $output->writeln("     • {$agent}");
+                }
+            } else {
+                $output->writeln("     <fg=gray>(none selected)</>");
+            }
+        }
+
+        if ($feature === 'Agent Skills') {
+            $output->writeln("  ✅ Syncing <fg=green>{$skillCount}</> skills for skills-capable agents:");
+            if (!empty($agentsWithSkills)) {
+                foreach ($agentsWithSkills as $agent) {
+                    $output->writeln("     • {$agent}");
+                }
+            } else {
+                $output->writeln("     <fg=gray>(none selected)</>");
+            }
+        }
+
+        if ($feature === 'Boost MCP Server Configuration') {
+            $output->writeln("  ✅ Installing MCP servers to your selected agents:");
+            if (!empty($selectedAgents)) {
+                foreach ($selectedAgents as $agent) {
+                    $output->writeln("     • {$agent}");
+                }
+            } else {
+                $output->writeln("     <fg=gray>(none selected)</>");
+            }
+        }
+
+        if (!empty($selectedModules)) {
+            $output->writeln("\n  📦 Third-party modules processed: " . count($selectedModules));
+        }
+
+        $output->writeln("");
     }
 
     private function displayBanner(): void
