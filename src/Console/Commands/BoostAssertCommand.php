@@ -70,7 +70,7 @@ final class BoostAssertCommand extends Command
             if (!$skillFiles) $errors[] = 'No SKILL.md files found';
             foreach (array_slice($skillFiles, 0, 6) as $sf) {
                 $s = file_get_contents($sf) ?: '';
-                $sections = ['# ','## Blueprints','## Steps','## Request','## Response','## Example','## Compatibility'];
+                $sections = ['# ','## Overview','## Methods'];
                 foreach ($sections as $sec) {
                     if (strpos($s, $sec) === false) $errors[] = basename(dirname($sf)).": missing section {$sec}";
                 }
