@@ -16,7 +16,7 @@ final class BoostAssertCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('boost:assert')->setDescription('Validate quality of guides, blueprints and skills for AI agents.');
+        $this->setName('boost:assert')->setDescription('Validate quality of guides and skills for AI agents.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -40,28 +40,6 @@ final class BoostAssertCommand extends Command
             }
         }
 
-        $bpDir = $root.'/.ai/blueprints/pw_core';
-        if (!is_dir($bpDir)) {
-            $errors[] = 'Missing .ai/blueprints/pw_core directory';
-        } else {
-            $files = glob($bpDir.'/*.json') ?: [];
-            if (count($files) < 20) $errors[] = 'Blueprint coverage too low (<20 files)';
-            $checkSome = array_slice($files, 0, 10);
-            foreach ($checkSome as $f) {
-                $json = json_decode(file_get_contents($f) ?: '', true);
-                if (!is_array($json)) { $errors[] = "Invalid JSON: ".basename($f); continue; }
-                foreach (['id','name','kind','summary','className','sourcePath','methods'] as $k) {
-                    if (!array_key_exists($k, $json)) $errors[] = basename($f).": missing key {$k}";
-                }
-                if (!is_array($json['methods'] ?? null)) $errors[] = basename($f).": methods not array";
-                if (!array_key_exists('since',$json)) $errors[] = basename($f).": missing top-level since";
-                if (isset($json['methods'][0])) {
-                    $m = $json['methods'][0];
-                    if (!array_key_exists('since',$m)) $errors[] = basename($f).": first method missing since";
-                }
-            }
-        }
-
         $skillsDir = $root.'/.ai/skills/pw_core';
         if (!is_dir($skillsDir)) {
             $errors[] = 'Missing .ai/skills/pw_core directory';
@@ -76,11 +54,6 @@ final class BoostAssertCommand extends Command
                 }
                 $bad = ['Ç','Ğ','Ş','İ','Ü','Ö','Örnek','Adımlar','İstek','Yanıt'];
                 foreach ($bad as $b) { if (strpos($s, $b) !== false) { $errors[] = basename(dirname($sf)).": non-English token {$b}"; break; } }
-                if (preg_match_all('#- \.ai/blueprints/pw_core/([^/\s]+)\.json#', $s, $m)) {
-                    foreach ($m[1] as $bp) {
-                        if (!is_file($bpDir.'/'.$bp.'.json')) $errors[] = basename(dirname($sf)).": missing referenced blueprint {$bp}.json";
-                    }
-                }
             }
         }
 
@@ -89,7 +62,7 @@ final class BoostAssertCommand extends Command
             return Command::FAILURE;
         }
 
-        note('All assertions passed for guide, blueprints, and skills.');
+        note('All assertions passed for guide and skills.');
         info('Quality looks good for AI agents.');
         outro('Done');
         return Command::SUCCESS;
