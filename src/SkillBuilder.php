@@ -44,7 +44,7 @@ final class SkillBuilder
         if ($agent) {
             $defaultDir = match ($agent->name()) {
                 'trae' => $this->projectRoot . '/.trae/skills',
-                'opencode' => $this->projectRoot . '/.ai/skills',
+                'opencode' => $this->projectRoot . '/.opencode/skills',
                 default => $this->projectRoot . '/.ai/skills/' . $agent->name(),
             };
         } else {

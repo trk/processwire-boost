@@ -218,7 +218,7 @@ final class BoostInstallCommand extends Command
             if (in_array('OpenCode', $selectedAgents)) {
                 $sb = new SkillBuilder($projectRoot);
                 $opencode = new OpenCodeAgent();
-                spin(fn() => $sb->exportForAgent($opencode, null, $projectRoot . '/.ai/skills'), 'Exporting OpenCode skills...');
+                spin(fn() => $sb->exportForAgent($opencode, null, $projectRoot . '/.opencode/skills'), 'Exporting OpenCode skills...');
                 $output->writeln("  <fg=green>✓ OpenCode skills exported</>");
             }
         }

@@ -38,12 +38,28 @@ final class OpenCode extends Agent
 
     public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
     {
-        if (!is_dir($targetDir)) {
-            mkdir($targetDir, 0755, true);
+        $skillDir = $targetDir . '/' . $skillName;
+        if (!is_dir($skillDir)) {
+            mkdir($skillDir, 0755, true);
         }
-        $targetPath = $targetDir . '/' . $skillName . '.md';
-        copy($skillPath, $targetPath);
+        $targetPath = $skillDir . '/SKILL.md';
+        $content = file_get_contents($skillPath);
+        $frontmatter = $this->buildFrontmatter($skillName, $skillPath);
+        file_put_contents($targetPath, $frontmatter . "\n" . $content);
         return $targetPath;
+    }
+
+    private function buildFrontmatter(string $skillName, string $skillPath): string
+    {
+        $description = pathinfo($skillPath, PATHINFO_FILENAME);
+        $description = str_replace('_', ' ', $description);
+        $description = ucwords($description);
+        
+        return <<<FRONT
+---
+name: {$skillName}
+description: {$description}
+FRONT;
     }
 }
 
