@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Totoglu\ProcessWire\Boost\Console\Commands;
 
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Totoglu\ProcessWire\Boost\BoostManager;
 use Totoglu\ProcessWire\Boost\SkillBuilder;
@@ -31,7 +33,10 @@ final class BoostInstallCommand extends Command
     {
         $this
             ->setName('boost:install')
-            ->setDescription('Manage AI helper setup (ProcessWire Boost). Select features to install/update, deselect to remove.');
+            ->setDescription('Manage AI helper setup (ProcessWire Boost). Select features to install/update, deselect to remove.')
+            ->addOption('feature', 'f', InputOption::VALUE_OPTIONAL, 'Feature to install (AI Guidelines, Agent Skills, Boost MCP Server Configuration)')
+            ->addOption('modules', 'm', InputOption::VALUE_OPTIONAL, 'Comma-separated modules to install')
+            ->addOption('agents', 'a', InputOption::VALUE_OPTIONAL, 'Comma-separated agents to configure');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -53,19 +58,27 @@ final class BoostInstallCommand extends Command
         $installedAgents = $config['agents'] ?? [];
 
         $allFeatures = ['AI Guidelines', 'Agent Skills', 'Boost MCP Server Configuration'];
-        $featureOptions = array_combine($allFeatures, $allFeatures);
 
-        $selectedFeatures = [select(
-            label: 'Which Boost feature would you like to configure first?',
-            options: $featureOptions,
-            default: $installedFeatures[0] ?? 'AI Guidelines'
-        )];
+        $featureOpt = $input->getOption('feature');
+        if ($featureOpt) {
+            $selectedFeatures = [in_array($featureOpt, $allFeatures) ? $featureOpt : 'AI Guidelines'];
+        } else {
+            $featureOptions = array_combine($allFeatures, $allFeatures);
+            $selectedFeatures = [select(
+                label: 'Which Boost feature would you like to configure first?',
+                options: $featureOptions,
+                default: $installedFeatures[0] ?? 'AI Guidelines'
+            )];
+        }
 
         $availableModules = $manager->getDiscoverableModules();
         $moduleChoices = array_keys($availableModules);
 
         $selectedModules = [];
-        if (!empty($moduleChoices)) {
+        $modulesOpt = $input->getOption('modules');
+        if ($modulesOpt) {
+            $selectedModules = array_filter(array_map('trim', explode(',', $modulesOpt)));
+        } elseif (!empty($moduleChoices)) {
             $moduleOptions = [];
             foreach ($moduleChoices as $m) {
                 $moduleOptions[$m] = $m;
@@ -77,22 +90,28 @@ final class BoostInstallCommand extends Command
                 hint: 'Select to install, deselect to remove.',
                 required: false
             );
-        } else {
+        } elseif (!empty($moduleChoices)) {
             note('No third-party modules with Boost resources detected.');
         }
 
         $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
-        $agentOptions = [];
-        foreach ($agentChoices as $a) {
-            $agentOptions[$a] = $a;
+        
+        $selectedAgents = [];
+        $agentsOpt = $input->getOption('agents');
+        if ($agentsOpt) {
+            $selectedAgents = array_filter(array_map('trim', explode(',', $agentsOpt)));
+        } else {
+            $agentOptions = [];
+            foreach ($agentChoices as $a) {
+                $agentOptions[$a] = $a;
+            }
+            $selectedAgents = multiselect(
+                label: 'Which AI agents would you like to configure?',
+                options: $agentOptions,
+                default: $installedAgents,
+                required: false
+            );
         }
-
-        $selectedAgents = multiselect(
-            label: 'Which AI agents would you like to configure?',
-            options: $agentOptions,
-            default: $installedAgents,
-            required: false
-        );
 
         $output->writeln("\n  <fg=yellow>Processing changes...</>\n");
 
