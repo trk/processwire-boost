@@ -19,6 +19,8 @@
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\McpCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildGuidesCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildSkillsCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostAddSkillCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostUpdateCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostScanCoreCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostScanModulesCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostScanAllCommand",
