@@ -18,5 +18,34 @@ final class Trae extends Agent
     {
         return '.trae/mcp.json';
     }
+
+    public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
+    {
+        if (!is_dir($targetDir)) {
+            mkdir($targetDir, 0755, true);
+        }
+        $raw = (string)file_get_contents($skillPath);
+        $lines = preg_split('/\R/', $raw);
+        $title = '';
+        $desc = '';
+        foreach ($lines as $i => $line) {
+            if ($i === 0 && str_starts_with(trim($line), '#')) {
+                $title = trim(ltrim(trim($line), '# '));
+            }
+            if (str_starts_with(trim($line), 'description:')) {
+                $desc = trim(substr(trim($line), strlen('description:')));
+            }
+        }
+        $skillDir = $targetDir . '/' . $skillName;
+        if (!is_dir($skillDir)) mkdir($skillDir, 0755, true);
+        $targetPath = $skillDir . '/SKILL.md';
+        $frontmatter = "---\nname: \"{$skillName}\"\ndescription: \"" . addcslashes($desc !== '' ? $desc : $title, "\"") . "\"\n---\n\n";
+        $body = $raw;
+        if (!str_starts_with(ltrim($body), '#')) {
+            $body = "# {$title}\n\n" . $body;
+        }
+        file_put_contents($targetPath, $frontmatter . $body);
+        return $targetPath;
+    }
 }
 

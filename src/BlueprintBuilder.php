@@ -24,6 +24,7 @@ final class BlueprintBuilder
                 'className' => $fqcn,
                 'sourcePath' => 'wire/core/' . ($meta['file'] ?? ''),
                 'since' => $meta['since'] ?? null,
+                'related_classes' => $meta['related_classes'] ?? [],
                 'methods' => $this->formatMethods($meta['methods'] ?? []),
             ];
             $path = rtrim($targetDir, '/') . '/' . $name . '.json';
@@ -47,6 +48,13 @@ final class BlueprintBuilder
             $out[] = [
                 'name' => $name,
                 'description' => $m['summary'] ?? '',
+                'pw_group' => $m['pw_group'] ?? null,
+                'pw_body' => $m['pw_body'] ?? null,
+                'pw_internal' => (bool)($m['pw_internal'] ?? false),
+                'pw_hooker' => (bool)($m['pw_hooker'] ?? false),
+                'synthesized' => (bool)($m['synthesized'] ?? false),
+                'related_classes' => $m['related_classes'] ?? [],
+                'return_class' => $m['return_class'] ?? null,
                 'params' => $m['params'] ?? [],
                 'return' => $m['return'] ?? null,
                 'deprecated' => (bool)($m['deprecated'] ?? false),

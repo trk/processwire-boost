@@ -36,5 +36,15 @@ abstract class Agent
         $w = new FileWriter($path, $this->defaultMcpConfig());
         return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env))->save();
     }
+
+    public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
+    {
+        if (!is_dir($targetDir)) {
+            mkdir($targetDir, 0755, true);
+        }
+        $targetPath = $targetDir . '/' . $skillName . '/SKILL.md';
+        copy($skillPath, $targetPath);
+        return $targetPath;
+    }
 }
 

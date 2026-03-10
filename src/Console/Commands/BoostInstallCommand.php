@@ -127,7 +127,7 @@ final class BoostInstallCommand extends Command
             }
             if ($generateLocal === 'skill' || $generateLocal === 'both') {
                 $sb = new SkillBuilder($projectRoot);
-                spin(fn() => $sb->buildFromSources(null), 'Generating skills...');
+                spin(fn() => $sb->exportForAgent(null, null, $projectRoot . '/.ai/skills/pw_core'), 'Generating skills...');
                 info('Skills generated');
             }
         }
@@ -187,8 +187,16 @@ final class BoostInstallCommand extends Command
 
         if (in_array('Trae', $selectedAgents)) {
             $sb = new SkillBuilder($projectRoot);
-            spin(fn() => $sb->exportForTrae(null, $projectRoot.'/.trae/skills'), 'Exporting Trae skills...');
+            $trae = new TraeAgent();
+            spin(fn() => $sb->exportForAgent($trae, null, $projectRoot . '/.trae/skills'), 'Exporting Trae skills...');
             info('Trae skills exported');
+        }
+
+        if (in_array('OpenCode', $selectedAgents)) {
+            $sb = new SkillBuilder($projectRoot);
+            $opencode = new OpenCodeAgent();
+            spin(fn() => $sb->exportForAgent($opencode, null, $projectRoot . '/.ai/skills'), 'Exporting OpenCode skills...');
+            info('OpenCode skills exported');
         }
 
         outro('Enjoy the boost 🚀 Check your AI agent\'s MD file in root.');

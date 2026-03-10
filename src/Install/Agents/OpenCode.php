@@ -35,5 +35,15 @@ final class OpenCode extends Agent
             'environment' => $env,
         ];
     }
+
+    public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
+    {
+        if (!is_dir($targetDir)) {
+            mkdir($targetDir, 0755, true);
+        }
+        $targetPath = $targetDir . '/' . $skillName . '.md';
+        copy($skillPath, $targetPath);
+        return $targetPath;
+    }
 }
 

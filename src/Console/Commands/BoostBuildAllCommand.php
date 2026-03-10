@@ -11,7 +11,9 @@ use Totoglu\ProcessWire\Boost\ConfigReader;
 use Totoglu\ProcessWire\Boost\DocIndex;
 use Totoglu\ProcessWire\Boost\BlueprintBuilder;
 use Totoglu\ProcessWire\Boost\GuideBuilder;
+use Totoglu\ProcessWire\Boost\GuidelineBuilder;
 use Totoglu\ProcessWire\Boost\SkillBuilder;
+use Totoglu\ProcessWire\Boost\MasterArchitectNotes;
 use Totoglu\ProcessWire\Boost\SeedMerger;
 use function Laravel\Prompts\intro;
 use function Laravel\Prompts\outro;
@@ -34,10 +36,27 @@ final class BoostBuildAllCommand extends Command
         $excludes = $cfg['excludes'] ?? [];
 
         $index = [];
-        spin(function () use (&$index, $projectRoot, $includes, $excludes) {
-            $doc = new DocIndex($projectRoot);
-            $index = $doc->scanPaths($includes, $excludes);
+        $docIndex = null;
+        spin(function () use (&$index, &$docIndex, $projectRoot, $includes, $excludes) {
+            $docIndex = new DocIndex($projectRoot);
+            $index = $docIndex->scanPaths($includes, $excludes);
         }, 'Scanning sources...');
+        info('Sources scanned');
+
+        spin(function () use ($index, $docIndex, $projectRoot) {
+            $notes = new MasterArchitectNotes($projectRoot);
+            $notes->setData(
+                $index,
+                $docIndex->getDiscoveredTags(),
+                $docIndex->getSynthesizedMethods(),
+                $docIndex->getClassRelationships()
+            );
+            $content = $notes->generate();
+            $dir = $projectRoot . '/.ai';
+            if (!is_dir($dir)) mkdir($dir, 0755, true);
+            file_put_contents($dir . '/master_architect_notes.md', $content);
+        }, 'Generating Master Architect Notes...');
+        info('Master Architect Notes generated');
 
         spin(function () use ($index, $projectRoot) {
             $bb = new BlueprintBuilder($projectRoot);
@@ -51,11 +70,23 @@ final class BoostBuildAllCommand extends Command
         }, 'Building guide...');
         info('Guide built');
 
+        spin(function () use ($index, $projectRoot) {
+            $glb = new GuidelineBuilder($projectRoot);
+            $glb->build($index, $projectRoot.'/.ai/guidelines/pw_core_guidelines.md');
+        }, 'Building guidelines...');
+        info('Guidelines built');
+
+        spin(function () use ($index, $projectRoot) {
+            $sb = new SkillBuilder($projectRoot);
+            $sb->buildSkillsFromGroups($index, $projectRoot . '/.ai/skills/pw_core');
+        }, 'Building skills from groups...');
+        info('Group skills built');
+
         spin(function () use ($projectRoot) {
             $sb = new SkillBuilder($projectRoot);
             $sb->buildFromSources(null);
-        }, 'Building skills...');
-        info('Skills built');
+        }, 'Building skills from sources...');
+        info('Source skills built');
 
         spin(function () use ($cfg, $projectRoot) {
             $sm = new SeedMerger($projectRoot);
