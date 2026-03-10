@@ -83,15 +83,10 @@ final class BoostInstallCommand extends Command
             $savedAgents = $config['agents'] ?? [];
         }
         
-        $defaults = !empty($savedAgents) ? $savedAgents : [];
-        if (empty($defaults)) {
-            $defaults = ['Cursor', 'Gemini CLI'];
-        }
-        
         $selectedAgents = multiselect(
             label: 'Which AI agents would you like to configure?',
             options: array_combine($agentChoices, $agentChoices),
-            default: $defaults,
+            default: $savedAgents,
             required: false
         );
 
