@@ -49,6 +49,8 @@ final class BoostInstallCommand extends Command
             $config = array_merge($config, json_decode(file_get_contents($configPath) ?: '{}', true) ?: []);
         }
         $installedFeatures = $config['features'] ?? [];
+        $installedModules = $config['modules'] ?? [];
+        $installedAgents = $config['agents'] ?? [];
 
         $allFeatures = ['AI Guidelines', 'Agent Skills', 'Boost MCP Server Configuration'];
         $featureOptions = array_combine($allFeatures, $allFeatures);
@@ -61,15 +63,8 @@ final class BoostInstallCommand extends Command
             required: false
         );
 
-        $feature = select(
-            label: 'Which feature would you like to configure first?',
-            options: $selectedFeatures,
-            default: $selectedFeatures[0] ?? 'AI Guidelines'
-        );
-
         $availableModules = $manager->getDiscoverableModules();
         $moduleChoices = array_keys($availableModules);
-        $installedModules = $config['modules'] ?? [];
 
         $selectedModules = [];
         if (!empty($moduleChoices)) {
@@ -86,8 +81,6 @@ final class BoostInstallCommand extends Command
         }
 
         $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
-        $installedAgents = $config['agents'] ?? [];
-
         $agentOptions = array_combine($agentChoices, $agentChoices);
 
         $selectedAgents = multiselect(
