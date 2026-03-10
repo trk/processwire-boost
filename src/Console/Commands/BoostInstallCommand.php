@@ -75,10 +75,25 @@ final class BoostInstallCommand extends Command
         }
 
         $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
+        
+        $defaults = [];
+        foreach ($agentChoices as $agent) {
+            $filename = strtoupper(str_replace(' ', '_', $agent)) . '.md';
+            if ($agent === 'Cursor') $filename = 'CURSOR.md';
+            if ($agent === 'Gemini CLI') $filename = 'GEMINI.md';
+            if ($agent === 'Claude Code') $filename = 'CLAUDE.md';
+            if (file_exists($projectRoot . '/' . $filename)) {
+                $defaults[] = $agent;
+            }
+        }
+        if (empty($defaults)) {
+            $defaults = ['Cursor', 'Gemini CLI'];
+        }
+        
         $selectedAgents = multiselect(
             label: 'Which AI agents would you like to configure?',
             options: array_combine($agentChoices, $agentChoices),
-            default: ['Cursor', 'Gemini CLI'],
+            default: $defaults,
             required: false
         );
 
