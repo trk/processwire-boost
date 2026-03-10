@@ -66,7 +66,10 @@ final class BoostInstallCommand extends Command
 
         $selectedModules = [];
         if (!empty($moduleChoices)) {
-            $moduleOptions = array_combine($moduleChoices, $moduleChoices);
+            $moduleOptions = [];
+            foreach ($moduleChoices as $m) {
+                $moduleOptions[$m] = $m;
+            }
             $selectedModules = multiselect(
                 label: 'Which third-party AI guidelines/skills would you like to install?',
                 options: $moduleOptions,
@@ -79,7 +82,10 @@ final class BoostInstallCommand extends Command
         }
 
         $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
-        $agentOptions = array_combine($agentChoices, $agentChoices);
+        $agentOptions = [];
+        foreach ($agentChoices as $a) {
+            $agentOptions[$a] = $a;
+        }
 
         $selectedAgents = multiselect(
             label: 'Which AI agents would you like to configure?',
