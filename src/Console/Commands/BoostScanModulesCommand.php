@@ -13,24 +13,23 @@ use function Laravel\Prompts\intro;
 use function Laravel\Prompts\outro;
 use function Laravel\Prompts\info;
 
-final class BoostApiScanCommand extends Command
+final class BoostScanModulesCommand extends Command
 {
     protected function configure(): void
     {
         $this
-            ->setName('boost:api:scan')
-            ->setDescription('Scan core classes and print a summary');
+            ->setName('boost:scan:modules')
+            ->setDescription('Scan wire/modules classes and print a summary');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        intro('ProcessWire Boost :: API Scan');
+        intro('ProcessWire Boost :: Scan Modules');
         $projectRoot = getcwd();
         $cfg = (new ConfigReader($projectRoot))->read('.ai/docgen.yml');
-        $includes = $cfg['includes'] ?? ['wire/core','wire/modules','site/modules'];
         $excludes = $cfg['excludes'] ?? [];
         $doc = new DocIndex($projectRoot);
-        $index = $doc->scanPaths($includes, $excludes);
+        $index = $doc->scanPath('wire/modules', $excludes);
         $output->writeln('Classes: '.count($index));
         $n = 0;
         foreach ($index as $fqcn => $meta) {
