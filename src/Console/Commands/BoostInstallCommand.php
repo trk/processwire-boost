@@ -29,14 +29,27 @@ use function Laravel\Prompts\note;
 
 final class BoostInstallCommand extends Command
 {
+    private const FEATURES = [
+        'guidelines' => 'AI Guidelines',
+        'skills' => 'Agent Skills',
+        'mcp' => 'Boost MCP Server Configuration',
+    ];
+
     protected function configure(): void
     {
         $this
             ->setName('boost:install')
             ->setDescription('Manage AI helper setup (ProcessWire Boost). Select features to install/update, deselect to remove.')
-            ->addOption('feature', 'f', InputOption::VALUE_OPTIONAL, 'Feature to install (AI Guidelines, Agent Skills, Boost MCP Server Configuration)')
+            ->addOption('guidelines', null, InputOption::VALUE_NONE, 'Install AI Guidelines')
+            ->addOption('skills', null, InputOption::VALUE_NONE, 'Install Agent Skills')
+            ->addOption('mcp', null, InputOption::VALUE_NONE, 'Install MCP Server Configuration')
             ->addOption('modules', 'm', InputOption::VALUE_OPTIONAL, 'Comma-separated modules to install')
             ->addOption('agents', 'a', InputOption::VALUE_OPTIONAL, 'Comma-separated agents to configure');
+    }
+
+    private function isExplicitFlagMode(InputInterface $input): bool
+    {
+        return $input->getOption('guidelines') || $input->getOption('skills') || $input->getOption('mcp');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -49,26 +62,49 @@ final class BoostInstallCommand extends Command
         $manager = new BoostManager($projectRoot);
         $configPath = $projectRoot . '/.ai/boost.json';
 
-        $config = ['version' => '1.0.0', 'features' => [], 'modules' => [], 'agents' => [], 'generated_at' => null];
+        $config = [
+            'version' => '1.0.0',
+            'guidelines' => false,
+            'skills' => false,
+            'mcp' => false,
+            'modules' => [],
+            'agents' => [],
+            'generated_at' => null,
+        ];
         if (file_exists($configPath)) {
             $config = array_merge($config, json_decode(file_get_contents($configPath) ?: '{}', true) ?: []);
         }
-        $installedFeatures = $config['features'] ?? [];
+        $installedFeatures = [
+            'guidelines' => $config['guidelines'] ?? false,
+            'skills' => $config['skills'] ?? false,
+            'mcp' => $config['mcp'] ?? false,
+        ];
         $installedModules = $config['modules'] ?? [];
         $installedAgents = $config['agents'] ?? [];
 
-        $allFeatures = ['AI Guidelines', 'Agent Skills', 'Boost MCP Server Configuration'];
+        $explicitMode = $this->isExplicitFlagMode($input);
 
-        $featureOpt = $input->getOption('feature');
-        if ($featureOpt) {
-            $selectedFeatures = [in_array($featureOpt, $allFeatures) ? $featureOpt : 'AI Guidelines'];
+        if ($explicitMode) {
+            $selectedFeatures = [];
+            if ($input->getOption('guidelines')) $selectedFeatures[] = 'guidelines';
+            if ($input->getOption('skills')) $selectedFeatures[] = 'skills';
+            if ($input->getOption('mcp')) $selectedFeatures[] = 'mcp';
         } else {
-            $featureOptions = array_combine($allFeatures, $allFeatures);
-            $selectedFeatures = [select(
-                label: 'Which Boost feature would you like to configure first?',
-                options: $featureOptions,
-                default: $installedFeatures[0] ?? 'AI Guidelines'
-            )];
+            $featureLabels = [];
+            foreach (self::FEATURES as $key => $label) {
+                $featureLabels[$key] = $label;
+            }
+            $defaults = [];
+            foreach (self::FEATURES as $key => $label) {
+                if ($installedFeatures[$key]) $defaults[] = $key;
+            }
+            if (empty($defaults)) $defaults = array_keys(self::FEATURES);
+            $selectedFeatures = multiselect(
+                label: 'Which Boost features would you like to configure?',
+                options: $featureLabels,
+                default: $defaults,
+                hint: 'This will configure the selected features',
+            );
         }
 
         $availableModules = $manager->getDiscoverableModules();
@@ -115,26 +151,39 @@ final class BoostInstallCommand extends Command
 
         $output->writeln("\n  <fg=yellow>Processing changes...</>\n");
 
-        $toInstall = array_diff($selectedFeatures, $installedFeatures);
-        $toRemove = array_diff($installedFeatures, $selectedFeatures);
-        $toUpdate = array_intersect($selectedFeatures, $installedFeatures);
+        $toInstall = [];
+        $toRemove = [];
+        foreach (self::FEATURES as $key => $label) {
+            $isSelected = in_array($key, $selectedFeatures);
+            $isInstalled = $installedFeatures[$key] ?? false;
+            if ($isSelected && !$isInstalled) {
+                $toInstall[] = $key;
+            } elseif (!$isSelected && $isInstalled) {
+                $toRemove[] = $key;
+            }
+        }
+
         $modulesToInstall = array_diff($selectedModules, $installedModules);
         $modulesToRemove = array_diff($installedModules, $selectedModules);
         $agentsToInstall = array_diff($selectedAgents, $installedAgents);
         $agentsToRemove = array_diff($installedAgents, $selectedAgents);
 
-        foreach ($toRemove as $featureToRemove) {
-            $output->writeln("  <fg=red>✗ Removing {$featureToRemove}...</>");
-            $manager->uninstallFeature($featureToRemove);
+        foreach ($toRemove as $featureKey) {
+            $output->writeln("  <fg=red>✗ Removing " . self::FEATURES[$featureKey] . "...</>");
+            $manager->uninstallFeature(self::FEATURES[$featureKey]);
         }
 
-        foreach ($toInstall as $featureToInstall) {
-            $output->writeln("  <fg=green>✓ Installing {$featureToInstall}...</>");
+        foreach ($toInstall as $featureKey) {
+            $output->writeln("  <fg=green>✓ Installing " . self::FEATURES[$featureKey] . "...</>");
         }
 
-        if (!empty($toInstall) || !empty($toUpdate) || !empty($modulesToInstall) || !empty($modulesToRemove)) {
-            spin(function () use ($manager, $selectedFeatures, $selectedModules, $selectedAgents) {
-                $manager->sync($selectedFeatures, $selectedModules, $selectedAgents);
+        if (!empty($toInstall) || !empty($toRemove) || !empty($modulesToInstall) || !empty($modulesToRemove)) {
+            $featureLabels = [];
+            foreach ($selectedFeatures as $key) {
+                $featureLabels[] = self::FEATURES[$key];
+            }
+            spin(function () use ($manager, $featureLabels, $selectedModules, $selectedAgents) {
+                $manager->sync($featureLabels, $selectedModules, $selectedAgents);
             }, 'Syncing Boost configuration...');
             $output->writeln("  <fg=green>✓ Sync complete</>\n");
         }
@@ -159,7 +208,7 @@ final class BoostInstallCommand extends Command
             $output->writeln("  <fg=red>✗ Removed {$agent} ({$filename})</>");
         }
 
-        if (in_array('Agent Skills', $selectedFeatures)) {
+        if (in_array('skills', $selectedFeatures)) {
             if (in_array('Trae', $selectedAgents)) {
                 $sb = new SkillBuilder($projectRoot);
                 $trae = new TraeAgent();
@@ -174,7 +223,7 @@ final class BoostInstallCommand extends Command
             }
         }
 
-        if (in_array('Boost MCP Server Configuration', $selectedFeatures) && !empty($selectedAgents)) {
+        if (in_array('mcp', $selectedFeatures) && !empty($selectedAgents)) {
             $pathType = select(
                 label: 'Path type for MCP command?',
                 options: [
@@ -214,13 +263,23 @@ final class BoostInstallCommand extends Command
         if (!is_dir($aiDir)) {
             mkdir($aiDir, 0755, true);
         }
-        $config = [
+
+        $newConfig = [
             'version' => '1.0.0',
-            'features' => array_values($selectedFeatures),
+            'guidelines' => in_array('guidelines', $selectedFeatures),
+            'skills' => in_array('skills', $selectedFeatures),
+            'mcp' => in_array('mcp', $selectedFeatures),
             'modules' => array_values($selectedModules),
             'agents' => array_values($selectedAgents),
             'generated_at' => date('Y-m-d H:i:s'),
         ];
+
+        if ($explicitMode) {
+            $config = array_merge($config, $newConfig);
+        } else {
+            $config = $newConfig;
+        }
+
         file_put_contents($configPath, json_encode($config, JSON_PRETTY_PRINT));
 
         $this->displaySummary($output, $selectedFeatures, $selectedAgents, $selectedModules);
@@ -241,21 +300,22 @@ final class BoostInstallCommand extends Command
         $projectRoot = getcwd();
         $guidelineCount = count(glob($projectRoot . '/.ai/guidelines/*.md')) ?: 0;
         $skillCount = count(glob($projectRoot . '/.ai/skills/pw_core/*/SKILL.md')) ?: 0;
-        $agentsWithSkills = [];
-        if (in_array('Trae', $selectedAgents)) $agentsWithSkills[] = 'Trae';
-        if (in_array('OpenCode', $selectedAgents)) $agentsWithSkills[] = 'OpenCode';
 
-        $output->writeln("  📋 <fg=yellow>Installed Features:</> " . implode(', ', $selectedFeatures) . "\n");
+        $featureLabels = [];
+        foreach ($selectedFeatures as $key) {
+            $featureLabels[] = self::FEATURES[$key];
+        }
+        $output->writeln("  📋 <fg=yellow>Installed Features:</> " . implode(', ', $featureLabels) . "\n");
 
-        if (in_array('AI Guidelines', $selectedFeatures)) {
+        if (in_array('guidelines', $selectedFeatures)) {
             $output->writeln("  ✅ <fg=green>{$guidelineCount}</> guidelines installed");
         }
 
-        if (in_array('Agent Skills', $selectedFeatures)) {
+        if (in_array('skills', $selectedFeatures)) {
             $output->writeln("  ✅ <fg=green>{$skillCount}</> skills synced");
         }
 
-        if (in_array('Boost MCP Server Configuration', $selectedFeatures)) {
+        if (in_array('mcp', $selectedFeatures)) {
             $output->writeln("  ✅ MCP servers configured");
         }
 
