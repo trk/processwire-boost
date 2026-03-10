@@ -38,14 +38,15 @@ final class OpenCode extends Agent
 
     public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
     {
-        $skillDir = $targetDir . '/' . $skillName;
+        $skillDirName = str_replace('_', '-', $skillName);
+        $skillDir = $targetDir . '/' . $skillDirName;
         if (!is_dir($skillDir)) {
             mkdir($skillDir, 0755, true);
         }
         $targetPath = $skillDir . '/SKILL.md';
         $content = file_get_contents($skillPath);
         $description = $this->extractDescription($content);
-        $frontmatter = $this->buildFrontmatter($skillName, $description);
+        $frontmatter = $this->buildFrontmatter($skillDirName, $description);
         file_put_contents($targetPath, $frontmatter . "\n" . $content);
         return $targetPath;
     }
@@ -74,6 +75,7 @@ name: {$name}
 description: {$description}
 license: MIT
 compatibility: opencode
+---
 YAML;
     }
 }
