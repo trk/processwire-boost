@@ -78,10 +78,16 @@ final class BoostManager
         // 1. Mandatory Map generation
         $this->generateMap($this->targetDir . '/map.json');
 
-        // 2. Clear current context
-        $this->clearDirectory($this->targetDir . '/guidelines');
-        $this->clearDirectory($this->targetDir . '/blueprints');
-        $this->clearDirectory($this->targetDir . '/skills');
+        // 2. Clear current context (only clear what will be repopulated)
+        if (in_array('AI Guidelines', $features)) {
+            $this->clearDirectory($this->targetDir . '/guidelines');
+        }
+        if (in_array('Blueprints', $features)) {
+            $this->clearDirectory($this->targetDir . '/blueprints');
+        }
+        if (in_array('Agent Skills', $features)) {
+            $this->clearDirectory($this->targetDir . '/skills');
+        }
 
         // 3. Export Core Resources
         if (in_array('AI Guidelines', $features)) {
