@@ -8,8 +8,6 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Totoglu\ProcessWire\Boost\BoostManager;
-use Totoglu\ProcessWire\Boost\DocIndex;
-use Totoglu\ProcessWire\Boost\GuideBuilder;
 use Totoglu\ProcessWire\Boost\SkillBuilder;
 use Totoglu\ProcessWire\Boost\Install\Agents\Gemini as GeminiAgent;
 use Totoglu\ProcessWire\Boost\Install\Agents\Codex as CodexAgent;
@@ -46,165 +44,146 @@ final class BoostInstallCommand extends Command
         $projectRoot = getcwd();
         $manager = new BoostManager($projectRoot);
 
-        $feature = select(
-            label: 'Which Boost feature would you like to configure first?',
+        $step1 = select(
+            label: 'Which third-party AI guidelines/skills would you like to install?',
             options: [
-                'AI Guidelines' => 'AI Guidelines',
-                'Agent Skills' => 'Agent Skills',
-                'Blueprints' => 'Blueprints',
-                'Boost MCP Server Configuration' => 'Boost MCP Server Configuration'
+                'Skip' => 'skip',
+                'Proceed' => 'proceed',
             ],
-            default: 'AI Guidelines'
+            default: 'proceed'
         );
-
-        $features = [$feature];
-
-        $availableModules = $manager->getDiscoverableModules();
-        $moduleChoices = array_keys($availableModules);
 
         $selectedModules = [];
-        if (!empty($moduleChoices)) {
-            $selectedModules = multiselect(
-                label: 'Which third-party AI guidelines/skills would you like to install?',
-                options: array_combine($moduleChoices, $moduleChoices),
-                hint: 'Space to select, Enter to confirm',
-                required: false
-            );
-        } else {
-            note('No third-party modules with Boost resources detected.');
+        if ($step1 === 'proceed') {
+            $availableModules = $manager->getDiscoverableModules();
+            $moduleChoices = array_keys($availableModules);
+            if (!empty($moduleChoices)) {
+                $selectedModules = multiselect(
+                    label: 'Which third-party AI guidelines/skills would you like to install?',
+                    options: array_combine($moduleChoices, $moduleChoices),
+                    hint: 'Space to select, Enter to confirm',
+                    required: false
+                );
+            } else {
+                note('No third-party modules with Boost resources detected.');
+            }
         }
 
-        $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
-        
-        $configPath = $projectRoot . '/.ai/boost.json';
-        $savedAgents = [];
-        if (file_exists($configPath)) {
-            $config = json_decode(file_get_contents($configPath) ?: '', true);
-            $savedAgents = $config['agents'] ?? [];
-        }
-        
-        $selectedAgents = multiselect(
+        $step2 = select(
             label: 'Which AI agents would you like to configure?',
-            options: array_combine($agentChoices, $agentChoices),
-            default: $savedAgents,
-            required: false
+            options: [
+                'Skip' => 'skip',
+                'Proceed' => 'proceed',
+            ],
+            default: 'proceed'
         );
 
+        $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
+        $selectedAgents = [];
+        if ($step2 === 'proceed') {
+            $selectedAgents = multiselect(
+                label: 'Which AI agents would you like to configure?',
+                options: array_combine($agentChoices, $agentChoices),
+                required: false
+            );
+        }
+
         spin(
-            function () use ($manager, $features, $selectedModules, $selectedAgents) {
-                $manager->install($features, $selectedModules, $selectedAgents);
+            function () use ($manager, $selectedModules, $selectedAgents) {
+                $manager->install(['Agent Skills'], $selectedModules, $selectedAgents);
             },
             'Installing and Configuring Boost...'
         );
 
-        info('ProcessWire Boost context generated successfully!');
-
-        if (in_array('Boost MCP Server Configuration', $features)) {
-            note("MCP Server is available via: ./vendor/bin/wire boost:mcp");
-        }
-
-        foreach ($selectedAgents as $agent) {
-            $filename = strtoupper(str_replace(' ', '_', $agent)) . '.md';
-            if ($agent === 'Cursor') $filename = 'CURSOR.md';
-            if ($agent === 'Gemini CLI') $filename = 'GEMINI.md';
-            if ($agent === 'Claude Code') $filename = 'CLAUDE.md';
-            info("✓ Configured {$agent} ({$filename})");
-        }
-
-        $generateLocal = select(
-            label: 'Generate Guides/Skills from local core?',
-            options: [
-                'Skip' => 'skip',
-                'Guides only' => 'guide',
-                'Skills only' => 'skill',
-                'Guides + Skills' => 'both',
-            ],
-            default: 'both'
-        );
-
-        if ($generateLocal !== 'skip') {
-            $doc = new DocIndex($projectRoot);
-            $files = [
-                'Pages.php','Page.php','Fields.php','Templates.php','Users.php','Roles.php','Permissions.php','Modules.php','WireInput.php','Sanitizer.php','Session.php','Config.php','Wire.php',
-            ];
-            $index = $doc->scan($files);
-            if ($generateLocal === 'guide' || $generateLocal === 'both') {
-                $gb = new GuideBuilder($projectRoot);
-                spin(fn() => $gb->build($index, $projectRoot.'/.ai/guidelines/pw_core.md'), 'Generating guide...');
-                info('pw_core.md generated');
-            }
-            if ($generateLocal === 'skill' || $generateLocal === 'both') {
-                $sb = new SkillBuilder($projectRoot);
-                spin(fn() => $sb->exportForAgent(null, null, $projectRoot . '/.ai/skills/pw_core'), 'Generating skills...');
-                info('Skills generated');
+        if (!empty($selectedAgents)) {
+            foreach ($selectedAgents as $agent) {
+                $filename = strtoupper(str_replace(' ', '_', $agent)) . '.md';
+                if ($agent === 'Cursor') $filename = 'CURSOR.md';
+                if ($agent === 'Gemini CLI') $filename = 'GEMINI.md';
+                if ($agent === 'Claude Code') $filename = 'CLAUDE.md';
+                info("✓ Configured {$agent} ({$filename})");
             }
         }
 
-        $runBuild = select(
-            label: 'Run Build All now?',
+        $step3 = select(
+            label: 'Which AI agents would you like to configure?',
             options: [
-                'Skip' => 'skip',
-                'Run (PHP)' => 'run_php',
+                'AI Guidelines' => 'guidelines',
+                'Agent Skills' => 'skills',
+                'Blueprints' => 'blueprints',
+                'Boost MCP Server Configuration' => 'mcp',
             ],
-            default: 'run_php'
-        );
-        if ($runBuild === 'run_php') {
-            spin(function () use ($projectRoot) {
-                $cmd = 'php vendor/bin/wire boost:build:all';
-                $cwd = getcwd();
-                chdir($projectRoot);
-                exec($cmd);
-                chdir($cwd);
-            }, 'PHP Build All running...');
-            info('PHP Build All done');
-        }
-
-        $pathType = select(
-            label: 'Path type for MCP command?',
-            options: [
-                'Relative (vendor/bin/wire)' => 'rel',
-                'Absolute (/.../vendor/bin/wire)' => 'abs',
-            ],
-            default: 'rel'
+            default: 'guidelines'
         );
 
-        $agentsForMcp = [];
-        foreach ($selectedAgents as $a) {
-            if ($a === 'Gemini CLI') $agentsForMcp[] = new GeminiAgent();
-            if ($a === 'Codex') $agentsForMcp[] = new CodexAgent();
-            if ($a === 'Cursor') $agentsForMcp[] = new CursorAgent();
-            if ($a === 'GitHub Copilot') $agentsForMcp[] = new CopilotAgent();
-            if ($a === 'Claude Code') $agentsForMcp[] = new ClaudeAgent();
-            if ($a === 'Amp') $agentsForMcp[] = new AmpAgent();
-            if ($a === 'Junie') $agentsForMcp[] = new JunieAgent();
-            if ($a === 'OpenCode') $agentsForMcp[] = new OpenCodeAgent();
-            if ($a === 'Trae') $agentsForMcp[] = new TraeAgent();
+        if ($step3 === 'guidelines') {
+            note('Building AI Guidelines for selected agents...');
+            spin(function () use ($manager, $selectedAgents) {
+                $manager->install(['AI Guidelines'], $selectedModules ?? [], $selectedAgents);
+            }, 'Building guidelines...');
+            info('Guidelines built');
         }
-        if (!empty($agentsForMcp)) {
-            spin(function () use ($agentsForMcp, $pathType, $projectRoot) {
-                $key = 'processwire';
-                $command = 'php';
-                $wire = $pathType === 'abs' ? ($projectRoot . '/vendor/bin/wire') : 'vendor/bin/wire';
-                $args = [$wire, 'boost:mcp'];
-                foreach ($agentsForMcp as $agent) {
-                    $agent->installMcp($key, $command, $args, []);
+
+        if ($step3 === 'skills') {
+            note('Building Agent Skills...');
+            spin(function () use ($selectedAgents, $projectRoot) {
+                if (in_array('Trae', $selectedAgents)) {
+                    $sb = new SkillBuilder($projectRoot);
+                    $trae = new TraeAgent();
+                    $sb->exportForAgent($trae, null, $projectRoot . '/.trae/skills');
                 }
-            }, 'Writing agent MCP configurations...');
-            info('Agent MCP configurations completed');
+                if (in_array('OpenCode', $selectedAgents)) {
+                    $sb = new SkillBuilder($projectRoot);
+                    $opencode = new OpenCodeAgent();
+                    $sb->exportForAgent($opencode, null, $projectRoot . '/.ai/skills');
+                }
+            }, 'Building skills...');
+            info('Skills built');
         }
 
-        if (in_array('Trae', $selectedAgents)) {
-            $sb = new SkillBuilder($projectRoot);
-            $trae = new TraeAgent();
-            spin(fn() => $sb->exportForAgent($trae, null, $projectRoot . '/.trae/skills'), 'Exporting Trae skills...');
-            info('Trae skills exported');
+        if ($step3 === 'blueprints') {
+            note('Building Blueprints...');
+            spin(function () use ($manager) {
+                $manager->install(['Blueprints'], [], []);
+            }, 'Building blueprints...');
+            info('Blueprints built');
         }
 
-        if (in_array('OpenCode', $selectedAgents)) {
-            $sb = new SkillBuilder($projectRoot);
-            $opencode = new OpenCodeAgent();
-            spin(fn() => $sb->exportForAgent($opencode, null, $projectRoot . '/.ai/skills'), 'Exporting OpenCode skills...');
-            info('OpenCode skills exported');
+        if ($step3 === 'mcp' && !empty($selectedAgents)) {
+            $pathType = select(
+                label: 'Path type for MCP command?',
+                options: [
+                    'Relative (vendor/bin/wire)' => 'rel',
+                    'Absolute (/.../vendor/bin/wire)' => 'abs',
+                ],
+                default: 'rel'
+            );
+
+            $agentsForMcp = [];
+            foreach ($selectedAgents as $a) {
+                if ($a === 'Gemini CLI') $agentsForMcp[] = new GeminiAgent();
+                if ($a === 'Codex') $agentsForMcp[] = new CodexAgent();
+                if ($a === 'Cursor') $agentsForMcp[] = new CursorAgent();
+                if ($a === 'GitHub Copilot') $agentsForMcp[] = new CopilotAgent();
+                if ($a === 'Claude Code') $agentsForMcp[] = new ClaudeAgent();
+                if ($a === 'Amp') $agentsForMcp[] = new AmpAgent();
+                if ($a === 'Junie') $agentsForMcp[] = new JunieAgent();
+                if ($a === 'OpenCode') $agentsForMcp[] = new OpenCodeAgent();
+                if ($a === 'Trae') $agentsForMcp[] = new TraeAgent();
+            }
+            if (!empty($agentsForMcp)) {
+                spin(function () use ($agentsForMcp, $pathType, $projectRoot) {
+                    $key = 'processwire';
+                    $command = 'php';
+                    $wire = $pathType === 'abs' ? ($projectRoot . '/vendor/bin/wire') : 'vendor/bin/wire';
+                    $args = [$wire, 'boost:mcp'];
+                    foreach ($agentsForMcp as $agent) {
+                        $agent->installMcp($key, $command, $args, []);
+                    }
+                }, 'Writing agent MCP configurations...');
+                info('Agent MCP configurations completed');
+                note("MCP Server is available via: ./vendor/bin/wire boost:mcp");
+            }
         }
 
         $configPath = $projectRoot . '/.ai/boost.json';
@@ -215,12 +194,12 @@ final class BoostInstallCommand extends Command
         $config = [
             'version' => '1.0.0',
             'agents' => $selectedAgents,
-            'features' => $features,
             'modules' => $selectedModules,
+            'features' => [$step3],
             'generated_at' => date('Y-m-d H:i:s'),
         ];
         file_put_contents($configPath, json_encode($config, JSON_PRETTY_PRINT));
-        
+
         outro('Enjoy the boost 🚀 Check your AI agent\'s MD file in root.');
         return Command::SUCCESS;
     }
