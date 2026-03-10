@@ -44,53 +44,52 @@ final class BoostInstallCommand extends Command
         $projectRoot = getcwd();
         $manager = new BoostManager($projectRoot);
 
-        $step1 = select(
-            label: 'Which third-party AI guidelines/skills would you like to install?',
+        $feature = select(
+            label: 'Which Boost feature would you like to configure first?',
             options: [
-                'Skip' => 'skip',
-                'Proceed' => 'proceed',
+                'AI Guidelines' => 'AI Guidelines',
+                'Agent Skills' => 'Agent Skills',
+                'Boost MCP Server Configuration' => 'Boost MCP Server Configuration'
             ],
-            default: 'proceed'
+            default: 'AI Guidelines'
         );
+
+        $features = [$feature];
+
+        $availableModules = $manager->getDiscoverableModules();
+        $moduleChoices = array_keys($availableModules);
 
         $selectedModules = [];
-        if ($step1 === 'proceed') {
-            $availableModules = $manager->getDiscoverableModules();
-            $moduleChoices = array_keys($availableModules);
-            if (!empty($moduleChoices)) {
-                $selectedModules = multiselect(
-                    label: 'Which third-party AI guidelines/skills would you like to install?',
-                    options: array_combine($moduleChoices, $moduleChoices),
-                    hint: 'Space to select, Enter to confirm',
-                    required: false
-                );
-            } else {
-                note('No third-party modules with Boost resources detected.');
-            }
-        }
-
-        $step2 = select(
-            label: 'Which AI agents would you like to configure?',
-            options: [
-                'Skip' => 'skip',
-                'Proceed' => 'proceed',
-            ],
-            default: 'proceed'
-        );
-
-        $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
-        $selectedAgents = [];
-        if ($step2 === 'proceed') {
-            $selectedAgents = multiselect(
-                label: 'Which AI agents would you like to configure?',
-                options: array_combine($agentChoices, $agentChoices),
+        if (!empty($moduleChoices)) {
+            $selectedModules = multiselect(
+                label: 'Which third-party AI guidelines/skills would you like to install?',
+                options: array_combine($moduleChoices, $moduleChoices),
+                hint: 'Space to select, Enter to confirm',
                 required: false
             );
+        } else {
+            note('No third-party modules with Boost resources detected.');
         }
 
+        $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
+        
+        $configPath = $projectRoot . '/.ai/boost.json';
+        $savedAgents = [];
+        if (file_exists($configPath)) {
+            $config = json_decode(file_get_contents($configPath) ?: '', true);
+            $savedAgents = $config['agents'] ?? [];
+        }
+        
+        $selectedAgents = multiselect(
+            label: 'Which AI agents would you like to configure?',
+            options: array_combine($agentChoices, $agentChoices),
+            default: $savedAgents,
+            required: false
+        );
+
         spin(
-            function () use ($manager, $selectedModules, $selectedAgents) {
-                $manager->install(['Agent Skills'], $selectedModules, $selectedAgents);
+            function () use ($manager, $features, $selectedModules, $selectedAgents) {
+                $manager->install($features, $selectedModules, $selectedAgents);
             },
             'Installing and Configuring Boost...'
         );
@@ -105,42 +104,27 @@ final class BoostInstallCommand extends Command
             }
         }
 
-        $step3 = select(
-            label: 'Which AI agents would you like to configure?',
-            options: [
-                'AI Guidelines' => 'guidelines',
-                'Agent Skills' => 'skills',
-                'Boost MCP Server Configuration' => 'mcp',
-            ],
-            default: 'guidelines'
-        );
-
-        if ($step3 === 'guidelines') {
-            note('Building AI Guidelines for selected agents...');
-            spin(function () use ($manager, $selectedAgents) {
-                $manager->install(['AI Guidelines'], $selectedModules ?? [], $selectedAgents);
-            }, 'Building guidelines...');
-            info('Guidelines built');
+        if (in_array('Boost MCP Server Configuration', $features)) {
+            note("MCP Server is available via: ./vendor/bin/wire boost:mcp");
         }
 
-        if ($step3 === 'skills') {
-            note('Building Agent Skills...');
-            spin(function () use ($selectedAgents, $projectRoot) {
-                if (in_array('Trae', $selectedAgents)) {
-                    $sb = new SkillBuilder($projectRoot);
-                    $trae = new TraeAgent();
-                    $sb->exportForAgent($trae, null, $projectRoot . '/.trae/skills');
-                }
-                if (in_array('OpenCode', $selectedAgents)) {
-                    $sb = new SkillBuilder($projectRoot);
-                    $opencode = new OpenCodeAgent();
-                    $sb->exportForAgent($opencode, null, $projectRoot . '/.ai/skills');
-                }
-            }, 'Building skills...');
-            info('Skills built');
+        if ($feature === 'Agent Skills') {
+            if (in_array('Trae', $selectedAgents)) {
+                $sb = new SkillBuilder($projectRoot);
+                $trae = new TraeAgent();
+                spin(fn() => $sb->exportForAgent($trae, null, $projectRoot . '/.trae/skills'), 'Exporting Trae skills...');
+                info('Trae skills exported');
+            }
+
+            if (in_array('OpenCode', $selectedAgents)) {
+                $sb = new SkillBuilder($projectRoot);
+                $opencode = new OpenCodeAgent();
+                spin(fn() => $sb->exportForAgent($opencode, null, $projectRoot . '/.ai/skills'), 'Exporting OpenCode skills...');
+                info('OpenCode skills exported');
+            }
         }
 
-        if ($step3 === 'mcp' && !empty($selectedAgents)) {
+        if ($feature === 'Boost MCP Server Configuration' && !empty($selectedAgents)) {
             $pathType = select(
                 label: 'Path type for MCP command?',
                 options: [
@@ -173,7 +157,6 @@ final class BoostInstallCommand extends Command
                     }
                 }, 'Writing agent MCP configurations...');
                 info('Agent MCP configurations completed');
-                note("MCP Server is available via: ./vendor/bin/wire boost:mcp");
             }
         }
 
@@ -186,7 +169,7 @@ final class BoostInstallCommand extends Command
             'version' => '1.0.0',
             'agents' => $selectedAgents,
             'modules' => $selectedModules,
-            'features' => [$step3],
+            'features' => $features,
             'generated_at' => date('Y-m-d H:i:s'),
         ];
         file_put_contents($configPath, json_encode($config, JSON_PRETTY_PRINT));
