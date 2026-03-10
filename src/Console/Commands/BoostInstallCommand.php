@@ -55,13 +55,11 @@ final class BoostInstallCommand extends Command
         $allFeatures = ['AI Guidelines', 'Agent Skills', 'Boost MCP Server Configuration'];
         $featureOptions = array_combine($allFeatures, $allFeatures);
 
-        $selectedFeatures = multiselect(
-            label: 'Which Boost features would you like to have installed?',
+        $selectedFeatures = [select(
+            label: 'Which Boost feature would you like to configure first?',
             options: $featureOptions,
-            default: $installedFeatures,
-            hint: 'Select to install/update, deselect to remove. Space to toggle, Enter to confirm.',
-            required: false
-        );
+            default: $installedFeatures[0] ?? 'AI Guidelines'
+        )];
 
         $availableModules = $manager->getDiscoverableModules();
         $moduleChoices = array_keys($availableModules);
