@@ -34,7 +34,7 @@ php vendor/bin/wire boost:install
 - Third‑party discovery: site/modules and core modules with a boost folder
 - Agent choices: Amp, Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, Junie, OpenCode, Trae
 - Optional local generation: Guides/Skills from local core
-- Optional Build All (PHP): boost:build-all
+- Optional Build All (PHP): boost:build:all
 
 2. Start the MCP server (for agents):
 
@@ -57,18 +57,20 @@ The server listens on stdio for JSON‑RPC requests. The installer writes client
 
 - boost:install — Interactive setup, agent configs and local generation
 - boost:mcp — Start the JSON‑RPC MCP server
-- boost:guides:build — Generate guidelines from the local core
-- boost:skills:build — Generate skills from builder/skills sources
-- boost:blueprints:build — Generate blueprint JSON from core
+- boost:build:guides — Generate guidelines from the local core
+- boost:build:skills — Generate skills from builder/skills sources
+- boost:build:blueprints — Generate blueprint JSON from core
 - boost:api:scan — Scan core classes and print a summary
-- boost:build-all — Build guidelines, skills and blueprints
+- boost:build:core — Build guidelines, skills and blueprints for wire/core
+- boost:build:modules — Build guidelines, skills and blueprints for wire/modules
+- boost:build:all — Build guidelines, skills and blueprints for both core and modules
 - boost:assert — Validate generated assets for quality
 
 Show available commands and help:
 
 ```bash
 php vendor/bin/wire list
-php vendor/bin/wire help boost:build-all
+php vendor/bin/wire help boost:build:all
 ```
 
 ## Agent Integration

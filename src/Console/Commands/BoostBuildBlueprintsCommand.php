@@ -17,12 +17,12 @@ use function Laravel\Prompts\spin;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
 
-final class BoostBlueprintsBuildCommand extends Command
+final class BoostBuildBlueprintsCommand extends Command
 {
     protected function configure(): void
     {
         $this
-            ->setName('boost:blueprints:build')
+            ->setName('boost:build:blueprints')
             ->setDescription('Generate blueprint JSON files from core classes')
             ->addOption('assert', null, InputOption::VALUE_NONE, 'Run basic assertions after build');
     }

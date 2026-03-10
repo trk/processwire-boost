@@ -142,7 +142,7 @@ final class BoostInstallCommand extends Command
         );
         if ($runBuild === 'run_php') {
             spin(function () use ($projectRoot) {
-                $cmd = 'php vendor/bin/wire boost:build-all';
+                $cmd = 'php vendor/bin/wire boost:build:all';
                 $cwd = getcwd();
                 chdir($projectRoot);
                 exec($cmd);

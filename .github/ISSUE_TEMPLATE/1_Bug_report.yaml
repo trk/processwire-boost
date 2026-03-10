@@ -61,7 +61,7 @@ body:
       description: |
         Include exact commands and/or JSON‑RPC request, e.g.:
         ```bash
-        php vendor/bin/wire boost:build-all
+        php vendor/bin/wire boost:build:all
         ```
         or
         ```json

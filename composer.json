@@ -17,10 +17,10 @@
       "commands": [
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostInstallCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\McpCommand",
-        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostGuidesBuildCommand",
-        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostSkillsBuildCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildGuidesCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildSkillsCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostApiScanCommand",
-        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBlueprintsBuildCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildBlueprintsCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildAllCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildCoreCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildModulesCommand",

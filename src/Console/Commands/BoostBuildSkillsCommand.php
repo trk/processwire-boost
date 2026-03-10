@@ -15,12 +15,12 @@ use function Laravel\Prompts\spin;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
 
-final class BoostSkillsBuildCommand extends Command
+final class BoostBuildSkillsCommand extends Command
 {
     protected function configure(): void
     {
         $this
-            ->setName('boost:skills:build')
+            ->setName('boost:build:skills')
             ->setDescription('Generate skill files from local core')
             ->addOption('select', null, InputOption::VALUE_OPTIONAL, 'Comma-separated skill keys')
             ->addOption('assert', null, InputOption::VALUE_NONE, 'Run basic assertions after build');

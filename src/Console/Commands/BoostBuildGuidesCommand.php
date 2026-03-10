@@ -17,12 +17,12 @@ use function Laravel\Prompts\spin;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
 
-final class BoostGuidesBuildCommand extends Command
+final class BoostBuildGuidesCommand extends Command
 {
     protected function configure(): void
     {
         $this
-            ->setName('boost:guides:build')
+            ->setName('boost:build:guides')
             ->setDescription('Generate ProcessWire core guides from local PHPDoc')
             ->addOption('dry', null, InputOption::VALUE_NONE, 'Preview without writing')
             ->addOption('assert', null, InputOption::VALUE_NONE, 'Run basic assertions after build');
