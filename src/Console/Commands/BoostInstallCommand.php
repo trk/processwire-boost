@@ -110,7 +110,6 @@ final class BoostInstallCommand extends Command
             options: [
                 'AI Guidelines' => 'guidelines',
                 'Agent Skills' => 'skills',
-                'Blueprints' => 'blueprints',
                 'Boost MCP Server Configuration' => 'mcp',
             ],
             default: 'guidelines'
@@ -139,14 +138,6 @@ final class BoostInstallCommand extends Command
                 }
             }, 'Building skills...');
             info('Skills built');
-        }
-
-        if ($step3 === 'blueprints') {
-            note('Building Blueprints...');
-            spin(function () use ($manager) {
-                $manager->install(['Blueprints'], [], []);
-            }, 'Building blueprints...');
-            info('Blueprints built');
         }
 
         if ($step3 === 'mcp' && !empty($selectedAgents)) {

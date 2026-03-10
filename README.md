@@ -1,12 +1,11 @@
 # ProcessWire Boost
 
-AI‑focused context bridge for ProcessWire. Generates guidelines, skills and blueprints from the local core and exposes a JSON‑RPC (MCP) server to let AI agents access ProcessWire data safely.
+AI‑focused context bridge for ProcessWire. Generates guidelines and skills from the local core and exposes a JSON‑RPC (MCP) server to let AI agents access ProcessWire data safely.
 
 ## Features
 
 - Guidelines: Build .ai/guidelines from core PHPDoc and best practices
 - Skills: Task playbooks for agents (.ai/skills/pw_core/\*/SKILL.md)
-- Blueprints: Class/method summaries with @since (.ai/blueprints/pw_core/\*.json)
 - MCP Server: JSON‑RPC (stdio) for schema, pages, modules, access and system ops
 - Agent Integration: Install/Agents for Cursor, Gemini CLI, Trae and others
 - Composer Integration: Registers commands via processwire-console (Composer extra)
@@ -30,11 +29,9 @@ Notes:
 php vendor/bin/wire boost:install
 ```
 
-- Feature selection: AI Guidelines, Agent Skills, Blueprints, Boost MCP Server Configuration
+- Feature selection: AI Guidelines, Agent Skills, Boost MCP Server Configuration
 - Third‑party discovery: site/modules and core modules with a boost folder
 - Agent choices: Amp, Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, Junie, OpenCode, Trae
-- Optional local generation: Guides/Skills from local core
-- Optional Build All (PHP): boost:build:all
 
 2. Start the MCP server (for agents):
 
@@ -50,8 +47,6 @@ The server listens on stdio for JSON‑RPC requests. The installer writes client
   - Sources: vendor/trk/processwire-boost/resources/boost/guidelines
 - .ai/skills/pw_core: SKILL.md files
   - Sources: vendor/trk/processwire-boost/resources/builder/skills
-- .ai/blueprints/pw_core: class/method summaries
-  - Sources: vendor/trk/processwire-boost/resources/boost/blueprints
 
 ## Commands
 
@@ -59,11 +54,12 @@ The server listens on stdio for JSON‑RPC requests. The installer writes client
 - boost:mcp — Start the JSON‑RPC MCP server
 - boost:build:guides — Generate guidelines from the local core
 - boost:build:skills — Generate skills from builder/skills sources
-- boost:build:blueprints — Generate blueprint JSON from core
-- boost:api:scan — Scan core classes and print a summary
-- boost:build:core — Build guidelines, skills and blueprints for wire/core
-- boost:build:modules — Build guidelines, skills and blueprints for wire/modules
-- boost:build:all — Build guidelines, skills and blueprints for both core and modules
+- boost:scan:core — Scan wire/core classes and print a summary
+- boost:scan:modules — Scan wire/modules classes and print a summary
+- boost:scan:all — Scan wire/core and wire/modules classes and print a summary
+- boost:build:core — Build guidelines and skills for wire/core
+- boost:build:modules — Build guidelines and skills for wire/modules
+- boost:build:all — Build guidelines and skills for both core and modules
 - boost:assert — Validate generated assets for quality
 
 Show available commands and help:

@@ -9,7 +9,6 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Totoglu\ProcessWire\Boost\ConfigReader;
 use Totoglu\ProcessWire\Boost\DocIndex;
-use Totoglu\ProcessWire\Boost\BlueprintBuilder;
 use Totoglu\ProcessWire\Boost\GuideBuilder;
 use Totoglu\ProcessWire\Boost\GuidelineBuilder;
 use Totoglu\ProcessWire\Boost\SkillBuilder;
@@ -23,7 +22,7 @@ final class BoostBuildModulesCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('boost:build:modules')->setDescription('Build blueprints, guides and skills for wire/modules');
+        $this->setName('boost:build:modules')->setDescription('Build guidelines and skills for wire/modules');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -53,12 +52,6 @@ final class BoostBuildModulesCommand extends Command
             file_put_contents($dir . '/master_architect_notes_modules.md', $content);
         }, 'Generating Master Architect Notes...');
         info('Master Architect Notes generated');
-
-        spin(function () use ($index, $projectRoot) {
-            $bb = new BlueprintBuilder($projectRoot);
-            $bb->build($index, $projectRoot.'/.ai/blueprints/pw_modules');
-        }, 'Building modules blueprints...');
-        info('Modules blueprints built');
 
         spin(function () use ($index, $projectRoot) {
             $gb = new GuideBuilder($projectRoot);
