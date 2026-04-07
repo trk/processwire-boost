@@ -21,18 +21,34 @@ final class McpCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        stream_set_blocking(STDIN, false);
         $this->registerTools();
+        $buffer = '';
+
         while (!feof(STDIN)) {
-            $read = [STDIN];
-            $write = null;
-            $except = null;
-            if (stream_select($read, $write, $except, 1) > 0) {
-                $line = fgets(STDIN);
-                if ($line === false) continue;
+            $chunk = fgets(STDIN);
+            if ($chunk === false) {
+                break;
+            }
+            $buffer .= $chunk;
+
+            while (str_contains($buffer, "\n")) {
+                list($line, $buffer) = explode("\n", $buffer, 2);
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+
                 $request = json_decode($line, true);
-                if (!$request) continue;
-                $this->handleRequest($request);
+                if (!$request) {
+                    continue;
+                }
+
+                ob_start();
+                try {
+                    $this->handleRequest($request);
+                } finally {
+                    ob_end_clean();
+                }
             }
         }
         return Command::SUCCESS;

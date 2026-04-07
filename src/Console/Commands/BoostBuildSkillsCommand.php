@@ -51,7 +51,7 @@ final class BoostBuildSkillsCommand extends Command
         $missing = [];
         if ($targets) {
             foreach ($targets as $k) {
-                $path = $root . '/.ai/skills/pw_core/' . $k . '/SKILL.md';
+                $path = $root . '/.llms/skills/pw_core/' . $k . '/SKILL.md';
                 if (!is_file($path)) {
                     $missing[] = $k;
                 }

@@ -1,13 +1,53 @@
 {
-  "name": "ProcessWire Page",
-  "description": "The base structure for all ProcessWire pages",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ProcessWire Page",
+  "description": "The base structure for all ProcessWire pages. Every piece of content is a Page.",
+  "type": "object",
   "properties": {
-    "id": "Unique integer ID",
-    "name": "URL-friendly name/slug",
-    "path": "Full URL path",
-    "template": "Associated template object",
-    "parent": "Parent page object",
-    "created": "Unix timestamp of creation",
-    "modified": "Unix timestamp of last modification"
-  }
+    "id": {
+      "type": "integer",
+      "description": "Unique integer ID. 0 means the page is new and unsaved."
+    },
+    "name": {
+      "type": "string",
+      "description": "URL-friendly name/slug."
+    },
+    "title": {
+      "type": "string",
+      "description": "The title of the page."
+    },
+    "path": {
+      "type": "string",
+      "description": "Full URL path relative to the site root."
+    },
+    "url": {
+      "type": "string",
+      "description": "Full HTTP URL including domain."
+    },
+    "template": {
+      "type": "object",
+      "description": "Associated ProcessWire\\Template object."
+    },
+    "parent": {
+      "type": "object",
+      "description": "Parent ProcessWire\\Page object."
+    },
+    "children": {
+      "type": "array",
+      "description": "Collection of child ProcessWire\\Page objects (PageArray)."
+    },
+    "created": {
+      "type": "integer",
+      "description": "Unix timestamp of creation."
+    },
+    "modified": {
+      "type": "integer",
+      "description": "Unix timestamp of last modification."
+    },
+    "status": {
+      "type": "integer",
+      "description": "Bitmask containing the page's status (e.g. Page::statusHidden, Page::statusUnpublished)."
+    }
+  },
+  "required": ["template", "parent", "name", "title"]
 }

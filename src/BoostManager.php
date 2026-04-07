@@ -11,7 +11,7 @@ final class BoostManager
     public function __construct(
         private readonly string $projectRoot
     ) {
-        $this->targetDir = $this->projectRoot . '/.ai';
+        $this->targetDir = $this->projectRoot . '/.llms';
     }
 
     /**
@@ -181,35 +181,30 @@ final class BoostManager
             $instructionParts[] = "=== foundation rules ===\n\n" . $foundation;
         }
 
-        $boostPath = $this->targetDir . '/guidelines/boost.md';
-        if (file_exists($boostPath)) {
-            $instructionParts[] = "=== boost rules ===\n\n" . file_get_contents($boostPath);
-        } else {
-            $fallbackBoost = __DIR__ . '/resources/boost/guidelines/boost.md';
-            if (!file_exists($fallbackBoost)) {
-                $fallbackBoost = __DIR__ . '/../resources/boost/guidelines/boost.md';
-            }
-            if (file_exists($fallbackBoost)) {
-                $instructionParts[] = "=== boost rules ===\n\n" . file_get_contents($fallbackBoost);
-            }
-        }
+        // Dynamically load all core guidelines
+        $guidelinesDirectories = [
+            $this->targetDir . '/guidelines',
+            __DIR__ . '/resources/boost/guidelines',
+            __DIR__ . '/../resources/boost/guidelines'
+        ];
+        
+        $processedFiles = ['foundation.md']; // foundation is already processed above
 
-        $phpPath = $this->targetDir . '/guidelines/php.md';
-        if (file_exists($phpPath)) {
-            $instructionParts[] = "=== php rules ===\n\n" . file_get_contents($phpPath);
-        } else {
-            $fallbackPhp = __DIR__ . '/resources/boost/guidelines/php.md';
-            if (!file_exists($fallbackPhp)) {
-                $fallbackPhp = __DIR__ . '/../resources/boost/guidelines/php.md';
+        foreach ($guidelinesDirectories as $gDir) {
+            if (is_dir($gDir)) {
+                $files = scandir($gDir);
+                foreach ($files as $file) {
+                    if ($file === '.' || $file === '..' || in_array($file, $processedFiles)) continue;
+                    if (strtolower(pathinfo($file, PATHINFO_EXTENSION)) !== 'md') continue;
+                    
+                    $filePath = $gDir . '/' . $file;
+                    if (is_file($filePath)) {
+                        $ruleName = str_replace(['-', '_'], ' ', pathinfo($file, PATHINFO_FILENAME));
+                        $instructionParts[] = "=== {$ruleName} rules ===\n\n" . file_get_contents($filePath);
+                        $processedFiles[] = $file; // Prevent reading again from fallbacks
+                    }
+                }
             }
-            if (file_exists($fallbackPhp)) {
-                $instructionParts[] = "=== php rules ===\n\n" . file_get_contents($fallbackPhp);
-            }
-        }
-
-        $pwCorePath = $this->targetDir . '/guidelines/pw_core.md';
-        if (file_exists($pwCorePath)) {
-            $instructionParts[] = "=== processwire rules ===\n\n" . file_get_contents($pwCorePath);
         }
 
         // Aggregate module specific instructions
@@ -217,7 +212,7 @@ final class BoostManager
             $availableModules = $this->getDiscoverableModules();
             foreach ($modules as $mName) {
                 if (isset($availableModules[$mName])) {
-                    // Check if guidelines exist in .ai/
+                    // Check if guidelines exist in .llms/
                     // Note: aggregateResources already copied them
                     $mGuidelinesDir = $this->targetDir . '/guidelines/' . $mName;
                     if (is_dir($mGuidelinesDir)) {
@@ -236,6 +231,24 @@ final class BoostManager
 
         $fullInstructions = implode("\n\n", $instructionParts);
 
+        $baseSystemIdentity = "## System Identity & Core Directives\n\n"
+            . "- **Primary AI Identity:** You are operating within a ProcessWire ecosystem. Always adopt the analytical depth of `@brainstorming` and the technical excellence of `@php-pro`.\n"
+            . "- **CRITICAL DOCUMENTATION RULE:** Before writing any processwire code, you MUST consult the local API documentation. You MUST NOT hallucinate API methods.\n"
+            . "- **LANGUAGE RULE:** ALL code, documentation, and file contents MUST strictly be written in English. Ensure inner code strings are always in English and wrapped in translation functions.\n\n"
+            . "## Context Resolution Landscape\n\n"
+            . "When you need more context, always check these primary locations:\n"
+            . "- **Guidelines:** `.llms/guidelines/`\n"
+            . "- **Skills (Task Playbooks):** `.llms/skills/`\n"
+            . "- **Blueprints:** `.llms/blueprints/*.json` (class/method summaries)\n"
+            . "- If your client supports MCP, use the ProcessWire MCP server tools to query data.\n\n";
+
+        // Always generate unified AGENTS.md
+        $agentsMdContent = "# Universal AI Agent Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n"
+            . $baseSystemIdentity
+            . "<processwire-boost-guidelines>\n\n{$fullInstructions}\n\n</processwire-boost-guidelines>\n";
+            
+        file_put_contents($this->projectRoot . '/AGENTS.md', $agentsMdContent);
+
         foreach ($agents as $agent) {
             $filename = strtoupper(str_replace(' ', '_', $agent)) . '.md';
             if ($agent === 'Cursor') $filename = 'CURSOR.md';
@@ -243,13 +256,7 @@ final class BoostManager
             if ($agent === 'Claude Code') $filename = 'CLAUDE.md';
 
             $header = "# {$agent} Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n";
-            $context = "## Project AI Context\n"
-                . "- Primary guidance is embedded below. When you need more, read local files under .ai/.\n"
-                . "- Guidelines: .ai/guidelines (foundation, boost, php, pw_core.md)\n"
-                . "- Blueprints: .ai/blueprints/pw_core/*.json (class/method summaries with @since)\n"
-                . "- Skills: .ai/skills/pw_core/*/SKILL.md (task playbooks)\n"
-                . "- If your client supports MCP, use the ProcessWire MCP server tools to query data.\n";
-            $content = "{$header}\n{$context}\n<processwire-boost-guidelines>\n\n{$fullInstructions}\n\n</processwire-boost-guidelines>\n";
+            $content = "{$header}\n{$baseSystemIdentity}\n<processwire-boost-guidelines>\n\n{$fullInstructions}\n\n</processwire-boost-guidelines>\n";
 
             file_put_contents($this->projectRoot . '/' . $filename, $content);
         }

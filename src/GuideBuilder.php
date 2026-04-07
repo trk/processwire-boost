@@ -42,7 +42,7 @@ final class GuideBuilder
                 $sections[] = 'Since: ' . $since;
             }
             $bpName = $this->basename($fqcn);
-            $sections[] = 'Blueprint: .ai/blueprints/pw_core/' . $bpName . '.json';
+            $sections[] = 'Blueprint: .llms/blueprints/pw_core/' . $bpName . '.json';
             if (!empty($meta['methods'])) {
                 $sections[] = '**Featured methods**';
                 $n = 0;

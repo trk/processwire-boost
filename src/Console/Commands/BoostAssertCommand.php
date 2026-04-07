@@ -25,9 +25,9 @@ final class BoostAssertCommand extends Command
         $root = getcwd();
         $errors = [];
 
-        $gPath = $root.'/.ai/guidelines/pw_core.md';
+        $gPath = $root.'/.llms/guidelines/pw_core.md';
         if (!is_file($gPath)) {
-            $errors[] = 'Missing .ai/guidelines/pw_core.md';
+            $errors[] = 'Missing .llms/guidelines/pw_core.md';
         } else {
             $g = file_get_contents($gPath) ?: '';
             $must = ['# ProcessWire Core Guide','## Principles','## Common Tasks','## Class Summaries'];
@@ -40,9 +40,9 @@ final class BoostAssertCommand extends Command
             }
         }
 
-        $skillsDir = $root.'/.ai/skills/pw_core';
+        $skillsDir = $root.'/.llms/skills/pw_core';
         if (!is_dir($skillsDir)) {
-            $errors[] = 'Missing .ai/skills/pw_core directory';
+            $errors[] = 'Missing .llms/skills/pw_core directory';
         } else {
             $skillFiles = glob($skillsDir.'/*/SKILL.md') ?: [];
             if (!$skillFiles) $errors[] = 'No SKILL.md files found';

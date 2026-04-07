@@ -60,7 +60,7 @@ final class BoostInstallCommand extends Command
 
         $projectRoot = getcwd();
         $manager = new BoostManager($projectRoot);
-        $configPath = $projectRoot . '/.ai/boost.json';
+        $configPath = $projectRoot . '/.llms/boost.json';
 
         $config = [
             'version' => '1.0.0',
@@ -177,7 +177,9 @@ final class BoostInstallCommand extends Command
             $output->writeln("  <fg=green>✓ Installing " . self::FEATURES[$featureKey] . "...</>");
         }
 
-        if (!empty($toInstall) || !empty($toRemove) || !empty($modulesToInstall) || !empty($modulesToRemove)) {
+        $shouldSync = !empty($toInstall) || !empty($toRemove) || !empty($modulesToInstall) || !empty($modulesToRemove) || !empty($selectedFeatures);
+
+        if ($shouldSync) {
             $featureLabels = [];
             foreach ($selectedFeatures as $key) {
                 $featureLabels[] = self::FEATURES[$key];
@@ -259,7 +261,7 @@ final class BoostInstallCommand extends Command
             }
         }
 
-        $aiDir = $projectRoot . '/.ai';
+        $aiDir = $projectRoot . '/.llms';
         if (!is_dir($aiDir)) {
             mkdir($aiDir, 0755, true);
         }
@@ -298,8 +300,8 @@ final class BoostInstallCommand extends Command
         $output->writeln("  └─────────────────────────────────────────────────────────────┘\n");
 
         $projectRoot = getcwd();
-        $guidelineCount = count(glob($projectRoot . '/.ai/guidelines/*.md')) ?: 0;
-        $skillCount = count(glob($projectRoot . '/.ai/skills/pw_core/*/SKILL.md')) ?: 0;
+        $guidelineCount = count(glob($projectRoot . '/.llms/guidelines/*.md')) ?: 0;
+        $skillCount = count(glob($projectRoot . '/.llms/skills/*/SKILL.md')) ?: 0;
 
         $featureLabels = [];
         foreach ($selectedFeatures as $key) {

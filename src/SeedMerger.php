@@ -12,7 +12,7 @@ final class SeedMerger
 
     public function mergeGuides(array $dirs): void
     {
-        $target = $this->projectRoot . '/.ai/guidelines/_seed';
+        $target = $this->projectRoot . '/.llms/guidelines/_seed';
         if (!is_dir($target)) {
             mkdir($target, 0755, true);
         }
@@ -38,7 +38,7 @@ final class SeedMerger
         if (!is_array($data)) return;
         $skills = $data['skills'] ?? [];
         if (!is_array($skills)) return;
-        $base = $this->projectRoot . '/.ai/skills/pw_core';
+        $base = $this->projectRoot . '/.llms/skills/pw_core';
         if (!is_dir($base)) mkdir($base, 0755, true);
         foreach ($skills as $key => $desc) {
             $dir = $base . '/' . $key;

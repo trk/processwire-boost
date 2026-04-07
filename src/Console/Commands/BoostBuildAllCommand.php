@@ -30,7 +30,7 @@ final class BoostBuildAllCommand extends Command
     {
         intro('ProcessWire Boost :: Build All');
         $projectRoot = getcwd();
-        $cfg = (new ConfigReader($projectRoot))->read('.ai/docgen.yml');
+        $cfg = (new ConfigReader($projectRoot))->read('.llms/docgen.yml');
         $excludes = $cfg['excludes'] ?? [];
 
         $docIndex = new DocIndex($projectRoot);
@@ -58,7 +58,7 @@ final class BoostBuildAllCommand extends Command
                 $docIndex->getClassRelationships()
             );
             $content = $notes->generate();
-            $dir = $projectRoot . '/.ai';
+            $dir = $projectRoot . '/.llms';
             if (!is_dir($dir)) mkdir($dir, 0755, true);
             file_put_contents($dir . '/master_architect_notes.md', $content);
         }, 'Generating Master Architect Notes...');
@@ -66,37 +66,37 @@ final class BoostBuildAllCommand extends Command
 
         spin(function () use ($indexCore, $projectRoot) {
             $gb = new GuideBuilder($projectRoot);
-            $gb->build($indexCore, $projectRoot.'/.ai/guidelines/pw_core.md');
+            $gb->build($indexCore, $projectRoot.'/.llms/guidelines/pw_core.md');
         }, 'Building core guide...');
         info('Core guide built');
 
         spin(function () use ($indexModules, $projectRoot) {
             $gb = new GuideBuilder($projectRoot);
-            $gb->build($indexModules, $projectRoot.'/.ai/guidelines/pw_modules.md');
+            $gb->build($indexModules, $projectRoot.'/.llms/guidelines/pw_modules.md');
         }, 'Building modules guide...');
         info('Modules guide built');
 
         spin(function () use ($indexCore, $projectRoot) {
             $glb = new GuidelineBuilder($projectRoot);
-            $glb->build($indexCore, $projectRoot.'/.ai/guidelines/pw_core_guidelines.md');
+            $glb->build($indexCore, $projectRoot.'/.llms/guidelines/pw_core_guidelines.md');
         }, 'Building core guidelines...');
         info('Core guidelines built');
 
         spin(function () use ($indexModules, $projectRoot) {
             $glb = new GuidelineBuilder($projectRoot);
-            $glb->build($indexModules, $projectRoot.'/.ai/guidelines/pw_modules_guidelines.md');
+            $glb->build($indexModules, $projectRoot.'/.llms/guidelines/pw_modules_guidelines.md');
         }, 'Building modules guidelines...');
         info('Modules guidelines built');
 
         spin(function () use ($indexCore, $projectRoot) {
             $sb = new SkillBuilder($projectRoot);
-            $sb->buildSkillsFromGroups($indexCore, $projectRoot . '/.ai/skills/pw_core');
+            $sb->buildSkillsFromGroups($indexCore, $projectRoot . '/.llms/skills/pw_core');
         }, 'Building core skills from groups...');
         info('Core group skills built');
 
         spin(function () use ($indexModules, $projectRoot) {
             $sb = new SkillBuilder($projectRoot);
-            $sb->buildSkillsFromGroups($indexModules, $projectRoot . '/.ai/skills/pw_modules');
+            $sb->buildSkillsFromGroups($indexModules, $projectRoot . '/.llms/skills/pw_modules');
         }, 'Building modules skills from groups...');
         info('Modules group skills built');
 

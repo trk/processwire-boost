@@ -16,7 +16,7 @@ final class SkillBuilder
         $fallbackDir = __DIR__ . '/../resources/builder/skills';
         $base = is_dir($srcDir) ? $srcDir : $fallbackDir;
         $files = glob($base . '/*.md') ?: [];
-        $outDir = $this->projectRoot . '/.ai/skills/pw_core';
+        $outDir = $this->projectRoot . '/.llms/skills/pw_core';
         if (!is_dir($outDir)) {
             mkdir($outDir, 0755, true);
         }
@@ -45,10 +45,10 @@ final class SkillBuilder
             $defaultDir = match ($agent->name()) {
                 'trae' => $this->projectRoot . '/.trae/skills',
                 'opencode' => $this->projectRoot . '/.opencode/skills',
-                default => $this->projectRoot . '/.ai/skills/' . $agent->name(),
+                default => $this->projectRoot . '/.llms/skills/' . $agent->name(),
             };
         } else {
-            $defaultDir = $this->projectRoot . '/.ai/skills/pw_core';
+            $defaultDir = $this->projectRoot . '/.llms/skills/pw_core';
         }
 
         $outDir = $targetDir ?: $defaultDir;
@@ -80,7 +80,7 @@ final class SkillBuilder
 
     public function buildSkillsFromGroups(array $index, ?string $targetDir = null): array
     {
-        $outDir = $targetDir ?: ($this->projectRoot . '/.ai/skills/pw_core');
+        $outDir = $targetDir ?: ($this->projectRoot . '/.llms/skills/pw_core');
         if (!is_dir($outDir)) {
             mkdir($outDir, 0755, true);
         }

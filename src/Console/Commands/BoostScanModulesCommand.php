@@ -26,7 +26,7 @@ final class BoostScanModulesCommand extends Command
     {
         intro('ProcessWire Boost :: Scan Modules');
         $projectRoot = getcwd();
-        $cfg = (new ConfigReader($projectRoot))->read('.ai/docgen.yml');
+        $cfg = (new ConfigReader($projectRoot))->read('.llms/docgen.yml');
         $excludes = $cfg['excludes'] ?? [];
         $doc = new DocIndex($projectRoot);
         $index = $doc->scanPath('wire/modules', $excludes);

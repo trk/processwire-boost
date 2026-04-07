@@ -29,7 +29,7 @@ final class BoostBuildCoreCommand extends Command
     {
         intro('ProcessWire Boost :: Build Core');
         $projectRoot = getcwd();
-        $cfg = (new ConfigReader($projectRoot))->read('.ai/docgen.yml');
+        $cfg = (new ConfigReader($projectRoot))->read('.llms/docgen.yml');
         $excludes = $cfg['excludes'] ?? [];
 
         $docIndex = new DocIndex($projectRoot);
@@ -47,7 +47,7 @@ final class BoostBuildCoreCommand extends Command
                 $docIndex->getClassRelationships()
             );
             $content = $notes->generate();
-            $dir = $projectRoot . '/.ai';
+            $dir = $projectRoot . '/.llms';
             if (!is_dir($dir)) mkdir($dir, 0755, true);
             file_put_contents($dir . '/master_architect_notes_core.md', $content);
         }, 'Generating Master Architect Notes...');
@@ -55,19 +55,19 @@ final class BoostBuildCoreCommand extends Command
 
         spin(function () use ($index, $projectRoot) {
             $gb = new GuideBuilder($projectRoot);
-            $gb->build($index, $projectRoot.'/.ai/guidelines/pw_core.md');
+            $gb->build($index, $projectRoot.'/.llms/guidelines/pw_core.md');
         }, 'Building core guide...');
         info('Core guide built');
 
         spin(function () use ($index, $projectRoot) {
             $glb = new GuidelineBuilder($projectRoot);
-            $glb->build($index, $projectRoot.'/.ai/guidelines/pw_core_guidelines.md');
+            $glb->build($index, $projectRoot.'/.llms/guidelines/pw_core_guidelines.md');
         }, 'Building core guidelines...');
         info('Core guidelines built');
 
         spin(function () use ($index, $projectRoot) {
             $sb = new SkillBuilder($projectRoot);
-            $sb->buildSkillsFromGroups($index, $projectRoot . '/.ai/skills/pw_core');
+            $sb->buildSkillsFromGroups($index, $projectRoot . '/.llms/skills/pw_core');
         }, 'Building core skills from groups...');
         info('Core group skills built');
 

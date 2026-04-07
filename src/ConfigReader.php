@@ -10,7 +10,7 @@ final class ConfigReader
     {
     }
 
-    public function read(string $path = '.ai/docgen.yml'): array
+    public function read(string $path = '.llms/docgen.yml'): array
     {
         $p = $this->projectRoot . '/' . ltrim($path, '/');
         if (!is_file($p)) {

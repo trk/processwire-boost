@@ -56,14 +56,14 @@ The installer will:
 
 ```bash
 # Check generated guidelines
-ls .ai/guidelines/
+ls .llms/guidelines/
 
 # Check skills for agents
 ls .trae/skills/      # Trae skills
 ls .opencode/skills/  # OpenCode skills
 
 # Verify boost storage
-cat .ai/boost.json
+cat .llms/boost.json
 ```
 
 **Expected output:**
@@ -222,7 +222,7 @@ php vendor/bin/wire boost:build:skills
 ### Testing Changes
 ```bash
 # Clear generated assets
-rm -rf .ai/ .trae/ .opencode/ TRAE.md OPENCODE.md
+rm -rf .llms/ .trae/ .opencode/ TRAE.md OPENCODE.md
 
 # Reinstall
 php vendor/bin/wire boost:install --guidelines --skills --agents="Trae,OpenCode"

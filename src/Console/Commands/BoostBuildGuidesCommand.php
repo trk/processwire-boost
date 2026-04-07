@@ -32,12 +32,12 @@ final class BoostBuildGuidesCommand extends Command
     {
         intro('ProcessWire Boost :: Guide Builder');
         $projectRoot = getcwd();
-        $cfg = (new ConfigReader($projectRoot))->read('.ai/docgen.yml');
+        $cfg = (new ConfigReader($projectRoot))->read('.llms/docgen.yml');
         $includes = $cfg['includes'] ?? ['wire/core','wire/modules','site/modules'];
         $excludes = $cfg['excludes'] ?? [];
         $doc = new DocIndex($projectRoot);
         $index = $doc->scanPaths($includes, $excludes);
-        $target = $projectRoot . '/.ai/guidelines/pw_core.md';
+        $target = $projectRoot . '/.llms/guidelines/pw_core.md';
         $isDry = (bool)$input->getOption('dry');
         if ($isDry) {
             $count = count($index);
@@ -59,7 +59,7 @@ final class BoostBuildGuidesCommand extends Command
 
     private function runAssertions(string $projectRoot, OutputInterface $output): void
     {
-        $path = $projectRoot . '/.ai/guidelines/pw_core.md';
+        $path = $projectRoot . '/.llms/guidelines/pw_core.md';
         if (!is_file($path)) {
             $output->writeln('<error>pw_core.md not found</error>');
             return;
