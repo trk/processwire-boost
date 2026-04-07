@@ -285,20 +285,9 @@ final class BoostManager
 
         // Roster generation
         $roster = "- php - " . PHP_VERSION . "\n";
-        $roster .= "- processwire/core - v" . \ProcessWire\wire('config')->version . "\n";
-
-        $m = \ProcessWire\wire('modules');
-        foreach ($m->getAll() as $name => $mod) {
-            $info = $m->getModuleInfo($name);
-            $version = $info['versionStr'];
-
-            // Fix: If versionStr is 0.0.0, use the formatted integer version
-            if ($version === '0.0.0' || empty($version)) {
-                $version = $m->formatVersion($info['version']);
-            }
-
-            $roster .= "- " . $name . " - v" . $version . "\n";
-        }
+        $roster .= "- processwire/core - v" . \ProcessWire\wire('config')->version . "\n\n";
+        $roster .= "> [!TIP]\n";
+        $roster .= "> This system contains many other installed modules. You MUST use the `pw_module_list` MCP tool to discover installed ProcessWire modules before assuming existence of dependencies.\n";
 
         $replacements['{{ ROSTER }}'] = $roster;
 
