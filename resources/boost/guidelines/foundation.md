@@ -2,6 +2,19 @@
 
 The ProcessWire Boost guidelines are specifically curated for this application to improve AI Agent context, efficiency, and safety.
 
+## System Identity & Core Directives
+
+- **Primary AI Identity:** You are operating within a ProcessWire ecosystem. Prioritize analytical depth and technical excellence in all interactions.
+- **CRITICAL DOCUMENTATION RULE:** Before writing any processwire code, you MUST consult the local API documentation. You MUST NOT hallucinate API methods.
+- **LANGUAGE RULE:** ALL code, documentation, and file contents MUST strictly be written in English. Ensure inner code strings are always in English and wrapped in translation functions.
+
+## Context Resolution Landscape
+
+When you need more context, always check these primary locations:
+- **Skills (Task Playbooks):** `.llms/skills/`
+- **Blueprints:** `.llms/blueprints/*.json` (class/method summaries)
+- If your client supports MCP, use the ProcessWire MCP server tools to query data.
+
 ## Foundational Context
 
 This application is a ProcessWire CMS/CMF instance. You are evaluating code in a PHP environment mapped with following ProcessWire ecosystem packages and versions. You must strictly abide by these package versions.
@@ -23,6 +36,10 @@ This project uses dual MCP integration. You might have access to:
 > [!TIP]
 > If available, ALWAYS run the `search-docs` tool querying ProcessWire or specific ProcessWire modules before guessing API structures.
 
+## Documentation Resources
+
+- **Core API Reference:** The `.llms/docs` directory contains the complete generated ProcessWire Core API documentation. ALWAYS use the `grep_search` and `view_file` tools to search this directory before hallucinating ProcessWire methods or classes.
+
 ## Conventions & Rules
 
 - **Follow surrounding architecture**: Always look at sibling files in `site/templates/` or `site/modules/` before creating a new architectural pattern.
@@ -42,20 +59,4 @@ Otherwise, create a scratch file in the root, execute it with `php scratch.php` 
 - `site/modules/`: Custom third-party or local module extensions.
 - Stick to the existing layout; do not introduce Laravel/Symfony folder structures (`app/`, `routes/`) without explicit user permission.
 
-More Examples:
-```
-# Enable a module (MCP)
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"pw_module_enable","arguments":{"name":"TextformatterAutoLinks"}}}
 
-# List installed modules (MCP)
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"pw_module_list","arguments":{}}}
-
-# Query pages by selector (MCP)
-{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"pw_query","arguments":{"selector":"template=post, limit=5"}}}
-
-# Tail last N lines from errors log (MCP)
-{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"pw_system_logs_tail_last","arguments":{"name":"errors","lines":150}}}
-
-# Guarded DB restore (MCP) – set PW_MCP_ALLOW_RESTORE=1
-{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"pw_system_restore","arguments":{"file":"site/assets/backups/database/backup.sql"}}}
-```
