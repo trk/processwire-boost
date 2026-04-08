@@ -1,6 +1,7 @@
 {
   "name": "trk/processwire-boost",
   "description": "AI context bridge for ProcessWire CMS.",
+  "version": "0.0.1",
   "type": "library",
   "license": "MIT",
   "require": {
@@ -28,7 +29,8 @@
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildCoreCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildModulesCommand",
         "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostAssertCommand",
-        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostVersionCommand"
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostVersionCommand",
+        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildDocsCommand"
       ]
     }
   }
