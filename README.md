@@ -384,35 +384,14 @@ args = ["vendor/bin/wire", "boost:mcp"]
 
 ## Commands Reference
 
-### Core Commands
-
 | Command | Description |
 |---------|-------------|
 | `boost:install` | Interactive or flag-based setup. Deploys guidelines, skills, MCP, and agent configurations |
 | `boost:mcp` | Start the JSON-RPC MCP server on stdio |
-| `boost:update` | Quick re-sync using saved configuration |
+| `boost:update` | Re-sync guidelines and skills from saved `.llms/boost.json` configuration |
 | `boost:version` | Display Boost version information |
-
-### Build Commands
-
-| Command | Description |
-|---------|-------------|
-| `boost:build:all` | Build guidelines, skills, and documentation from core API |
-| `boost:build:guides` | Generate guidelines from local core PHPDoc |
-| `boost:build:skills` | Generate skills from builder/skills sources |
-| `boost:build:core` | Build core class documentation |
-| `boost:build:modules` | Build module class documentation |
-| `boost:build:docs` | Generate comprehensive API documentation |
-| `boost:add:skill` | Add or import individual skills |
-
-### Analysis Commands
-
-| Command | Description |
-|---------|-------------|
-| `boost:scan:core` | Scan `wire/core` classes and print a summary |
-| `boost:scan:modules` | Scan `wire/modules` classes and print a summary |
-| `boost:scan:all` | Scan both core and modules |
-| `boost:assert` | Validate generated assets for quality and completeness |
+| `boost:build:docs` | Generate comprehensive API documentation from ProcessWire core PHPDoc |
+| `boost:add-skill` | Add skills from a remote GitHub repository |
 
 ### Installer Flags
 

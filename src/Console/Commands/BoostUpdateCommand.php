@@ -7,6 +7,7 @@ namespace Totoglu\ProcessWire\Boost\Console\Commands;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Totoglu\ProcessWire\Boost\BoostManager;
 use function Laravel\Prompts\intro;
 use function Laravel\Prompts\outro;
 use function Laravel\Prompts\info;
@@ -16,7 +17,7 @@ final class BoostUpdateCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('boost:update')->setDescription('Update the ProcessWire Boost guidelines & skills to the latest guidance');
+        $this->setName('boost:update')->setDescription('Re-sync ProcessWire Boost guidelines & skills from saved configuration');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -37,15 +38,18 @@ final class BoostUpdateCommand extends Command
             return Command::FAILURE;
         }
 
-        $output->writeln('  Updating guidelines and skills to latest...');
+        $manager = new BoostManager($projectRoot);
 
-        spin(function () use ($projectRoot) {
-            $cmd = 'php vendor/bin/wire boost:build:all';
-            $cwd = getcwd();
-            chdir($projectRoot);
-            exec($cmd);
-            chdir($cwd);
-        }, 'Building latest guidelines and skills...');
+        spin(function () use ($manager, $config) {
+            $modules = $config['modules'] ?? [];
+            $features = $config['features'] ?? ['guidelines', 'skills', 'mcp'];
+            $agents = $config['agents'] ?? [];
+            $manager->install(
+                features: $features,
+                modules: $modules,
+                agents: $agents,
+            );
+        }, 'Re-syncing guidelines and skills...');
 
         info('Boost guidelines and skills updated successfully.');
 
