@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Totoglu\ProcessWire\Boost\Console\Commands;
 
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Totoglu\ProcessWire\Boost\BoostManager;
-use Totoglu\ProcessWire\Boost\SkillBuilder;
+use Totoglu\ProcessWire\Boost\Install\Agents\Agent;
 use Totoglu\ProcessWire\Boost\Install\Agents\Gemini as GeminiAgent;
 use Totoglu\ProcessWire\Boost\Install\Agents\Codex as CodexAgent;
 use Totoglu\ProcessWire\Boost\Install\Agents\Cursor as CursorAgent;
@@ -21,7 +20,6 @@ use Totoglu\ProcessWire\Boost\Install\Agents\Junie as JunieAgent;
 use Totoglu\ProcessWire\Boost\Install\Agents\OpenCode as OpenCodeAgent;
 use Totoglu\ProcessWire\Boost\Install\Agents\Trae as TraeAgent;
 use function Laravel\Prompts\multiselect;
-use function Laravel\Prompts\select;
 use function Laravel\Prompts\intro;
 use function Laravel\Prompts\spin;
 use function Laravel\Prompts\info;
@@ -29,6 +27,17 @@ use function Laravel\Prompts\note;
 
 final class BoostInstallCommand extends Command
 {
+    private const AGENT_MAP = [
+        'Amp' => AmpAgent::class,
+        'Claude Code' => ClaudeAgent::class,
+        'Codex' => CodexAgent::class,
+        'Cursor' => CursorAgent::class,
+        'Gemini CLI' => GeminiAgent::class,
+        'GitHub Copilot' => CopilotAgent::class,
+        'Junie' => JunieAgent::class,
+        'OpenCode' => OpenCodeAgent::class,
+        'Trae' => TraeAgent::class,
+    ];
     private const FEATURES = [
         'guidelines' => 'AI Guidelines',
         'skills' => 'Agent Skills',
@@ -130,7 +139,7 @@ final class BoostInstallCommand extends Command
             note('No third-party modules with Boost resources detected.');
         }
 
-        $agentChoices = ['Amp','Claude Code','Codex','Cursor','Gemini CLI','GitHub Copilot','Junie','OpenCode','Trae'];
+        $agentChoices = array_keys(self::AGENT_MAP);
         
         $selectedAgents = [];
         $agentsOpt = $input->getOption('agents');
@@ -185,75 +194,41 @@ final class BoostInstallCommand extends Command
                 $featureLabels[] = self::FEATURES[$key];
             }
             spin(function () use ($manager, $featureLabels, $selectedModules, $selectedAgents) {
-                $manager->sync($featureLabels, $selectedModules, $selectedAgents);
+                $agents = $this->resolveAgents($selectedAgents);
+                $manager->sync($featureLabels, $selectedModules, $agents);
             }, 'Syncing Boost configuration...');
             $output->writeln("  <fg=green>✓ Sync complete</>\n");
         }
 
-        foreach ($agentsToInstall as $agent) {
-            $filename = strtoupper(str_replace(' ', '_', $agent)) . '.md';
-            if ($agent === 'Cursor') $filename = 'CURSOR.md';
-            if ($agent === 'Gemini CLI') $filename = 'GEMINI.md';
-            if ($agent === 'Claude Code') $filename = 'CLAUDE.md';
-            $output->writeln("  <fg=green>✓ Configured {$agent} ({$filename})</>");
+        foreach ($agentsToInstall as $agentName) {
+            $agentClass = self::AGENT_MAP[$agentName] ?? null;
+            if ($agentClass) {
+                $agent = new $agentClass();
+                $output->writeln("  <fg=green>✓ Configured {$agentName} ({$agent->guidelinesPath()})</>");
+            }
         }
 
-        foreach ($agentsToRemove as $agent) {
-            $filename = strtoupper(str_replace(' ', '_', $agent)) . '.md';
-            if ($agent === 'Cursor') $filename = 'CURSOR.md';
-            if ($agent === 'Gemini CLI') $filename = 'GEMINI.md';
-            if ($agent === 'Claude Code') $filename = 'CLAUDE.md';
-            $agentFile = getcwd() . '/' . $filename;
-            if (file_exists($agentFile)) {
-                unlink($agentFile);
-            }
-            $output->writeln("  <fg=red>✗ Removed {$agent} ({$filename})</>");
-        }
-
-        if (in_array('skills', $selectedFeatures)) {
-            if (in_array('Trae', $selectedAgents)) {
-                $sb = new SkillBuilder($projectRoot);
-                $trae = new TraeAgent();
-                spin(fn() => $sb->exportForAgent($trae, null, $projectRoot . '/.trae/skills'), 'Exporting Trae skills...');
-                $output->writeln("  <fg=green>✓ Trae skills exported</>");
-            }
-            if (in_array('OpenCode', $selectedAgents)) {
-                $sb = new SkillBuilder($projectRoot);
-                $opencode = new OpenCodeAgent();
-                spin(fn() => $sb->exportForAgent($opencode, null, $projectRoot . '/.opencode/skills'), 'Exporting OpenCode skills...');
-                $output->writeln("  <fg=green>✓ OpenCode skills exported</>");
+        foreach ($agentsToRemove as $agentName) {
+            $agentClass = self::AGENT_MAP[$agentName] ?? null;
+            if ($agentClass) {
+                $agent = new $agentClass();
+                $agentFile = getcwd() . '/' . $agent->guidelinesPath();
+                if (file_exists($agentFile)) {
+                    unlink($agentFile);
+                }
+                $output->writeln("  <fg=red>✗ Removed {$agentName} ({$agent->guidelinesPath()})</>");
             }
         }
 
         if (in_array('mcp', $selectedFeatures) && !empty($selectedAgents)) {
-            $pathType = select(
-                label: 'Path type for MCP command?',
-                options: [
-                    'rel' => 'Relative (vendor/bin/wire)',
-                    'abs' => 'Absolute (/.../vendor/bin/wire)',
-                ],
-                default: 'rel'
-            );
-
-            $agentsForMcp = [];
-            foreach ($selectedAgents as $a) {
-                if ($a === 'Gemini CLI') $agentsForMcp[] = new GeminiAgent();
-                if ($a === 'Codex') $agentsForMcp[] = new CodexAgent();
-                if ($a === 'Cursor') $agentsForMcp[] = new CursorAgent();
-                if ($a === 'GitHub Copilot') $agentsForMcp[] = new CopilotAgent();
-                if ($a === 'Claude Code') $agentsForMcp[] = new ClaudeAgent();
-                if ($a === 'Amp') $agentsForMcp[] = new AmpAgent();
-                if ($a === 'Junie') $agentsForMcp[] = new JunieAgent();
-                if ($a === 'OpenCode') $agentsForMcp[] = new OpenCodeAgent();
-                if ($a === 'Trae') $agentsForMcp[] = new TraeAgent();
-            }
+            $agentsForMcp = $this->resolveAgents($selectedAgents);
             if (!empty($agentsForMcp)) {
-                spin(function () use ($agentsForMcp, $pathType, $projectRoot) {
+                spin(function () use ($agentsForMcp, $projectRoot) {
                     $key = 'processwire';
-                    $command = 'php';
-                    $wire = $pathType === 'abs' ? ($projectRoot . '/vendor/bin/wire') : 'vendor/bin/wire';
-                    $args = [$wire, 'boost:mcp'];
                     foreach ($agentsForMcp as $agent) {
+                        $command = $agent->getPhpPath();
+                        $wire = $agent->getWirePath($projectRoot);
+                        $args = [$wire, 'boost:mcp'];
                         $agent->installMcp($key, $command, $args, []);
                     }
                 }, 'Writing agent MCP configurations...');
@@ -291,6 +266,25 @@ final class BoostInstallCommand extends Command
         $output->writeln("  │  📦 https://github.com/trk/processwire-boost/                  │");
         $output->writeln("  └─────────────────────────────────────────────────────────────────┘\n");
         return Command::SUCCESS;
+    }
+
+    /**
+     * Resolve display names to Agent instances.
+     *
+     * @param string[] $agentNames
+     * @return Agent[]
+     */
+    private function resolveAgents(array $agentNames): array
+    {
+        $agents = [];
+        foreach ($agentNames as $name) {
+            $class = self::AGENT_MAP[$name] ?? null;
+            if ($class) {
+                $agents[] = new $class();
+            }
+        }
+
+        return $agents;
     }
 
     private function displaySummary(OutputInterface $output, array $selectedFeatures, array $selectedAgents, array $selectedModules): void

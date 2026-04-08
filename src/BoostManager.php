@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Totoglu\ProcessWire\Boost;
 
+use Totoglu\ProcessWire\Boost\Install\Agents\Agent;
+
 final class BoostManager
 {
     private string $targetDir;
@@ -36,13 +38,22 @@ final class BoostManager
             foreach ($it as $file) {
                 if ($file->isDot() || !$file->isDir()) continue;
 
-                $boostPath = $file->getPathname() . '/boost';
-                if (is_dir($boostPath)) {
+                $modulePath = $file->getPathname();
+
+                // Priority chain for each resource type: boost/{type} > .llms/{type} > {type}
+                $guidelinesDir = $this->resolveResourceDir($modulePath, 'guidelines');
+                $skillsDir = $this->resolveResourceDir($modulePath, 'skills');
+                $blueprintsDir = $this->resolveResourceDir($modulePath, 'blueprints');
+
+                if ($guidelinesDir || $skillsDir || $blueprintsDir) {
                     $discoveries[$file->getFilename()] = [
-                        'path' => $boostPath,
-                        'has_guidelines' => is_dir($boostPath . '/guidelines') || is_dir($boostPath),
-                        'has_skills' => is_dir($boostPath . '/skills'),
-                        'has_blueprints' => is_dir($boostPath . '/blueprints'),
+                        'path' => $modulePath,
+                        'guidelines_path' => $guidelinesDir,
+                        'skills_path' => $skillsDir,
+                        'blueprints_path' => $blueprintsDir,
+                        'has_guidelines' => $guidelinesDir !== null,
+                        'has_skills' => $skillsDir !== null,
+                        'has_blueprints' => $blueprintsDir !== null,
                     ];
                 }
             }
@@ -53,6 +64,9 @@ final class BoostManager
         if (is_dir($siteBoostPath)) {
             $discoveries['site-overrides'] = [
                 'path' => $siteBoostPath,
+                'guidelines_path' => is_dir($siteBoostPath . '/guidelines') ? $siteBoostPath . '/guidelines' : null,
+                'skills_path' => is_dir($siteBoostPath . '/skills') ? $siteBoostPath . '/skills' : null,
+                'blueprints_path' => is_dir($siteBoostPath . '/blueprints') ? $siteBoostPath . '/blueprints' : null,
                 'has_guidelines' => is_dir($siteBoostPath . '/guidelines'),
                 'has_skills' => is_dir($siteBoostPath . '/skills'),
                 'has_blueprints' => is_dir($siteBoostPath . '/blueprints'),
@@ -63,11 +77,21 @@ final class BoostManager
     }
 
     /**
+     * Resolve resource directory for a module — standard path: {module}/llms/{type}
+     */
+    private function resolveResourceDir(string $modulePath, string $resourceType): ?string
+    {
+        $path = $modulePath . '/llms/' . $resourceType;
+
+        return is_dir($path) ? $path : null;
+    }
+
+    /**
      * Perform the installation based on choices
      * 
      * @param string[] $features Selected features (Guidelines, Skills, Blueprints, MCP)
      * @param string[] $modules Selected modules to aggregate from
-     * @param string[] $agents Selected agents (Cursor, Gemini CLI, etc)
+     * @param Agent[] $agents Selected agent instances
      */
     public function install(array $features, array $modules, array $agents): void
     {
@@ -80,7 +104,10 @@ final class BoostManager
 
         // 2. Clear current context (only clear what will be repopulated)
         if (in_array('AI Guidelines', $features)) {
-            $this->clearDirectory($this->targetDir . '/guidelines');
+            // Guidelines are now compiled directly into AGENTS.md. Remove legacy directory.
+            if (is_dir($this->targetDir . '/guidelines')) {
+                $this->delTree($this->targetDir . '/guidelines');
+            }
         }
         if (in_array('Blueprints', $features)) {
             $this->clearDirectory($this->targetDir . '/blueprints');
@@ -90,9 +117,6 @@ final class BoostManager
         }
 
         // 3. Export Core Resources
-        if (in_array('AI Guidelines', $features)) {
-            $this->exportCoreResources($this->targetDir . '/guidelines', 'guidelines');
-        }
         if (in_array('Blueprints', $features)) {
             $this->exportCoreResources($this->targetDir . '/blueprints', 'blueprints');
         }
@@ -104,7 +128,7 @@ final class BoostManager
         $availableModules = $this->getDiscoverableModules();
         foreach ($modules as $moduleName) {
             if (isset($availableModules[$moduleName])) {
-                $this->aggregateResources($availableModules[$moduleName]['path'], $features);
+                $this->aggregateResources($moduleName, $availableModules[$moduleName], $features);
             }
         }
 
@@ -143,7 +167,6 @@ final class BoostManager
                 'title' => $info['title'] ?? '',
                 'version' => $info['version'] ?? '',
                 'summary' => $info['summary'] ?? '',
-                'installed' => true
             ];
         }
 
@@ -172,6 +195,9 @@ final class BoostManager
         }
     }
 
+    /**
+     * @param Agent[] $agents
+     */
     private function generateAgentFiles(array $agents, array $features, array $modules): void
     {
         $instructionParts = [];
@@ -183,8 +209,6 @@ final class BoostManager
 
         // Dynamically load all core guidelines
         $guidelinesDirectories = [
-            $this->targetDir . '/guidelines',
-            __DIR__ . '/resources/boost/guidelines',
             __DIR__ . '/../resources/boost/guidelines'
         ];
         
@@ -201,7 +225,7 @@ final class BoostManager
                     if (is_file($filePath)) {
                         $ruleName = str_replace(['-', '_'], ' ', pathinfo($file, PATHINFO_FILENAME));
                         $instructionParts[] = "=== {$ruleName} rules ===\n\n" . file_get_contents($filePath);
-                        $processedFiles[] = $file; // Prevent reading again from fallbacks
+                        $processedFiles[] = $file;
                     }
                 }
             }
@@ -211,68 +235,134 @@ final class BoostManager
         if (!empty($modules)) {
             $availableModules = $this->getDiscoverableModules();
             foreach ($modules as $mName) {
-                if (isset($availableModules[$mName])) {
-                    // Check if guidelines exist in .llms/
-                    // Note: aggregateResources already copied them
-                    $mGuidelinesDir = $this->targetDir . '/guidelines/' . $mName;
-                    if (is_dir($mGuidelinesDir)) {
-                        $mContent = "";
-                        foreach (scandir($mGuidelinesDir) as $f) {
-                            if ($f === '.' || $f === '..') continue;
-                            $mContent .= file_get_contents($mGuidelinesDir . '/' . $f) . "\n\n";
-                        }
-                        if ($mContent) {
-                            $instructionParts[] = "=== module rule: {$mName} ===\n\n" . trim($mContent);
-                        }
+                if (!isset($availableModules[$mName])) continue;
+                
+                $moduleInfo = $availableModules[$mName];
+                $mContent = "";
+
+                // Read from llms/guidelines/ directory
+                if ($moduleInfo['guidelines_path'] && is_dir($moduleInfo['guidelines_path'])) {
+                    foreach (scandir($moduleInfo['guidelines_path']) as $f) {
+                        if ($f === '.' || $f === '..') continue;
+                        if (strtolower(pathinfo($f, PATHINFO_EXTENSION)) !== 'md') continue;
+                        $mContent .= file_get_contents($moduleInfo['guidelines_path'] . '/' . $f) . "\n\n";
                     }
+                }
+
+                // Fallback: read llms.txt at module root
+                $llmsTxtPath = $moduleInfo['path'] . '/llms.txt';
+                if (empty($mContent) && is_file($llmsTxtPath)) {
+                    $mContent = file_get_contents($llmsTxtPath);
+                }
+
+                if ($mContent) {
+                    $instructionParts[] = "=== module rule: {$mName} ===\n\n" . trim($mContent);
                 }
             }
         }
 
         $fullInstructions = implode("\n\n", $instructionParts);
+        $boostBlock = "<processwire-boost-guidelines>\n\n{$fullInstructions}\n\n</processwire-boost-guidelines>";
 
-        $baseSystemIdentity = "## System Identity & Core Directives\n\n"
-            . "- **Primary AI Identity:** You are operating within a ProcessWire ecosystem. Always adopt the analytical depth of `@brainstorming` and the technical excellence of `@php-pro`.\n"
-            . "- **CRITICAL DOCUMENTATION RULE:** Before writing any processwire code, you MUST consult the local API documentation. You MUST NOT hallucinate API methods.\n"
-            . "- **LANGUAGE RULE:** ALL code, documentation, and file contents MUST strictly be written in English. Ensure inner code strings are always in English and wrapped in translation functions.\n\n"
-            . "## Context Resolution Landscape\n\n"
-            . "When you need more context, always check these primary locations:\n"
-            . "- **Guidelines:** `.llms/guidelines/`\n"
-            . "- **Skills (Task Playbooks):** `.llms/skills/`\n"
-            . "- **Blueprints:** `.llms/blueprints/*.json` (class/method summaries)\n"
-            . "- If your client supports MCP, use the ProcessWire MCP server tools to query data.\n\n";
+        // Generate unified AGENTS.md (always created as universal fallback)
+        $agentsPath = $this->projectRoot . '/AGENTS.md';
+        $this->writeBoostBlock($agentsPath, $boostBlock, "# Universal AI Agent Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n");
 
-        // Always generate unified AGENTS.md
-        $agentsMdContent = "# Universal AI Agent Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n"
-            . $baseSystemIdentity
-            . "<processwire-boost-guidelines>\n\n{$fullInstructions}\n\n</processwire-boost-guidelines>\n";
-            
-        file_put_contents($this->projectRoot . '/AGENTS.md', $agentsMdContent);
+        // Track which guidelines files have been written to avoid duplicates
+        $writtenGuidelines = ['AGENTS.md'];
 
+        // Generate agent-specific guidelines and deploy skills
         foreach ($agents as $agent) {
-            $filename = strtoupper(str_replace(' ', '_', $agent)) . '.md';
-            if ($agent === 'Cursor') $filename = 'CURSOR.md';
-            if ($agent === 'Gemini CLI') $filename = 'GEMINI.md';
-            if ($agent === 'Claude Code') $filename = 'CLAUDE.md';
+            $guidelinesFile = $agent->guidelinesPath();
 
-            $header = "# {$agent} Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n";
-            $content = "{$header}\n{$baseSystemIdentity}\n<processwire-boost-guidelines>\n\n{$fullInstructions}\n\n</processwire-boost-guidelines>\n";
+            // Write guidelines (skip if same file already written, e.g. multiple agents use AGENTS.md)
+            if (!in_array($guidelinesFile, $writtenGuidelines, true)) {
+                $guidelinesFullPath = $this->projectRoot . '/' . $guidelinesFile;
+                $agentHeader = "# {$agent->displayName()} Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n";
+                $this->writeBoostBlock($guidelinesFullPath, $boostBlock, $agentHeader);
+                $writtenGuidelines[] = $guidelinesFile;
+            }
 
-            file_put_contents($this->projectRoot . '/' . $filename, $content);
+            // Deploy skills to agent-specific directory
+            if (in_array('Agent Skills', $features)) {
+                $skillsTarget = $this->projectRoot . '/' . $agent->skillsPath();
+                $this->deploySkillsToAgent($agent, $skillsTarget);
+            }
         }
     }
 
+    /**
+     * Deploy skills from the central staging area to an agent-specific directory.
+     */
+    private function deploySkillsToAgent(Agent $agent, string $targetDir): void
+    {
+        $sourceDir = $this->targetDir . '/skills';
+        if (!is_dir($sourceDir)) {
+            return;
+        }
+
+        foreach (new \DirectoryIterator($sourceDir) as $skillDir) {
+            if ($skillDir->isDot() || !$skillDir->isDir()) {
+                continue;
+            }
+
+            $skillFile = $skillDir->getPathname() . '/SKILL.md';
+            if (!file_exists($skillFile)) {
+                continue;
+            }
+
+            $agent->exportSkill($skillDir->getFilename(), $skillFile, $targetDir);
+        }
+    }
+
+    /**
+     * Write boost guidelines into a file using a merge strategy.
+     * 
+     * - If file exists and contains <processwire-boost-guidelines> tags:
+     *   only replace content between tags, preserving everything else.
+     * - If file exists but has no tags: append tags after last line.
+     * - If file does not exist: create with default header + tags.
+     */
+    private function writeBoostBlock(string $filePath, string $boostBlock, string $defaultHeader): void
+    {
+        if (file_exists($filePath)) {
+            $existing = file_get_contents($filePath);
+
+            if (str_contains($existing, '<processwire-boost-guidelines>') && str_contains($existing, '</processwire-boost-guidelines>')) {
+                // Replace only the boost block, preserve everything else
+                $pattern = '/<processwire-boost-guidelines>.*?<\/processwire-boost-guidelines>/s';
+                $updated = preg_replace($pattern, $boostBlock, $existing, 1);
+                file_put_contents($filePath, $updated);
+            } else {
+                // File exists but no boost tags — append after last line
+                $existing = rtrim($existing) . "\n\n" . $boostBlock . "\n";
+                file_put_contents($filePath, $existing);
+            }
+        } else {
+            // File does not exist — create from scratch
+            $content = $defaultHeader . $boostBlock . "\n";
+            file_put_contents($filePath, $content);
+        }
+    }
+
+
     private function renderFoundationRule(): ?string
     {
-        $templatePath = $this->targetDir . '/guidelines/foundation.md';
-        if (!file_exists($templatePath)) {
-            $templatePath = __DIR__ . '/resources/boost/guidelines/foundation.md';
-            if (!file_exists($templatePath)) {
-                $templatePath = __DIR__ . '/../resources/boost/guidelines/foundation.md';
-                if (!file_exists($templatePath)) {
-                    return null;
-                }
+        $candidates = [
+            $this->targetDir . '/guidelines/foundation.md',
+            __DIR__ . '/../resources/boost/guidelines/foundation.md',
+        ];
+
+        $templatePath = null;
+        foreach ($candidates as $candidate) {
+            if (file_exists($candidate)) {
+                $templatePath = $candidate;
+                break;
             }
+        }
+
+        if ($templatePath === null) {
+            return null;
         }
 
         $content = file_get_contents($templatePath);
@@ -314,35 +404,14 @@ final class BoostManager
         return $content;
     }
 
-    private function aggregateResources(string $sourcePath, array $features): void
+    private function aggregateResources(string $moduleName, array $moduleInfo, array $features): void
     {
-        // Aggregate Guidelines
-        if (in_array('AI Guidelines', $features)) {
-            $guidelinesSource = $sourcePath . '/guidelines';
-            if (!is_dir($guidelinesSource)) $guidelinesSource = $sourcePath; // check root of boost dir
-
-            if (is_dir($guidelinesSource)) {
-                $targetGuidelines = $this->targetDir . '/guidelines/' . basename(dirname($sourcePath));
-                $this->copyDirectory($guidelinesSource, $targetGuidelines);
-            }
+        if (in_array('Blueprints', $features) && $moduleInfo['blueprints_path']) {
+            $this->copyDirectory($moduleInfo['blueprints_path'], $this->targetDir . '/blueprints/' . $moduleName);
         }
 
-        // Aggregate Blueprints
-        if (in_array('Blueprints', $features)) {
-            $blueprintsSource = $sourcePath . '/blueprints';
-            if (is_dir($blueprintsSource)) {
-                $targetBlueprints = $this->targetDir . '/blueprints/' . basename(dirname($sourcePath));
-                $this->copyDirectory($blueprintsSource, $targetBlueprints);
-            }
-        }
-
-        // Aggregate Skills
-        if (in_array('Agent Skills', $features)) {
-            $skillsSource = $sourcePath . '/skills';
-            if (is_dir($skillsSource)) {
-                $targetSkills = $this->targetDir . '/skills';
-                $this->copyDirectory($skillsSource, $targetSkills);
-            }
+        if (in_array('Agent Skills', $features) && $moduleInfo['skills_path']) {
+            $this->copyDirectory($moduleInfo['skills_path'], $this->targetDir . '/skills');
         }
     }
 
@@ -376,11 +445,12 @@ final class BoostManager
         }
     }
 
-    private function delTree($dir)
+    private function delTree(string $dir): bool
     {
-        $files = array_diff(scandir($dir), array('.', '..'));
+        $files = array_diff(scandir($dir), ['.', '..']);
         foreach ($files as $file) {
-            (is_dir("$dir/$file")) ? $this->delTree("$dir/$file") : unlink("$dir/$file");
+            $path = "{$dir}/{$file}";
+            is_dir($path) ? $this->delTree($path) : unlink($path);
         }
         return rmdir($dir);
     }
@@ -393,7 +463,9 @@ final class BoostManager
 
         switch ($feature) {
             case 'AI Guidelines':
-                $this->clearDirectory($this->targetDir . '/guidelines');
+                if (is_dir($this->targetDir . '/guidelines')) {
+                    $this->delTree($this->targetDir . '/guidelines');
+                }
                 break;
             case 'Blueprints':
                 $this->clearDirectory($this->targetDir . '/blueprints');
@@ -406,34 +478,6 @@ final class BoostManager
 
     public function sync(array $features, array $modules, array $agents): void
     {
-        if (!is_dir($this->targetDir)) {
-            mkdir($this->targetDir, 0755, true);
-        }
-
-        $this->generateMap($this->targetDir . '/map.json');
-
-        if (in_array('AI Guidelines', $features)) {
-            $this->clearDirectory($this->targetDir . '/guidelines');
-            $this->exportCoreResources($this->targetDir . '/guidelines', 'guidelines');
-        }
-
-        if (in_array('Blueprints', $features)) {
-            $this->clearDirectory($this->targetDir . '/blueprints');
-            $this->exportCoreResources($this->targetDir . '/blueprints', 'blueprints');
-        }
-
-        if (in_array('Agent Skills', $features)) {
-            $this->clearDirectory($this->targetDir . '/skills');
-            $this->exportCoreResources($this->targetDir . '/skills', 'skills');
-        }
-
-        $availableModules = $this->getDiscoverableModules();
-        foreach ($modules as $moduleName) {
-            if (isset($availableModules[$moduleName])) {
-                $this->aggregateResources($availableModules[$moduleName]['path'], $features);
-            }
-        }
-
-        $this->generateAgentFiles($agents, $features, $modules);
+        $this->install($features, $modules, $agents);
     }
 }
