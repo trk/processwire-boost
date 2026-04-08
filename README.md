@@ -139,7 +139,8 @@ sequenceDiagram
     Note over Agent: Generates migration code using<br/>verified schema + skill rules
 
     Agent-->>Dev: Migration file with correct<br/>create/rollback logic
-```                    ProcessWire CMS                           │
+```
+
 ---
 
 ## Requirements
@@ -485,6 +486,8 @@ site/modules/YourModule/
 3. Skills from `.agents/skills/*/SKILL.md` are deployed alongside core skills
 4. Fallback: if no `.agents/guidelines/` exists, `.agents.txt` in the module root is used
 
+> **Tip:** After installing a new module that provides Boost skills, run `php vendor/bin/wire boost:update` to sync the new guidelines and skills into your workspace.
+
 ### Site-Level Overrides
 
 ```
@@ -495,31 +498,128 @@ site/boost/
 
 ---
 
-## Commands
+## CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `boost:install` | Deploy guidelines, skills, MCP configs, and agent files (interactive or flag-based) |
-| `boost:update` | Re-sync from saved `.agents/boost.json` configuration |
-| `boost:mcp` | Start the JSON-RPC MCP server on stdio |
-| `boost:version` | Display Boost version |
-| `boost:build:docs` | Generate API documentation from ProcessWire core PHPDoc |
-| `boost:add-skill` | Add skills from a remote GitHub repository |
+### `boost:install`
 
-### Installer Flags
+Manage AI helper setup (ProcessWire Boost). Select features to install/update, deselect to remove.
 
+**Usage:**
 ```bash
-php vendor/bin/wire boost:install [OPTIONS]
-
-Options:
-  --guidelines          Install AI Guidelines
-  --skills              Install Agent Skills
-  --mcp                 Install MCP Server Configuration
-  -a, --agents=AGENTS   Comma-separated agents (e.g. "Cursor,Claude Code")
-  -m, --modules=MODULES Comma-separated modules (e.g. "Htmx,Blog")
+wire boost:install [options]
 ```
 
-When no flags are provided, the installer runs in interactive mode with multiselect prompts.
+**Options:**
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--guidelines` | | `false` | Install AI Guidelines |
+| `--skills` | | `false` | Install Agent Skills |
+| `--mcp` | | `false` | Install MCP Server Configuration |
+| `--modules` | `-m` | `null` | Comma-separated modules to install |
+| `--agents` | `-a` | `null` | Comma-separated agents to configure |
+
+**Examples:**
+```bash
+# Interactive installation
+wire boost:install
+
+# Flag-based non-interactive installation
+wire boost:install --guidelines --skills -a "Cursor,Claude Code" -m "Htmx"
+```
+
+### `boost:update`
+
+Re-sync ProcessWire Boost guidelines & skills from saved configuration.
+
+**Usage:**
+```bash
+wire boost:update
+```
+
+**Examples:**
+```bash
+# Update resources from .agents/boost.json
+wire boost:update
+```
+
+### `boost:mcp`
+
+Start the ProcessWire MCP server (JSON-RPC over stdio).
+
+**Usage:**
+```bash
+wire boost:mcp
+```
+
+**Examples:**
+```bash
+# Start the MCP server (Typically invoked by AI agents, not manually)
+wire boost:mcp
+```
+
+### `boost:version`
+
+Show processwire-boost version and related packages.
+
+**Usage:**
+```bash
+wire boost:version
+```
+
+**Examples:**
+```bash
+# Display package versions
+wire boost:version
+```
+
+### `boost:build:docs`
+
+Generate ProcessWire Core API reference documentation from source files.
+
+**Usage:**
+```bash
+wire boost:build:docs
+```
+
+**Examples:**
+```bash
+# Build documentation into .agents/docs
+wire boost:build:docs
+```
+
+### `boost:add-skill`
+
+Add skills from a remote GitHub repository.
+
+**Usage:**
+```bash
+wire boost:add-skill [options] [repo]
+```
+
+**Arguments:**
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `repo` | No | GitHub repository (owner/repo or full URL) |
+
+**Options:**
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--list` | `-l` | `false` | List available skills |
+| `--all` | `-a` | `false` | Install all skills |
+| `--skill` | `-s` | `null` | Specific skills to install (can be used multiple times) |
+| `--force` | `-f` | `false` | Overwrite existing skills |
+
+**Examples:**
+```bash
+# Interactive selection
+wire boost:add-skill owner/repo
+
+# List available skills from a repo
+wire boost:add-skill owner/repo --list
+
+# Install specific skills
+wire boost:add-skill owner/repo -s "skill-1" -s "skill-2"
+```
 
 ---
 

@@ -1,6 +1,6 @@
 # ProcessWire Selectors (Queries)
 
-ProcessWire uses a string-based query language called Selectors. For detailed operator reference and advanced patterns, activate the `pw-selectors` skill.
+ProcessWire uses a string-based query language called Selectors. For detailed operator reference and advanced patterns, activate the `pw-pages` skill.
 
 ## Critical Rules
 
