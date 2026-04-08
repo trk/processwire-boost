@@ -20,15 +20,10 @@ final class BoostVersionCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $rows = [];
-        $pkgs = [
-            'trk/processwire-boost' => 'processwire-boost',
-            'trk/processwire-console' => 'processwire-console',
-            'processwire/processwire' => 'processwire/core',
+        $rows = [
+            ['processwire-boost', $this->getVersion('trk/processwire-boost')],
+            ['processwire-console', $this->getVersion('trk/processwire-console')],
         ];
-        foreach ($pkgs as $name => $label) {
-            $rows[] = [$label, $this->getVersion($name)];
-        }
         
         table(['Package', 'Version'], $rows);
         
