@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Totoglu\Console\Boost\Console\Commands;
+namespace Totoglu\Console\Boost\Commands;
 
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;

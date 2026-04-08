@@ -16,12 +16,12 @@
   "extra": {
     "processwire-console": {
       "commands": [
-        "Totoglu\\Console\\Boost\\Console\\Commands\\BoostInstallCommand",
-        "Totoglu\\Console\\Boost\\Console\\Commands\\McpCommand",
-        "Totoglu\\Console\\Boost\\Console\\Commands\\BoostUpdateCommand",
-        "Totoglu\\Console\\Boost\\Console\\Commands\\BoostVersionCommand",
-        "Totoglu\\Console\\Boost\\Console\\Commands\\BoostBuildDocsCommand",
-        "Totoglu\\Console\\Boost\\Console\\Commands\\BoostAddSkillCommand"
+        "Totoglu\\Console\\Boost\\Commands\\BoostInstallCommand",
+        "Totoglu\\Console\\Boost\\Commands\\McpCommand",
+        "Totoglu\\Console\\Boost\\Commands\\BoostUpdateCommand",
+        "Totoglu\\Console\\Boost\\Commands\\BoostVersionCommand",
+        "Totoglu\\Console\\Boost\\Commands\\BoostBuildDocsCommand",
+        "Totoglu\\Console\\Boost\\Commands\\BoostAddSkillCommand"
       ]
     }
   }
