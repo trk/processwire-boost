@@ -565,4 +565,4 @@ Contributions are welcome. Please:
 
 ## License
 
-MIT © [Iskender Totoglu](https://github.com/trk)
+MIT
