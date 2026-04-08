@@ -246,7 +246,7 @@ Every time the agent processes a prompt, it reads these rules. This is where con
 
 1. **Core** — `resources/boost/guidelines/*.md` (7 files)
 2. **Module** — `{module}/.agents/guidelines/*.md` (third-party modules)
-3. **Fallback** — `{module}/.agents.txt` (if no guidelines directory exists)
+3. **Fallback** — `{module}/AGENTS.md` (if no guidelines directory exists)
 
 #### Merge Strategy
 
@@ -484,7 +484,7 @@ site/modules/YourModule/
 1. Boost scans `site/modules/` and `wire/modules/` for `.agents/` directories
 2. Guidelines from `.agents/guidelines/*.md` are compiled into the agent instruction file
 3. Skills from `.agents/skills/*/SKILL.md` are deployed alongside core skills
-4. Fallback: if no `.agents/guidelines/` exists, `.agents.txt` in the module root is used
+4. Fallback: if no `.agents/guidelines/` exists, `AGENTS.md` in the module root is used
 
 > **Tip:** After installing a new module that provides Boost skills, run `php vendor/bin/wire boost:update` to sync the new guidelines and skills into your workspace.
 

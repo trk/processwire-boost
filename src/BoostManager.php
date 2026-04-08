@@ -238,8 +238,8 @@ final class BoostManager
                     }
                 }
 
-                // Fallback: read .agents.md at module root
-                $agentsTxtPath = $moduleInfo['path'] . '/.agents.md';
+                // Fallback: read AGENTS.md at module root
+                $agentsTxtPath = $moduleInfo['path'] . '/AGENTS.md';
                 if (empty($mContent) && is_file($agentsTxtPath)) {
                     $mContent = file_get_contents($agentsTxtPath);
                 }
