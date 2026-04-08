@@ -26,7 +26,7 @@ final class BoostBuildDocsCommand extends Command
 
         $projectRoot = getcwd();
         $wireDir = realpath($projectRoot . '/wire');
-        $docsDir = $projectRoot . '/.llms/docs';
+        $docsDir = $projectRoot . '/.agents/docs';
 
         if (!$wireDir || !is_dir($wireDir)) {
             $output->writeln("<error>Wire library directory not found at {$projectRoot}/wire. Cannot build core docs.</error>");
@@ -43,7 +43,7 @@ final class BoostBuildDocsCommand extends Command
             $this->processFiles($files, $wireDir, $docsDir);
         }, 'Generating API reference markdown files...');
 
-        info('ProcessWire Core API Documentation generated into .llms/docs');
+        info('ProcessWire Core API Documentation generated into .agents/docs');
 
         outro('Docs Build Complete');
         return Command::SUCCESS;

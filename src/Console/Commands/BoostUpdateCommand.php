@@ -52,7 +52,7 @@ final class BoostUpdateCommand extends Command
         intro('ProcessWire Boost :: Update');
 
         $projectRoot = getcwd();
-        $configPath = $projectRoot . '/.llms/boost.json';
+        $configPath = $projectRoot . '/.agents/boost.json';
 
         if (!file_exists($configPath)) {
             $output->writeln('<error>Please run boost:install first.</error>');

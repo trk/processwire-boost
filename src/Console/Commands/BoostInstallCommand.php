@@ -69,7 +69,7 @@ final class BoostInstallCommand extends Command
 
         $projectRoot = getcwd();
         $manager = new BoostManager($projectRoot);
-        $configPath = $projectRoot . '/.llms/boost.json';
+        $configPath = $projectRoot . '/.agents/boost.json';
 
         $config = [
             'version' => '1.0.0',
@@ -211,6 +211,7 @@ final class BoostInstallCommand extends Command
         foreach ($agentsToRemove as $agentName) {
             $agentClass = self::AGENT_MAP[$agentName] ?? null;
             if ($agentClass) {
+                /** @var Agent $agent */
                 $agent = new $agentClass();
                 $agentFile = getcwd() . '/' . $agent->guidelinesPath();
                 if (file_exists($agentFile)) {
@@ -236,7 +237,7 @@ final class BoostInstallCommand extends Command
             }
         }
 
-        $aiDir = $projectRoot . '/.llms';
+        $aiDir = $projectRoot . '/.agents';
         if (!is_dir($aiDir)) {
             mkdir($aiDir, 0755, true);
         }
@@ -294,8 +295,8 @@ final class BoostInstallCommand extends Command
         $output->writeln("  └─────────────────────────────────────────────────────────────┘\n");
 
         $projectRoot = getcwd();
-        $guidelineCount = count(glob($projectRoot . '/.llms/guidelines/*.md')) ?: 0;
-        $skillCount = count(glob($projectRoot . '/.llms/skills/*/SKILL.md')) ?: 0;
+        $guidelineCount = count(glob($projectRoot . '/.agents/guidelines/*.md')) ?: 0;
+        $skillCount = count(glob($projectRoot . '/.agents/skills/*/SKILL.md')) ?: 0;
 
         $featureLabels = [];
         foreach ($selectedFeatures as $key) {

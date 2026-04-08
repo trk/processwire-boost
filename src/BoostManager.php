@@ -13,7 +13,7 @@ final class BoostManager
     public function __construct(
         private readonly string $projectRoot
     ) {
-        $this->targetDir = $this->projectRoot . '/.llms';
+        $this->targetDir = $this->projectRoot . '/.agents';
     }
 
     /**
@@ -40,7 +40,7 @@ final class BoostManager
 
                 $modulePath = $file->getPathname();
 
-                // Priority chain for each resource type: boost/{type} > .llms/{type} > {type}
+                // Priority chain for each resource type: boost/{type} > .agents/{type} > {type}
                 $guidelinesDir = $this->resolveResourceDir($modulePath, 'guidelines');
                 $skillsDir = $this->resolveResourceDir($modulePath, 'skills');
 
@@ -72,11 +72,11 @@ final class BoostManager
     }
 
     /**
-     * Resolve resource directory for a module — standard path: {module}/llms/{type}
+     * Resolve resource directory for a module — standard path: {module}/.agents/{type}
      */
     private function resolveResourceDir(string $modulePath, string $resourceType): ?string
     {
-        $path = $modulePath . '/llms/' . $resourceType;
+        $path = $modulePath . '/.agents/' . $resourceType;
 
         return is_dir($path) ? $path : null;
     }
@@ -229,7 +229,7 @@ final class BoostManager
                 $moduleInfo = $availableModules[$mName];
                 $mContent = "";
 
-                // Read from llms/guidelines/ directory
+                // Read from .agents/guidelines/ directory
                 if ($moduleInfo['guidelines_path'] && is_dir($moduleInfo['guidelines_path'])) {
                     foreach (scandir($moduleInfo['guidelines_path']) as $f) {
                         if ($f === '.' || $f === '..') continue;
@@ -238,10 +238,10 @@ final class BoostManager
                     }
                 }
 
-                // Fallback: read llms.txt at module root
-                $llmsTxtPath = $moduleInfo['path'] . '/llms.txt';
-                if (empty($mContent) && is_file($llmsTxtPath)) {
-                    $mContent = file_get_contents($llmsTxtPath);
+                // Fallback: read .agents.txt at module root
+                $agentsTxtPath = $moduleInfo['path'] . '/.agents.txt';
+                if (empty($mContent) && is_file($agentsTxtPath)) {
+                    $mContent = file_get_contents($agentsTxtPath);
                 }
 
                 if ($mContent) {
@@ -273,36 +273,11 @@ final class BoostManager
             }
 
             // Deploy skills to agent-specific directory
-            if (in_array('Agent Skills', $features)) {
-                $skillsTarget = $this->projectRoot . '/' . $agent->skillsPath();
-                $this->deploySkillsToAgent($agent, $skillsTarget);
-            }
+            // Disabled in ProcessWire Boost 1.x: We now rely exclusively on the central .agents/skills directory.
+            // Redundant skill copies to agent-specific folders (e.g. .claude/skills) are no longer generated.
         }
     }
 
-    /**
-     * Deploy skills from the central staging area to an agent-specific directory.
-     */
-    private function deploySkillsToAgent(Agent $agent, string $targetDir): void
-    {
-        $sourceDir = $this->targetDir . '/skills';
-        if (!is_dir($sourceDir)) {
-            return;
-        }
-
-        foreach (new \DirectoryIterator($sourceDir) as $skillDir) {
-            if ($skillDir->isDot() || !$skillDir->isDir()) {
-                continue;
-            }
-
-            $skillFile = $skillDir->getPathname() . '/SKILL.md';
-            if (!file_exists($skillFile)) {
-                continue;
-            }
-
-            $agent->exportSkill($skillDir->getFilename(), $skillFile, $targetDir);
-        }
-    }
 
     /**
      * Write boost guidelines into a file using a merge strategy.

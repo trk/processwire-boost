@@ -152,7 +152,7 @@ final class BoostAddSkillCommand extends Command
 
     private function downloadSkills(array $skills, string $projectRoot, bool $force): array
     {
-        $skillsPath = $projectRoot . '/.llms/skills/pw_core';
+        $skillsPath = $projectRoot . '/.agents/skills/pw_core';
         if (!is_dir($skillsPath)) {
             @mkdir($skillsPath, 0755, true);
         }
