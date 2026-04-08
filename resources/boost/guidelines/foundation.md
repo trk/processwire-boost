@@ -57,6 +57,7 @@ Otherwise, create a scratch file in the root, execute it with `php scratch.php` 
 - `site/`: Application-specific workspace.
 - `site/templates/`: Front-end outputs, controller logic.
 - `site/modules/`: Custom third-party or local module extensions.
+- `site/migrations/`: Schema migration files (timestamped PHP, managed via `make:migration` / `migrate` CLI).
 - Stick to the existing layout; do not introduce Laravel/Symfony folder structures (`app/`, `routes/`) without explicit user permission.
 
 

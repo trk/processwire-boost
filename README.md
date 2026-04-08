@@ -240,7 +240,7 @@ This means your custom instructions in `CLAUDE.md` or `AGENTS.md` are preserved 
 
 Skills are task playbooks that teach AI agents specific ProcessWire patterns. Each skill is a `SKILL.md` file deployed to the agent's native skill directory.
 
-#### Built-in Skills (11)
+#### Built-in Skills (12)
 
 | Skill | Description |
 |-------|-------------|
@@ -254,6 +254,7 @@ Skills are task playbooks that teach AI agents specific ProcessWire patterns. Ea
 | `pw-module-markup` | Frontend rendering with Markup module ecosystem |
 | `pw-module-process` | Admin dashboards, routing, and RBAC |
 | `pw-module-textformatter` | String formatting modules for output rendering |
+| `pw-migrations` | Schema migrations: create fields, templates, pages, roles via CLI |
 | `pw-selectors` | Query construction, filtering, sorting |
 | `pw-url-routing` | URL/Path hooks for custom routing and API endpoints |
 
@@ -392,6 +393,33 @@ args = ["vendor/bin/wire", "boost:mcp"]
 | `boost:version` | Display Boost version information |
 | `boost:build:docs` | Generate comprehensive API documentation from ProcessWire core PHPDoc |
 | `boost:add-skill` | Add skills from a remote GitHub repository |
+
+### Migration Commands
+
+Provided by `trk/processwire-console`. Manage schema changes via versioned migration files in `site/migrations/`.
+
+| Command | Description |
+|---------|-------------|
+| `make:migration <name>` | Create a new migration file (supports `--type` flag for scaffolding) |
+| `migrate` | Run all pending migrations (`--dry-run`, `--step`, `--force`, `--json`) |
+| `migrate:status` | Show applied/pending status of all migrations |
+| `migrate:rollback` | Rollback the last batch (`--step=N` for step-based) |
+| `migrate:reset` | Rollback all applied migrations |
+| `migrate:refresh` | Reset and re-run all migrations |
+| `migrate:fresh` | Drop migration table and re-run all migrations |
+| `migrate:install` | Create the `wire_migrations` tracking table |
+
+**Stub types for `make:migration --type=`:**
+
+| Type | Description |
+|------|-------------|
+| `blank` | Empty scaffold with `up()` / `down()` |
+| `create-field` | Create a ProcessWire field |
+| `create-template` | Create a template with fieldgroup and template file |
+| `attach-field` | Attach a field to a template |
+| `create-page` | Create a page under a parent |
+| `create-role` | Create a role with permissions |
+| `install-module` | Install a ProcessWire module |
 
 ### Installer Flags
 
