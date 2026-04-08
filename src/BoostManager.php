@@ -223,6 +223,8 @@ final class BoostManager
         // Aggregate module specific instructions
         if (!empty($modules)) {
             $availableModules = $this->getDiscoverableModules();
+            $moduleDirectories = [];
+
             foreach ($modules as $mName) {
                 if (!isset($availableModules[$mName])) continue;
 
@@ -238,15 +240,31 @@ final class BoostManager
                     }
                 }
 
-                // Fallback: read AGENTS.md at module root
-                $agentsTxtPath = $moduleInfo['path'] . '/AGENTS.md';
-                if (empty($mContent) && is_file($agentsTxtPath)) {
-                    $mContent = file_get_contents($agentsTxtPath);
-                }
-
+                // If guidlines exist, they are appended in full as before
                 if ($mContent) {
                     $instructionParts[] = "=== module rule: {$mName} ===\n\n" . trim($mContent);
                 }
+
+                // Fallback / Main Agent configuration: read AGENTS.md at module root and INDEX it
+                $agentsTxtPath = $moduleInfo['path'] . '/AGENTS.md';
+                if (is_file($agentsTxtPath)) {
+                    $agentContent = file_get_contents($agentsTxtPath);
+                    $description = "Context and guidelines for {$mName}.";
+                    
+                    if (preg_match('/^---\s*\ndescription:\s*(.*?)\n---/s', $agentContent, $matches)) {
+                        $description = trim($matches[1]);
+                    } elseif (preg_match('/description:\s*(.*)/', $agentContent, $matches)) {
+                        $description = trim($matches[1]);
+                    }
+
+                    $relPath = str_replace($this->projectRoot . '/', '', $agentsTxtPath);
+                    $moduleDirectories[] = "- **{$mName}**: {$description}\n  > Please use `view_file` on `{$relPath}` to read the full context when working on this module.";
+                }
+            }
+
+            if (!empty($moduleDirectories)) {
+                $dirText = "=== Module Context Index ===\n\nThe following modules provide extensive architectural guidelines. **DO NOT GUESS** their API. Use the `view_file` tool to read the corresponding path when your task explicitly involves them:\n\n" . implode("\n\n", $moduleDirectories);
+                $instructionParts[] = $dirText;
             }
         }
 
