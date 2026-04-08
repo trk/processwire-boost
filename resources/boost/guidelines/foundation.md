@@ -30,7 +30,7 @@ This project implements domain-specific skills (Playbooks). You MUST activate th
 ## Dual MCP Integration
 
 This project uses dual MCP integration. You might have access to:
-1. `laravel-boost`: Provides semantic search across Laravel/Ecosystem documentation (`search-docs`), codebase analysis tools, and database schema interrogation (`application-info`, `database-schema`). You can and should use this to lookup ProcessWire module docs!
+1. `laravel-boost`: Provides semantic search across ecosystem documentation (`search-docs`), codebase analysis tools, and database schema interrogation (`application-info`, `database-schema`). You can and should use this to lookup ProcessWire module docs!
 2. `processwire-boost`: (If implemented natively) Built-in JSON-RPC server mapped over CLI to handle raw structural tasks (`pw_schema_read`, `pw_query` etc). 
 
 > [!TIP]
@@ -58,6 +58,6 @@ Otherwise, create a scratch file in the root, execute it with `php scratch.php` 
 - `site/templates/`: Front-end outputs, controller logic.
 - `site/modules/`: Custom third-party or local module extensions.
 - `site/migrations/`: Schema migration files (timestamped PHP, managed via `make:migration` / `migrate` CLI).
-- Stick to the existing layout; do not introduce Laravel/Symfony folder structures (`app/`, `routes/`) without explicit user permission.
+- Stick to the existing layout; do not introduce foreign framework folder structures (`app/`, `routes/`) without explicit user permission.
 
 

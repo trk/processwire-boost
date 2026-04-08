@@ -4,7 +4,7 @@ Use when creating, running, rolling back, or managing ProcessWire schema migrati
 
 ## Overview
 
-ProcessWire Boost provides a Laravel-style migration system for managing schema changes declaratively. Migrations are timestamped PHP files stored in `site/migrations/` that return anonymous classes with `up()` and `down()` methods. State is tracked in the `wire_migrations` database table with batch numbering for grouped rollback.
+ProcessWire Boost provides a migration system for managing schema changes declaratively. Migrations are timestamped PHP files stored in `site/migrations/` that return anonymous classes with `up()` and `down()` methods. State is tracked in the `wire_migrations` database table with batch numbering for grouped rollback.
 
 ## Migration Commands
 
