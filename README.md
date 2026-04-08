@@ -216,7 +216,6 @@ Unlike guidelines (which are always present), skills are loaded only when releva
 |-------|--------------------------|
 | `pw-api-variables` | How to safely access `$pages`, `$user`, `$config` in templates, modules, and hooks |
 | `pw-custom-page-classes` | Building strongly-typed Page subclasses bound to specific templates |
-| `pw-htmx` | HTMX components, swaps, OOB fragments, and state management with `Totoglu\Htmx` |
 | `pw-manipulate-pages` | The complete lifecycle: find → create → edit → save → trash → delete |
 | `pw-migrations` | Safe, versioned schema changes: field → template → page creation order, rollback guards |
 | `pw-module-development` | Native module architecture: `init()`, `ready()`, config, install/uninstall lifecycle |
@@ -227,6 +226,14 @@ Unlike guidelines (which are always present), skills are loaded only when releva
 | `pw-module-textformatter` | String formatting modules that transform field output at render time |
 | `pw-selectors` | Complete selector language reference: operators, sub-selectors, OR-groups, pagination |
 | `pw-url-routing` | URL/Path hooks for REST APIs, virtual pages, and custom endpoints |
+
+#### Module-Provided Skills
+
+Third-party ProcessWire modules can ship their own Boost skills. When selected during `boost:install`, these are merged alongside the built-in skills:
+
+| Module | Skill | What It Teaches the Agent |
+|--------|-------|--------------------------|
+| `Totoglu\Htmx` | `pw-htmx` | HTMX components, swaps, OOB fragments, and state management |
 
 #### How Skills Guide Agents
 

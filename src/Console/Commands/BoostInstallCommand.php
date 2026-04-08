@@ -135,7 +135,7 @@ final class BoostInstallCommand extends Command
                 hint: 'Select to install, deselect to remove.',
                 required: false
             );
-        } elseif (!empty($moduleChoices)) {
+        } else {
             note('No third-party modules with Boost resources detected.');
         }
 

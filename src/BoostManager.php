@@ -338,7 +338,6 @@ final class BoostManager
     private function renderFoundationRule(): ?string
     {
         $candidates = [
-            $this->targetDir . '/guidelines/foundation.md',
             __DIR__ . '/../resources/boost/guidelines/foundation.md',
         ];
 

@@ -8,6 +8,15 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Totoglu\ProcessWire\Boost\BoostManager;
+use Totoglu\ProcessWire\Boost\Install\Agents\Amp as AmpAgent;
+use Totoglu\ProcessWire\Boost\Install\Agents\ClaudeCode as ClaudeAgent;
+use Totoglu\ProcessWire\Boost\Install\Agents\Codex as CodexAgent;
+use Totoglu\ProcessWire\Boost\Install\Agents\Copilot as CopilotAgent;
+use Totoglu\ProcessWire\Boost\Install\Agents\Cursor as CursorAgent;
+use Totoglu\ProcessWire\Boost\Install\Agents\Gemini as GeminiAgent;
+use Totoglu\ProcessWire\Boost\Install\Agents\Junie as JunieAgent;
+use Totoglu\ProcessWire\Boost\Install\Agents\OpenCode as OpenCodeAgent;
+use Totoglu\ProcessWire\Boost\Install\Agents\Trae as TraeAgent;
 use function Laravel\Prompts\intro;
 use function Laravel\Prompts\outro;
 use function Laravel\Prompts\info;
@@ -15,6 +24,24 @@ use function Laravel\Prompts\spin;
 
 final class BoostUpdateCommand extends Command
 {
+    private const AGENT_MAP = [
+        'Amp' => AmpAgent::class,
+        'Claude Code' => ClaudeAgent::class,
+        'Codex' => CodexAgent::class,
+        'Cursor' => CursorAgent::class,
+        'Gemini CLI' => GeminiAgent::class,
+        'GitHub Copilot' => CopilotAgent::class,
+        'Junie' => JunieAgent::class,
+        'OpenCode' => OpenCodeAgent::class,
+        'Trae' => TraeAgent::class,
+    ];
+
+    private const FEATURE_MAP = [
+        'guidelines' => 'AI Guidelines',
+        'skills' => 'Agent Skills',
+        'mcp' => 'Boost MCP Server Configuration',
+    ];
+
     protected function configure(): void
     {
         $this->setName('boost:update')->setDescription('Re-sync ProcessWire Boost guidelines & skills from saved configuration');
@@ -42,8 +69,28 @@ final class BoostUpdateCommand extends Command
 
         spin(function () use ($manager, $config) {
             $modules = $config['modules'] ?? [];
-            $features = $config['features'] ?? ['guidelines', 'skills', 'mcp'];
-            $agents = $config['agents'] ?? [];
+
+            // Map boolean flags to feature labels that BoostManager expects
+            $features = [];
+            if ($config['guidelines'] ?? false) {
+                $features[] = self::FEATURE_MAP['guidelines'];
+            }
+            if ($config['skills'] ?? false) {
+                $features[] = self::FEATURE_MAP['skills'];
+            }
+            if ($config['mcp'] ?? false) {
+                $features[] = self::FEATURE_MAP['mcp'];
+            }
+
+            // Resolve agent display names to Agent instances
+            $agents = [];
+            foreach ($config['agents'] ?? [] as $name) {
+                $class = self::AGENT_MAP[$name] ?? null;
+                if ($class) {
+                    $agents[] = new $class();
+                }
+            }
+
             $manager->install(
                 features: $features,
                 modules: $modules,

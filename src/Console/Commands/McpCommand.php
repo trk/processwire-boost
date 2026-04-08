@@ -130,6 +130,10 @@ final class McpCommand extends Command
             switch ($name) {
                 case 'pw_query':
                     $selector = $args['selector'] ?? 'id>0';
+                    if (!str_contains($selector, 'limit=')) {
+                        $limit = (int)($args['limit'] ?? 100);
+                        $selector .= ", limit={$limit}";
+                    }
                     $pages = \ProcessWire\wire('pages')->find($selector);
                     $data = [];
                     foreach ($pages as $p) {
@@ -377,8 +381,14 @@ final class McpCommand extends Command
                     $roleFilter = $args['role'] ?? '';
                     $limit = (int)($args['limit'] ?? 50);
                     $selector = [];
-                    if ($search) $selector[] = "name%=$search";
-                    if ($roleFilter) $selector[] = "roles=$roleFilter";
+                    if ($search) {
+                        $search = \ProcessWire\wire('sanitizer')->selectorValue($search);
+                        $selector[] = "name%={$search}";
+                    }
+                    if ($roleFilter) {
+                        $roleFilter = \ProcessWire\wire('sanitizer')->selectorValue($roleFilter);
+                        $selector[] = "roles={$roleFilter}";
+                    }
                     if ($limit) $selector[] = "limit=$limit";
                     if (!$selector) $selector[] = "limit=$limit";
                     $users = \ProcessWire\wire('users')->find(implode(', ', $selector));
@@ -438,7 +448,7 @@ final class McpCommand extends Command
                     $permissions->delete($perm);
                     return ['content' => [['type' => 'text', 'text' => json_encode(['ok' => true, 'deleted' => true], JSON_PRETTY_PRINT)]]];
                 case 'pw_system_logs_clear':
-                    $name = $args['name'] ?? 'errors';
+                    $name = basename($args['name'] ?? 'errors');
                     $path = \ProcessWire\wire('config')->paths->logs . $name . '.txt';
                     if (!is_file($path)) {
                         return ['isError' => true, 'content' => [['type' => 'text', 'text' => "Log not found."]]];
@@ -522,7 +532,7 @@ final class McpCommand extends Command
                     $stmt->execute();
                     return ['content' => [['type' => 'text', 'text' => json_encode(['ok' => true, 'deleted' => $stmt->rowCount()], JSON_PRETTY_PRINT)]]];
                 case 'pw_system_get_logs':
-                    $logName = $args['name'] ?? 'errors';
+                    $logName = basename($args['name'] ?? 'errors');
                     $limit = $args['limit'] ?? 10;
                     $entries = \ProcessWire\wire('log')->get($logName, (int)$limit);
                     $text = "";
@@ -531,7 +541,7 @@ final class McpCommand extends Command
                     }
                     return ['content' => [['type' => 'text', 'text' => $text ?: "No entries found."]]];
                 case 'pw_system_logs_tail_last':
-                    $name = $args['name'] ?? 'errors';
+                    $name = basename($args['name'] ?? 'errors');
                     $lines = (int)($args['lines'] ?? 200);
                     $path = \ProcessWire\wire('config')->paths->logs . $name . '.txt';
                     if (!is_file($path)) {
