@@ -1,5 +1,5 @@
 ---
-name: processwire_pages
+name: pw-manipulate-pages
 description: Full playbook for discovering, filtering, creating, and editing ProcessWire Page objects.
 ---
 
