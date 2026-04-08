@@ -7,7 +7,7 @@ namespace Totoglu\Console\Boost\Commands;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Style\SymfonyStyle;
+use function Laravel\Prompts\table;
 
 final class BoostVersionCommand extends Command
 {
@@ -20,7 +20,6 @@ final class BoostVersionCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $io = new SymfonyStyle($input, $output);
         $rows = [];
         $pkgs = [
             'trk/processwire-boost' => 'processwire-boost',
@@ -30,7 +29,9 @@ final class BoostVersionCommand extends Command
         foreach ($pkgs as $name => $label) {
             $rows[] = [$label, $this->getVersion($name)];
         }
-        $io->table(['Package', 'Version'], $rows);
+        
+        table(['Package', 'Version'], $rows);
+        
         return Command::SUCCESS;
     }
 
