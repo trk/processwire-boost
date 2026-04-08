@@ -10,22 +10,27 @@ final class OpenCode extends Agent
     {
         return 'opencode';
     }
+
     public function displayName(): string
     {
         return 'OpenCode';
     }
+
     public function mcpConfigPath(): ?string
     {
         return 'opencode.json';
     }
+
     public function mcpConfigKey(): string
     {
         return 'mcp';
     }
+
     public function defaultMcpConfig(): array
     {
         return ['$schema' => 'https://opencode.ai/config.json'];
     }
+
     public function mcpServerConfig(string $command, array $args = [], array $env = []): array
     {
         return [
@@ -36,6 +41,11 @@ final class OpenCode extends Agent
         ];
     }
 
+    public function guidelinesPath(): string
+    {
+        return 'AGENTS.md';
+    }
+
     public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
     {
         $skillDirName = str_replace('_', '-', $skillName);
@@ -43,11 +53,13 @@ final class OpenCode extends Agent
         if (!is_dir($skillDir)) {
             mkdir($skillDir, 0755, true);
         }
+
         $targetPath = $skillDir . '/SKILL.md';
         $content = file_get_contents($skillPath);
         $description = $this->extractDescription($content);
         $frontmatter = $this->buildFrontmatter($skillDirName, $description);
         file_put_contents($targetPath, $frontmatter . "\n" . $content);
+
         return $targetPath;
     }
 
@@ -57,13 +69,16 @@ final class OpenCode extends Agent
         $description = '';
         foreach ($lines as $line) {
             $line = trim($line);
-            if (empty($line) || str_starts_with($line, '#')) continue;
+            if (empty($line) || str_starts_with($line, '#')) {
+                continue;
+            }
             $description = trim(ltrim($line, '- '));
             $description = preg_replace('/^description:\s*/i', '', $description);
             break;
         }
         $description = str_replace(["\n", '*', '`'], '', $description);
         $description = preg_replace('/\s+/', ' ', $description);
+
         return substr($description, 0, 1024);
     }
 
@@ -79,4 +94,3 @@ compatibility: opencode
 YAML;
     }
 }
-

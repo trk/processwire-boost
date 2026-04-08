@@ -10,13 +10,24 @@ final class Cursor extends Agent
     {
         return 'cursor';
     }
+
     public function displayName(): string
     {
         return 'Cursor';
     }
+
     public function mcpConfigPath(): ?string
     {
         return '.cursor/mcp.json';
     }
-}
 
+    public function guidelinesPath(): string
+    {
+        return 'AGENTS.md';
+    }
+
+    public function skillsPath(): string
+    {
+        return '.cursor/skills';
+    }
+}
