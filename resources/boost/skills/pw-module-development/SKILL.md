@@ -31,12 +31,12 @@ Before writing any module code, run through this architectural checklist:
 
 ### Phase 2: PHP 8.4 & Strict Types Integration
 
-*   Files must begin with `declare(strict_types=1);`.
-*   Enforce comprehensive type hinting for all properties, arguments, and return types.
-*   To create new hookable methods within the module, prefix the method name with three underscores (`___`): `public function ___myCustomMethod()`.
+- Files must begin with `declare(strict_types=1);`.
+- Enforce comprehensive type hinting for all properties, arguments, and return types.
+- To create new hookable methods within the module, prefix the method name with three underscores (`___`): `public function ___myCustomMethod()`.
 
 ```php
-<?php 
+<?php
 
 declare(strict_types=1);
 
@@ -46,7 +46,7 @@ use ProcessWire\Module;
 use ProcessWire\WireData;
 use ProcessWire\HookEvent;
 
-class MyCustomModule extends WireData implements Module 
+class MyCustomModule extends WireData implements Module
 {
     // PHP 8.4 Property Promotion & Strict Typing
     public function __construct(
@@ -54,7 +54,7 @@ class MyCustomModule extends WireData implements Module
         public int $defaultLimit = 10
     ) {}
 
-    public static function getModuleInfo(): array 
+    public static function getModuleInfo(): array
     {
         return [
             'title' => 'My Custom Module',
@@ -69,10 +69,10 @@ class MyCustomModule extends WireData implements Module
             'icon' => 'cogs'
         ];
     }
-    
-    public function init(): void 
+
+    public function init(): void
     {
-        // Module-scoped composer autoloading 
+        // Module-scoped composer autoloading
         $autoloader = __DIR__ . '/vendor/autoload.php';
         if (file_exists($autoloader)) {
             require_once $autoloader;
@@ -82,14 +82,14 @@ class MyCustomModule extends WireData implements Module
         $this->addHookAfter('Pages::saveReady', $this, 'hookSaveReady');
     }
 
-    protected function hookSaveReady(HookEvent $event): void 
+    protected function hookSaveReady(HookEvent $event): void
     {
         $page = $event->arguments(0);
-        
+
         if ($page->template->name !== 'my_target_template') {
             return;
         }
-        
+
         // Execute business logic...
         $this->wire()->log->save($this->logName, "Page {$page->id} triggered.");
     }
@@ -98,9 +98,9 @@ class MyCustomModule extends WireData implements Module
 
 ### Phase 3: Database & Security (PDO & Sanitizer)
 
-*   **Never trust user input.** Whether it originates from a URL or a POST payload, sanitize it thoroughly before utilization: `$this->wire()->input->post('email', 'email')` or `$this->wire()->sanitizer->text($string)`.
-*   When executing raw queries (e.g., custom module tables), utilize the `$this->wire()->database` object, which is a native PDO instance. **Always use Prepared Statements.** Do not use string interpolation for SQL queries.
-*   During module uninstallation (`___uninstall()`), ensure complete cleanup of custom database tables, cache files, and residual data.
+- **Never trust user input.** Whether it originates from a URL or a POST payload, sanitize it thoroughly before utilization: `$this->wire()->input->post('email', 'email')` or `$this->wire()->sanitizer->text($string)`.
+- When executing raw queries (e.g., custom module tables), utilize the `$this->wire()->database` object, which is a native PDO instance. **Always use Prepared Statements.** Do not use string interpolation for SQL queries.
+- During module uninstallation (`___uninstall()`), ensure complete cleanup of custom database tables, cache files, and residual data.
 
 ```php
 // Database Best Practice:
@@ -113,8 +113,8 @@ $results = $query->fetchAll(\PDO::FETCH_ASSOC);
 
 ### Phase 4: Inter-Module Communication & API Variables
 
-*   Inside a class extending `WireData` or `Wire`, do not use `wire()` to fetch other objects. Use direct property access like `$this->pages`, `$this->modules`, `$this->sanitizer`, `$this->input`.
-*   When attempting to access other modules, utilize `$this->modules->get('ModuleName')` and verify the instance against null, ensuring configuration and state correctly boot up prior to interaction.
+- Inside a class extending `WireData` or `Wire`, do not use `wire()` to fetch other objects. Use direct property access like `$this->pages`, `$this->modules`, `$this->sanitizer`, `$this->input`.
+- When attempting to access other modules, utilize `$this->modules->get('ModuleName')` and verify the instance against null, ensuring configuration and state correctly boot up prior to interaction.
 
 ## Essential Tools & Ecosystem
 
@@ -126,12 +126,15 @@ $results = $query->fetchAll(\PDO::FETCH_ASSOC);
 (Pass these direct prompts to the agent to initiate workflows instantly)
 
 **[Scaffolding - Core Module Skeleton]**
+
 > "Generate a new ProcessWire module named `CustomLogger`. It should be configured as `autoload` and `singular`. Define a `Pages::saveReady` hook inside `init()`. The hook needs to log an entry (under `custom-logger` in ProcessWire system logs) exclusively for pages matching the `article` template. Strictly follow the wire-module-development skill protocols: use PHP 8.4 features, valid strict types, and robust class structures."
 
 **[Database Integration - Automated Installer]**
+
 > "Implement `___install()` and `___uninstall()` methodology for the module. Upon installation, structurally generate an InnoDB database table named `custom_log_table` featuring 3 columns: id, page_id, and message (utilize utf8mb4 charset). During removal, appropriately drop this table. Write highly secure PDO execution code without any interpolation."
 
 **[Security Protocol - Input Sanitization]**
+
 > "Develop a `processInput` method leveraging the ProcessWire Input API. Methodically pull 3 fields (`title`, `email`, `description`) received via POST. Filter and secure them utilizing the designated sanitizer components (`$sanitizer->email()`, `$sanitizer->text()`, etc.) and store the clean results in an output array."
 
 ## Core Anti-Patterns to Avoid
@@ -145,8 +148,9 @@ $results = $query->fetchAll(\PDO::FETCH_ASSOC);
 
 **CRITICAL RULE FOR ALL AI AGENTS:**
 When you need to understand, use, or hook into a ProcessWire core class or module, you **MUST NEVER** guess or hallucinate the API methods.
-- You **MUST** consult the local AI-optimized Markdown API documentation starting at `.llms/docs/index.md`.
-- Navigate through the index, find the relevant class document (e.g. `.llms/docs/core/Page.md`), and use your file reading tools to read its methods, parameters, and hookable (🪝) events before writing any code.
+
+- You **MUST** consult the local AI-optimized Markdown API documentation starting at `.agents/docs/index.md`.
+- Navigate through the index, find the relevant class document (e.g. `.agents/docs/core/Page.md`), and use your file reading tools to read its methods, parameters, and hookable (🪝) events before writing any code.
 
 ---
 

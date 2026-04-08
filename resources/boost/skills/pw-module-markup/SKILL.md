@@ -8,7 +8,7 @@ date_added: "2026-04-08"
 
 # Markup Generator Operations (wire-module-markup)
 
-**Markup Modules** within ProcessWire do not alter core mechanics, run inherently in the background, or specifically format string arrays like Textformatters. Instead, they act as **HTML generation engines and widget generators** deployed freely universally across frontend templates locally by developer invocations (`$modules->get('MarkupMyWidget')->render()`). 
+**Markup Modules** within ProcessWire do not alter core mechanics, run inherently in the background, or specifically format string arrays like Textformatters. Instead, they act as **HTML generation engines and widget generators** deployed freely universally across frontend templates locally by developer invocations (`$modules->get('MarkupMyWidget')->render()`).
 
 These modules strictly separate complex HTML nesting structures from the local template `php` files, effectively maintaining structural cleanliness universally matching independent Controller/UI patterns.
 
@@ -27,15 +27,15 @@ Verify module logic universally adhering to standard markup architecture limits:
 Creating a robust interface mapping generating explicit standard HTML strings globally structured intuitively.
 
 ```php
-<?php 
+<?php
 
 declare(strict_types=1);
 
 namespace ProcessWire;
 
-class MarkupPricingTable extends WireData implements Module 
+class MarkupPricingTable extends WireData implements Module
 {
-    public static function getModuleInfo(): array 
+    public static function getModuleInfo(): array
     {
         return [
             'title' => 'Markup: Pricing Table Generator',
@@ -47,11 +47,11 @@ class MarkupPricingTable extends WireData implements Module
             ]
         ];
     }
-    
+
     /**
      * Executes generation dynamically injecting mandatory CSS dependencies globally natively.
      */
-    public function init(): void 
+    public function init(): void
     {
         // Optionally attach static resources explicitly verifying they deploy onto global configurations universally.
         // $this->wire()->config->styles->add($this->wire()->config->urls->MarkupPricingTable . 'markup-pricing.css');
@@ -59,18 +59,18 @@ class MarkupPricingTable extends WireData implements Module
 
     /**
      * Public method universally triggered specifically when templates build display domains explicitly.
-     * 
+     *
      * @param PageArray $packages Explicit list mapping active Pricing Option pages.
      * @return string Compiled HTML UI rendering.
      */
-    public function render(PageArray $packages): string 
+    public function render(PageArray $packages): string
     {
         if (!$packages->count()) {
             return '';
         }
 
         $out = "<div class='uk-grid uk-child-width-1-3@m' uk-grid>";
-        
+
         foreach ($packages as $pkg) {
             $title = $this->wire()->sanitizer->entities($pkg->title);
             $price = $this->wire()->sanitizer->float($pkg->get('price'));
@@ -86,27 +86,27 @@ class MarkupPricingTable extends WireData implements Module
                 </div>
             </div>";
         }
-        
+
         $out .= "</div>";
         return $out;
     }
-    
+
     /**
      * Integrates caching mechanism directly relying on native MarkupCache configurations.
      */
-    public function renderCached(PageArray $packages, int $minutes = 60): string 
+    public function renderCached(PageArray $packages, int $minutes = 60): string
     {
         $cache = $this->wire()->modules->get('MarkupCache');
         // Produce explicit reliable cache keys mapping node configurations safely
         $cacheKey = "pricing_tables_" . $packages->count() . "_" . $packages->first()->id;
-        
+
         if ($data = $cache->get($cacheKey, $minutes * 60)) {
             return $data; // Deliver compiled native cache directly
         }
-        
+
         // Compilation fails evaluating inside cached nodes, rendering fully natively globally
         $data = $this->render($packages);
-        
+
         $cache->save($data);
         return $data;
     }
@@ -114,6 +114,7 @@ class MarkupPricingTable extends WireData implements Module
 ```
 
 ## Essential Tools & Ecosystem
+
 - Explicit reliance mapped strictly toward `ProcessWire\WireData`.
 - Engaging `ProcessWire\MarkupCache` directly mapping large DOM evaluations robustly maintaining site metrics effectively.
 
@@ -122,11 +123,13 @@ class MarkupPricingTable extends WireData implements Module
 (Pass these direct prompts to the agent to initiate workflows instantly)
 
 **[Build Markup Component Framework]**
+
 > "Generate a standalone Markup module constructed strictly targeting explicit HTML generating models labeled safely as `MarkupFeatureSlider`. Outline a robust programmatic standard `render()` method mapped explicitly executing iteration sequences spanning native `PageArray` variables structuring individual HTML domains strictly mapped around explicit UIkit 3 `uk-slider` DOM properties properly deploying internal structural attributes automatically. Enforce strict variable sanitation consistently throughout string creations restricting XSS vectors explicitly."
 
 ## Context Awareness (ProcessWire API Docs)
 
 **CRITICAL RULE FOR ALL AI AGENTS:**
 When you need to understand, use, or hook into a ProcessWire core class or module, you **MUST NEVER** guess or hallucinate the API methods.
-- You **MUST** consult the local AI-optimized Markdown API documentation starting at `.llms/docs/index.md`.
-- Navigate through the index, find the relevant class document (e.g. `.llms/docs/core/Page.md`), and use your file reading tools to read its methods, parameters, and hookable (🪝) events before writing any code.
+
+- You **MUST** consult the local AI-optimized Markdown API documentation starting at `.agents/docs/index.md`.
+- Navigate through the index, find the relevant class document (e.g. `.agents/docs/core/Page.md`), and use your file reading tools to read its methods, parameters, and hookable (🪝) events before writing any code.

@@ -11,8 +11,9 @@ The ProcessWire Boost guidelines are specifically curated for this application t
 ## Context Resolution Landscape
 
 When you need more context, always check these primary locations:
-- **Skills (Task Playbooks):** `.llms/skills/`
-- **Blueprints:** `.llms/blueprints/*.json` (class/method summaries)
+
+- **Skills (Task Playbooks):** `.agents/skills/`
+- **Blueprints:** `.agents/blueprints/*.json` (class/method summaries)
 - If your client supports MCP, use the ProcessWire MCP server tools to query data.
 
 ## Foundational Context
@@ -30,15 +31,16 @@ This project implements domain-specific skills (Playbooks). You MUST activate th
 ## Dual MCP Integration
 
 This project uses dual MCP integration. You might have access to:
+
 1. `laravel-boost`: Provides semantic search across ecosystem documentation (`search-docs`), codebase analysis tools, and database schema interrogation (`application-info`, `database-schema`). You can and should use this to lookup ProcessWire module docs!
-2. `processwire-boost`: (If implemented natively) Built-in JSON-RPC server mapped over CLI to handle raw structural tasks (`pw_schema_read`, `pw_query` etc). 
+2. `processwire-boost`: (If implemented natively) Built-in JSON-RPC server mapped over CLI to handle raw structural tasks (`pw_schema_read`, `pw_query` etc).
 
 > [!TIP]
 > If available, ALWAYS run the `search-docs` tool querying ProcessWire or specific ProcessWire modules before guessing API structures.
 
 ## Documentation Resources
 
-- **Core API Reference:** The `.llms/docs` directory contains the complete generated ProcessWire Core API documentation. ALWAYS use the `grep_search` and `view_file` tools to search this directory before hallucinating ProcessWire methods or classes.
+- **Core API Reference:** The `.agents/docs` directory contains the complete generated ProcessWire Core API documentation. ALWAYS use the `grep_search` and `view_file` tools to search this directory before hallucinating ProcessWire methods or classes.
 
 ## Conventions & Rules
 
@@ -48,7 +50,7 @@ This project uses dual MCP integration. You might have access to:
 
 ## Verification Scripts
 
-Do not guess if a `$pages->find()` query or PHP array logic works. If your environment has Tinker or `pw_execute` available, verify it. 
+Do not guess if a `$pages->find()` query or PHP array logic works. If your environment has Tinker or `pw_execute` available, verify it.
 Otherwise, create a scratch file in the root, execute it with `php scratch.php` to verify output, then clean it up upon completion.
 
 ## Application Structure & Architecture
@@ -59,5 +61,3 @@ Otherwise, create a scratch file in the root, execute it with `php scratch.php` 
 - `site/modules/`: Custom third-party or local module extensions.
 - `site/migrations/`: Schema migration files (timestamped PHP, managed via `make:migration` / `migrate` CLI).
 - Stick to the existing layout; do not introduce foreign framework folder structures (`app/`, `routes/`) without explicit user permission.
-
-
