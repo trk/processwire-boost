@@ -22,7 +22,6 @@ use Totoglu\Console\Boost\Install\Agents\Trae as TraeAgent;
 use function Laravel\Prompts\multiselect;
 use function Laravel\Prompts\intro;
 use function Laravel\Prompts\spin;
-use function Laravel\Prompts\info;
 use function Laravel\Prompts\note;
 
 final class BoostInstallCommand extends Command
@@ -140,7 +139,7 @@ final class BoostInstallCommand extends Command
         }
 
         $agentChoices = array_keys(self::AGENT_MAP);
-        
+
         $selectedAgents = [];
         $agentsOpt = $input->getOption('agents');
         if ($agentsOpt) {
