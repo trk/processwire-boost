@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Totoglu\ProcessWire\Boost\Install\Mcp;
+namespace Totoglu\Console\Boost\Install\Mcp;
 
 final class FileWriter
 {

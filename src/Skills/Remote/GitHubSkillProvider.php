@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Totoglu\ProcessWire\Boost\Skills\Remote;
+namespace Totoglu\Console\Boost\Skills\Remote;
 
 use RuntimeException;
 

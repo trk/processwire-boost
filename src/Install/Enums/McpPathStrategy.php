@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Totoglu\ProcessWire\Boost\Install\Enums;
+namespace Totoglu\Console\Boost\Install\Enums;
 
 /**
  * Determines how MCP server paths are resolved in agent configuration files.

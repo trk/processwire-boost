@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Totoglu\ProcessWire\Boost;
+namespace Totoglu\Console\Boost;
 
-use Totoglu\ProcessWire\Boost\Install\Agents\Agent;
+use Totoglu\Console\Boost\Install\Agents\Agent;
 
 final class BoostManager
 {
@@ -200,7 +200,7 @@ final class BoostManager
         $guidelinesDirectories = [
             __DIR__ . '/../resources/boost/guidelines'
         ];
-        
+
         $processedFiles = ['foundation.md']; // foundation is already processed above
 
         foreach ($guidelinesDirectories as $gDir) {
@@ -209,7 +209,7 @@ final class BoostManager
                 foreach ($files as $file) {
                     if ($file === '.' || $file === '..' || in_array($file, $processedFiles)) continue;
                     if (strtolower(pathinfo($file, PATHINFO_EXTENSION)) !== 'md') continue;
-                    
+
                     $filePath = $gDir . '/' . $file;
                     if (is_file($filePath)) {
                         $ruleName = str_replace(['-', '_'], ' ', pathinfo($file, PATHINFO_FILENAME));
@@ -225,7 +225,7 @@ final class BoostManager
             $availableModules = $this->getDiscoverableModules();
             foreach ($modules as $mName) {
                 if (!isset($availableModules[$mName])) continue;
-                
+
                 $moduleInfo = $availableModules[$mName];
                 $mContent = "";
 
@@ -238,8 +238,8 @@ final class BoostManager
                     }
                 }
 
-                // Fallback: read .agents.txt at module root
-                $agentsTxtPath = $moduleInfo['path'] . '/.agents.txt';
+                // Fallback: read .agents.md at module root
+                $agentsTxtPath = $moduleInfo['path'] . '/.agents.md';
                 if (empty($mContent) && is_file($agentsTxtPath)) {
                     $mContent = file_get_contents($agentsTxtPath);
                 }

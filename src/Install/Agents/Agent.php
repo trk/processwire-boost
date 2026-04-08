@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Totoglu\ProcessWire\Boost\Install\Agents;
+namespace Totoglu\Console\Boost\Install\Agents;
 
-use Totoglu\ProcessWire\Boost\Install\Enums\McpPathStrategy;
-use Totoglu\ProcessWire\Boost\Install\Mcp\FileWriter;
-use Totoglu\ProcessWire\Boost\Install\Mcp\TomlFileWriter;
+use Totoglu\Console\Boost\Install\Enums\McpPathStrategy;
+use Totoglu\Console\Boost\Install\Mcp\FileWriter;
+use Totoglu\Console\Boost\Install\Mcp\TomlFileWriter;
 
 abstract class Agent
 {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Totoglu\ProcessWire\Boost\Install\Agents;
+namespace Totoglu\Console\Boost\Install\Agents;
 
 final class OpenCode extends Agent
 {

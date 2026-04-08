@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Totoglu\ProcessWire\Boost\Console\Commands;
+namespace Totoglu\Console\Boost\Console\Commands;
 
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -286,7 +286,10 @@ final class McpCommand extends Command
                     $modules = \ProcessWire\wire('modules');
                     $modules->refresh();
                     if ($modules->isInstalled($modName)) {
-                        try { $modules->install($modName); } catch (\Throwable $e) { /* ignore */ }
+                        try {
+                            $modules->install($modName);
+                        } catch (\Throwable $e) { /* ignore */
+                        }
                     }
                     return ['content' => [['type' => 'text', 'text' => json_encode(['ok' => true, 'upgraded' => $modules->isInstalled($modName)], JSON_PRETTY_PRINT)]]];
                 case 'pw_access_user_create':
@@ -575,13 +578,13 @@ final class McpCommand extends Command
 
     private function sendResponse($id, array $result): void
     {
-        $response = ['jsonrpc' => '2.0','id' => $id,'result' => $result];
+        $response = ['jsonrpc' => '2.0', 'id' => $id, 'result' => $result];
         fwrite(STDOUT, json_encode($response) . PHP_EOL);
     }
 
     private function sendError($id, int $code, string $message): void
     {
-        $response = ['jsonrpc' => '2.0','id' => $id,'error' => ['code' => $code, 'message' => $message]];
+        $response = ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => $code, 'message' => $message]];
         fwrite(STDOUT, json_encode($response) . PHP_EOL);
     }
 }

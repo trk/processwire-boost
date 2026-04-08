@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace Totoglu\ProcessWire\Boost\Console\Commands;
+namespace Totoglu\Console\Boost\Console\Commands;
 
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Totoglu\ProcessWire\Boost\BoostManager;
-use Totoglu\ProcessWire\Boost\Install\Agents\Amp as AmpAgent;
-use Totoglu\ProcessWire\Boost\Install\Agents\ClaudeCode as ClaudeAgent;
-use Totoglu\ProcessWire\Boost\Install\Agents\Codex as CodexAgent;
-use Totoglu\ProcessWire\Boost\Install\Agents\Copilot as CopilotAgent;
-use Totoglu\ProcessWire\Boost\Install\Agents\Cursor as CursorAgent;
-use Totoglu\ProcessWire\Boost\Install\Agents\Gemini as GeminiAgent;
-use Totoglu\ProcessWire\Boost\Install\Agents\Junie as JunieAgent;
-use Totoglu\ProcessWire\Boost\Install\Agents\OpenCode as OpenCodeAgent;
-use Totoglu\ProcessWire\Boost\Install\Agents\Trae as TraeAgent;
+use Totoglu\Console\Boost\BoostManager;
+use Totoglu\Console\Boost\Install\Agents\Amp as AmpAgent;
+use Totoglu\Console\Boost\Install\Agents\ClaudeCode as ClaudeAgent;
+use Totoglu\Console\Boost\Install\Agents\Codex as CodexAgent;
+use Totoglu\Console\Boost\Install\Agents\Copilot as CopilotAgent;
+use Totoglu\Console\Boost\Install\Agents\Cursor as CursorAgent;
+use Totoglu\Console\Boost\Install\Agents\Gemini as GeminiAgent;
+use Totoglu\Console\Boost\Install\Agents\Junie as JunieAgent;
+use Totoglu\Console\Boost\Install\Agents\OpenCode as OpenCodeAgent;
+use Totoglu\Console\Boost\Install\Agents\Trae as TraeAgent;
 use function Laravel\Prompts\intro;
 use function Laravel\Prompts\outro;
 use function Laravel\Prompts\info;

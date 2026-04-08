@@ -35,7 +35,7 @@ Every command follows this pattern:
 
 declare(strict_types=1);
 
-namespace Totoglu\ProcessWire\Console\Commands;
+namespace Totoglu\Console\Commands;
 
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;

@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Totoglu\ProcessWire\Boost\Console\Commands;
+namespace Totoglu\Console\Boost\Console\Commands;
 
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Totoglu\ProcessWire\Boost\Skills\Remote\GitHubRepository;
-use Totoglu\ProcessWire\Boost\Skills\Remote\GitHubSkillProvider;
-use Totoglu\ProcessWire\Boost\Skills\Remote\RemoteSkill;
+use Totoglu\Console\Boost\Skills\Remote\GitHubRepository;
+use Totoglu\Console\Boost\Skills\Remote\GitHubSkillProvider;
+use Totoglu\Console\Boost\Skills\Remote\RemoteSkill;
 use function Laravel\Prompts\multiselect;
 use function Laravel\Prompts\note;
 use function Laravel\Prompts\outro;

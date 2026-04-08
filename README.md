@@ -450,7 +450,7 @@ declare(strict_types=1);
 
 namespace Your\Namespace;
 
-use Totoglu\ProcessWire\Boost\Install\Agents\Agent;
+use Totoglu\Console\Boost\Install\Agents\Agent;
 
 final class MyAgent extends Agent
 {

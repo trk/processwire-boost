@@ -6,22 +6,22 @@
   "license": "MIT",
   "require": {
     "php": ">=8.3",
-    "trk/processwire-console": "dev-main"
+    "trk/processwire-console": "*"
   },
   "autoload": {
     "psr-4": {
-      "Totoglu\\ProcessWire\\Boost\\": "src/"
+      "Totoglu\\Console\\Boost\\": "src/"
     }
   },
   "extra": {
     "processwire-console": {
       "commands": [
-        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostInstallCommand",
-        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\McpCommand",
-        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostUpdateCommand",
-        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostVersionCommand",
-        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostBuildDocsCommand",
-        "Totoglu\\ProcessWire\\Boost\\Console\\Commands\\BoostAddSkillCommand"
+        "Totoglu\\Console\\Boost\\Console\\Commands\\BoostInstallCommand",
+        "Totoglu\\Console\\Boost\\Console\\Commands\\McpCommand",
+        "Totoglu\\Console\\Boost\\Console\\Commands\\BoostUpdateCommand",
+        "Totoglu\\Console\\Boost\\Console\\Commands\\BoostVersionCommand",
+        "Totoglu\\Console\\Boost\\Console\\Commands\\BoostBuildDocsCommand",
+        "Totoglu\\Console\\Boost\\Console\\Commands\\BoostAddSkillCommand"
       ]
     }
   }

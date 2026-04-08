@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Totoglu\ProcessWire\Boost\Install\Agents;
+namespace Totoglu\Console\Boost\Install\Agents;
 
-use Totoglu\ProcessWire\Boost\Install\Enums\McpPathStrategy;
+use Totoglu\Console\Boost\Install\Enums\McpPathStrategy;
 
 final class Trae extends Agent
 {
