@@ -557,20 +557,6 @@ wire boost:mcp
 wire boost:mcp
 ```
 
-### `boost:version`
-
-Show processwire-boost version and related packages.
-
-**Usage:**
-```bash
-wire boost:version
-```
-
-**Examples:**
-```bash
-# Display package versions
-wire boost:version
-```
 
 ### `boost:build:docs`
 
