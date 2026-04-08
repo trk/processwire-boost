@@ -1,12 +1,9 @@
 ---
 name: pw-url-routing
 description: Use when utilizing ProcessWire URL/Path hooks to create custom routing, virtual pages, or API endpoints without physical backend templates.
-metadata:
-  triggers:
-    - processwire
-    - url routing
-    - api endpoints
-    - wildcard paths
+risk: safe
+source: processwire-boost
+date_added: "2026-04-08"
 ---
 
 # ProcessWire URL/Path Hooks Skill

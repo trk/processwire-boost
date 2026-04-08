@@ -1,12 +1,9 @@
 ---
 name: pw-module-filevalidator
 description: Use when deploying discrete file validation architectures inside ProcessWire assessing security and normalization workflows via FileValidator.
-metadata:
-  triggers:
-    - processwire
-    - filevalidator
-    - secure upload filtering
-    - validation workflow
+risk: safe
+source: processwire-boost
+date_added: "2026-04-08"
 ---
 
 # Asset & Upload Validation Processing (wire-module-filevalidator)

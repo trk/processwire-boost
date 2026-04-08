@@ -1,13 +1,9 @@
 ---
 name: pw-module-process
 description: Use when constructing custom admin page pipelines, dashboards, or routing structures within ProcessWire implementing isolated Process models and RBAC.
-metadata:
-  triggers:
-    - processwire
-    - process module
-    - admin routing
-    - rbac permission
-    - backend ui
+risk: safe
+source: processwire-boost
+date_added: "2026-04-08"
 ---
 
 # Personalized Admin Views & Routing Structures (wire-process-admin)

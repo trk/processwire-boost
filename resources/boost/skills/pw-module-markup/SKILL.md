@@ -1,12 +1,9 @@
 ---
 name: pw-module-markup
 description: Use when creating independent frontend rendering systems explicitly extending the ProcessWire Markup module ecosystem.
-metadata:
-  triggers:
-    - processwire
-    - markup module
-    - frontend widget
-    - html rendering engine
+risk: safe
+source: processwire-boost
+date_added: "2026-04-08"
 ---
 
 # Markup Generator Operations (wire-module-markup)

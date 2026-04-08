@@ -1,13 +1,9 @@
 ---
 name: pw-module-development
-description: Use when building, structuring, or refactoring native backend modules for ProcessWire using PHP 8.4 and strict typing.
-metadata:
-  triggers:
-    - processwire module
-    - hook architecture
-    - php 8.4
-    - backend development
-    - wire module creation
+description: "Use when building, structuring, or refactoring native backend modules for ProcessWire using PHP 8.4 and strict typing. Covers module scaffold, hooks, security, and advanced PHP patterns."
+risk: safe
+source: processwire-boost
+date_added: "2026-04-08"
 ---
 
 # ProcessWire Core Module Development (wire-module-development)
@@ -151,3 +147,88 @@ $results = $query->fetchAll(\PDO::FETCH_ASSOC);
 When you need to understand, use, or hook into a ProcessWire core class or module, you **MUST NEVER** guess or hallucinate the API methods.
 - You **MUST** consult the local AI-optimized Markdown API documentation starting at `.llms/docs/index.md`.
 - Navigate through the index, find the relevant class document (e.g. `.llms/docs/core/Page.md`), and use your file reading tools to read its methods, parameters, and hookable (🪝) events before writing any code.
+
+---
+
+## Appendix: PHP 8.4+ Advanced Patterns
+
+> See also: `pw-api-variables` for detailed API variable access patterns across different contexts.
+
+### Generators for Large Datasets
+
+When processing many pages, use generators to avoid memory exhaustion:
+
+```php
+function iteratePages(Pages $pages, string $selector): Generator
+{
+    $start = 0;
+    $limit = 100;
+
+    while (true) {
+        $batch = $pages->find("{$selector}, start={$start}, limit={$limit}");
+        if ($batch->count() === 0) {
+            break;
+        }
+
+        foreach ($batch as $page) {
+            yield $page;
+        }
+
+        $start += $limit;
+        $pages->uncacheAll();
+    }
+}
+```
+
+### Enums for Field Values
+
+```php
+enum PageStatus: int
+{
+    case Draft = 0;
+    case Published = 1;
+    case Hidden = 1024;
+    case Unpublished = 2048;
+}
+```
+
+### Match Expressions
+
+```php
+$icon = match ($page->template->name) {
+    'article' => 'file-text',
+    'gallery' => 'images',
+    'contact' => 'envelope',
+    default => 'file',
+};
+```
+
+### Memory Management
+
+- Call `$pages->uncacheAll()` after processing large batches
+- Use `$page->of(false)` before modifying output-formatted pages
+- Avoid loading all pages into arrays — use iterators
+- Prefer `$pages->count($selector)` over `$pages->find($selector)->count()`
+
+### Error Handling
+
+```php
+use ProcessWire\WireException;
+
+if (!$field || !$field->id) {
+    throw new WireException("Field '{$fieldName}' not found.");
+}
+```
+
+- Use `WireException` for ProcessWire-specific errors
+- Use `\RuntimeException` for general PHP errors
+- Never silently swallow exceptions in production code
+- Log errors with `$this->wire()->log->error()` in modules
+
+### Code Organization
+
+- **Namespace:** Always `namespace ProcessWire;` for templates, modules, and migrations
+- **Classes:** `final class` by default — only remove `final` if inheritance is explicitly needed
+- **Methods:** Short, single-responsibility — max 25 lines per method
+- **Constants:** Use class constants or enums, not magic strings/numbers
+- **Naming:** `$camelCase` for variables, `PascalCase` for classes, `snake_case` for database field names

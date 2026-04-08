@@ -1,13 +1,9 @@
 ---
 name: pw-module-textformatter
 description: Use when building Textformatter modules to securely and dynamically format string-based fields immediately prior to output rendering in ProcessWire.
-metadata:
-  triggers:
-    - processwire
-    - textformatter module
-    - string manipulation
-    - output-formatting
-    - frontend text rendering
+risk: safe
+source: processwire-boost
+date_added: "2026-04-08"
 ---
 
 # Textformatter Modulator Architecture (wire-module-textformatter)

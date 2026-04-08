@@ -1,3 +1,11 @@
+---
+name: pw-migrations
+description: "Use when creating, running, rolling back, or managing ProcessWire schema migrations via the CLI."
+risk: safe
+source: processwire-boost
+date_added: "2026-04-08"
+---
+
 # ProcessWire Schema Migrations
 
 Use when creating, running, rolling back, or managing ProcessWire schema migrations via the CLI. Activate this skill whenever you need to add fields, templates, pages, roles, or modules through versioned migration files.

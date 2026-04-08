@@ -1,13 +1,9 @@
 ---
 name: pw-api-variables
 description: Use when determining the correct, context-safe way to access ProcessWire API variables like $page, $pages, or $user.
-metadata:
-  triggers:
-    - processwire
-    - api variables
-    - global scope
-    - hooks
-    - templates
+risk: safe
+source: processwire-boost
+date_added: "2026-04-08"
 ---
 
 # ProcessWire API Variables Skill Playbook

@@ -1,19 +1,16 @@
 ---
-name: pw-selectors
-description: Use when you need to construct ProcessWire Selectors to query, filter, sort, and find pages or data structures efficiently.
-metadata:
-  triggers:
-    - processwire
-    - selectors
-    - query builder
-    - find pages
+name: pw-pages
+description: "Use when constructing ProcessWire Selectors or manipulating Page objects — finding, filtering, creating, editing, trashing, and deleting pages."
+risk: safe
+source: processwire-boost
+date_added: "2026-04-08"
 ---
 
-# ProcessWire Selectors Skill Playbook
+# ProcessWire Pages & Selectors Playbook
 
 **CRITICAL RULE:** Before using selectors in API calls, always verify the available API methods by consulting `.llms/docs/index.md`. Never hallucinate API methods.
 
-Selectors are the foundational querying language in ProcessWire. They are simple strings of text used in `$pages->find()`, `$pages->get()`, `$page->children()`, `$page->siblings()`, and even for filtering arrays and fields. 
+Selectors are the foundational querying language in ProcessWire. They are simple strings of text used in `$pages->find()`, `$pages->get()`, `$page->children()`, `$page->siblings()`, and even for filtering arrays and fields.
 
 ## Anatomy of a Selector
 A standard selector consists of a **field**, an **operator**, and a **value**.
@@ -26,7 +23,7 @@ $pages->find("template=product, parent=/shop/, get_price>100");
 ```
 
 ## 1. Operators Reference
-ProcessWire offers a highly flexible set of operators. 
+ProcessWire offers a highly flexible set of operators.
 
 ### Basic & Numeric
 - `=` : Equal to
@@ -36,7 +33,7 @@ ProcessWire offers a highly flexible set of operators.
 
 ### Text Matching
 *Note: Using `*=`, `~=` heavily relies on MySQL FULLTEXT indexes (typically 4+ chars required, ignores stop-words). Use `%=` if you need to match short strings or stop-words.*
-- `*=` : Contains exact phrase / text (words must be sequential). 
+- `*=` : Contains exact phrase / text (words must be sequential).
 - `~=` : Contains all words (order independent).
 - `%=` : Contains phrase/text LIKE (SQL LIKE equivalent, no length restrictions).
 - `^=` : Starts with text.
@@ -87,7 +84,7 @@ $pages->find("images.count>=3");
 $pages->find("buildings.feet_high>1000, buildings.year_built<1980");
 ```
 
-**Matching the exact same row (`@`):** 
+**Matching the exact same row (`@`):**
 If the field is a multi-value field (e.g. Repeaters), the standard subfield selector might match `feet_high` from row A, and `year_built` from row B. To force the selector to match BOTH properties within the **same exact row**, use `@`:
 ```php
 $pages->find("template=house, @categories.name=modern, @categories.featured=1");
@@ -119,3 +116,54 @@ $year = (int) $input->get->year;
 $k = $sanitizer->selectorValue($input->get->keyword);
 $results = $pages->find("title|body~=$k");
 ```
+
+---
+
+## 7. Creating Pages
+
+Always use `Page` instances to insert new content.
+
+```php
+$p = new \ProcessWire\Page();
+$p->template = "article";
+$p->parent = $pages->get("/articles/"); // MUST have a parent
+$p->name = $sanitizer->pageName("My New Article!"); // URL slug
+$p->title = "My New Article!";
+$p->save();
+
+// Alternatively, use the shortcut:
+$p = $pages->add("article", "/articles/", "my-new-article", [
+    'title' => 'My New Article!'
+]);
+```
+
+## 8. Editing & Updating Pages
+
+You must call `->of(false)` to turn off output formatting before saving a page that has already been loaded from the database, otherwise textformatters might corrupt data.
+
+```php
+$p = $pages->get(1234);
+$p->of(false); // TURN OFF OUTPUT FORMATTING
+$p->title = "Updated Title";
+$p->my_custom_field = "New Value";
+$p->save();
+```
+
+## 9. Deleting & Trashing Pages
+
+Use `$pages->trash()` to move a page to the trash securely. Only use `$pages->delete()` when absolutely necessary as it skips the trash.
+
+```php
+$p = $pages->get(1234);
+if ($p->id && $p->trashable()) {
+    $pages->trash($p);
+}
+```
+
+## 10. Performance Tips
+
+- **Always use `limit=`** on `$pages->find()` for large datasets
+- Use `$pages->count($selector)` instead of `$pages->find($selector)->count()` — avoids loading all pages into memory
+- Prefer indexed fields first (`id`, `name`, `template`) in selectors
+- Call `$pages->uncacheAll()` after processing large batches
+- Use `$page->of(false)` before modifying output-formatted pages

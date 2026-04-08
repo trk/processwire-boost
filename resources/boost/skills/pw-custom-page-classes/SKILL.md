@@ -1,12 +1,9 @@
 ---
 name: pw-custom-page-classes
 description: Use when extending ProcessWire's base Page class to create specialized, strongly-typed custom classes representing specific templates.
-metadata:
-  triggers:
-    - custom page classes
-    - strongly-typed
-    - site/classes
-    - DefaultPage
+risk: safe
+source: processwire-boost
+date_added: "2026-04-08"
 ---
 
 # ProcessWire Custom Page Classes Skill Playbook
