@@ -42,7 +42,7 @@ AI agents can write PHP — but writing *correct ProcessWire code* requires deep
 | Without Boost | With Boost |
 |---------------|------------|
 | Agent guesses API methods, often hallucinating | Guidelines provide verified API patterns with version-specific signatures |
-| Agent uses raw SQL or incorrect selectors | `pw-selectors` skill teaches operator syntax, sanitization, and performance rules |
+| Agent uses raw SQL or incorrect selectors | `pw-pages` skill teaches operator syntax, sanitization, and performance rules |
 | Agent creates fields/templates manually | `pw-migrations` skill guides the agent through safe, versioned schema changes |
 | Agent has no idea what templates or fields exist | `map.json` provides a complete schema snapshot — no guessing |
 | Agent cannot inspect live data | MCP server exposes real-time queries, logs, and module info |
@@ -107,7 +107,7 @@ sequenceDiagram
 
     Boost->>FS: Deploy SKILL.md playbooks per agent
     Boost->>FS: Write MCP configs (.mcp.json, .cursor/mcp.json, ...)
-    Boost->>FS: Save state → .llms/boost.json
+    Boost->>FS: Save state → .agents/boost.json
 
     CLI-->>Dev: ✅ Done — agent is now ProcessWire-aware
 ```
@@ -139,20 +139,7 @@ sequenceDiagram
     Note over Agent: Generates migration code using<br/>verified schema + skill rules
 
     Agent-->>Dev: Migration file with correct<br/>create/rollback logic
-```�                    ProcessWire CMS                           │
-│              (templates, fields, pages, modules)             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Four context layers**, each serving a different purpose:
-
-| Layer | Format | Purpose | When Used |
-|-------|--------|---------|-----------|
-| **Guidelines** | Markdown in agent instruction file | Encode rules, conventions, API patterns | Every prompt — always-on context |
-| **Skills** | `SKILL.md` playbooks | Teach step-by-step workflows | On-demand — agent activates when task matches |
-| **Schema Map** | `map.json` | Project-specific templates, fields, roles | Code generation — agent knows what exists |
-| **MCP Server** | JSON-RPC over stdio | Live queries, logs, module info | Runtime — agent inspects real data |
-
+```                    ProcessWire CMS                           │
 ---
 
 ## Requirements
@@ -201,7 +188,7 @@ project-root/
 ├── .cursor/
 │   ├── mcp.json                 # Cursor MCP config
 │   └── skills/                  # Cursor skill playbooks
-│       ├── pw-selectors/SKILL.md
+│       ├── pw-pages/SKILL.md
 │       ├── pw-module-development/SKILL.md
 │       └── ...
 ├── .claude/skills/              # Claude Code skill playbooks
@@ -213,7 +200,7 @@ project-root/
 │   └── rules/                   # Trae skill playbooks (YAML frontmatter)
 ├── .vscode/mcp.json             # GitHub Copilot MCP config
 ├── .github/skills/              # GitHub Copilot skill playbooks
-└── .llms/
+└── .agents/
     ├── boost.json               # Installation state
     ├── map.json                  # Schema snapshot (templates, fields, roles)
     └── skills/                  # Central skill staging area
@@ -223,7 +210,7 @@ project-root/
 
 ```bash
 # Check installation state
-cat .llms/boost.json
+cat .agents/boost.json
 
 # Verify skills were deployed
 ls .cursor/skills/
@@ -257,8 +244,8 @@ Every time the agent processes a prompt, it reads these rules. This is where con
 #### Source Priority
 
 1. **Core** — `resources/boost/guidelines/*.md` (7 files)
-2. **Module** — `{module}/llms/guidelines/*.md` (third-party modules)
-3. **Fallback** — `{module}/llms.txt` (if no guidelines directory exists)
+2. **Module** — `{module}/.agents/guidelines/*.md` (third-party modules)
+3. **Fallback** — `{module}/.agents.txt` (if no guidelines directory exists)
 
 #### Merge Strategy
 
@@ -284,7 +271,7 @@ Unlike guidelines (which are always present), skills are loaded only when releva
 |-------|--------------------------|
 | `pw-api-variables` | How to safely access `$pages`, `$user`, `$config` in templates, modules, and hooks |
 | `pw-custom-page-classes` | Building strongly-typed Page subclasses bound to specific templates |
-| `pw-manipulate-pages` | The complete lifecycle: find → create → edit → save → trash → delete |
+| `pw-pages` | The complete lifecycle: find → create → edit → save → trash → delete |
 | `pw-migrations` | Safe, versioned schema changes: field → template → page creation order, rollback guards |
 | `pw-module-development` | Native module architecture: `init()`, `ready()`, config, install/uninstall lifecycle |
 | `pw-module-fieldtype-inputfield` | Custom database fieldtypes and their corresponding input UI components |
@@ -292,7 +279,7 @@ Unlike guidelines (which are always present), skills are loaded only when releva
 | `pw-module-markup` | Frontend rendering systems using the ProcessWire Markup module pattern |
 | `pw-module-process` | Admin page pipelines, dashboards, routing, and RBAC within ProcessWire admin |
 | `pw-module-textformatter` | String formatting modules that transform field output at render time |
-| `pw-selectors` | Complete selector language reference: operators, sub-selectors, OR-groups, pagination |
+| `pw-pages` | Complete selector language reference: operators, sub-selectors, OR-groups, pagination |
 | `pw-url-routing` | URL/Path hooks for REST APIs, virtual pages, and custom endpoints |
 
 #### Module-Provided Skills
@@ -483,7 +470,7 @@ Third-party ProcessWire modules can expose their own guidelines and skills to Bo
 
 ```
 site/modules/YourModule/
-└── llms/
+└── .agents/
     ├── guidelines/
     │   └── your-module-rules.md
     └── skills/
@@ -493,10 +480,10 @@ site/modules/YourModule/
 
 ### Discovery
 
-1. Boost scans `site/modules/` and `wire/modules/` for `llms/` directories
-2. Guidelines from `llms/guidelines/*.md` are compiled into the agent instruction file
-3. Skills from `llms/skills/*/SKILL.md` are deployed alongside core skills
-4. Fallback: if no `llms/guidelines/` exists, `llms.txt` in the module root is used
+1. Boost scans `site/modules/` and `wire/modules/` for `.agents/` directories
+2. Guidelines from `.agents/guidelines/*.md` are compiled into the agent instruction file
+3. Skills from `.agents/skills/*/SKILL.md` are deployed alongside core skills
+4. Fallback: if no `.agents/guidelines/` exists, `.agents.txt` in the module root is used
 
 ### Site-Level Overrides
 
@@ -513,7 +500,7 @@ site/boost/
 | Command | Description |
 |---------|-------------|
 | `boost:install` | Deploy guidelines, skills, MCP configs, and agent files (interactive or flag-based) |
-| `boost:update` | Re-sync from saved `.llms/boost.json` configuration |
+| `boost:update` | Re-sync from saved `.agents/boost.json` configuration |
 | `boost:mcp` | Start the JSON-RPC MCP server on stdio |
 | `boost:version` | Display Boost version |
 | `boost:build:docs` | Generate API documentation from ProcessWire core PHPDoc |
@@ -540,7 +527,7 @@ When no flags are provided, the installer runs in interactive mode with multisel
 
 ### `boost.json`
 
-The installer stores its state in `.llms/boost.json`:
+The installer stores its state in `.agents/boost.json`:
 
 ```json
 {
@@ -564,8 +551,8 @@ This file enables incremental updates — rerunning `boost:install` preserves yo
 
 ```bash
 # Verify deployment
-ls -la .cursor/skills/pw-selectors/SKILL.md
-ls -la .claude/skills/pw-selectors/SKILL.md
+ls -la .cursor/skills/pw-pages/SKILL.md
+ls -la .claude/skills/pw-pages/SKILL.md
 
 # Reinstall
 php vendor/bin/wire boost:install --skills --agents="Cursor"
