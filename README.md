@@ -24,7 +24,6 @@ Built with an **agent-aware architecture** inspired by [Laravel Boost](https://g
   - [Agent System](#agent-system)
   - [Guidelines](#guidelines)
   - [Skills](#skills)
-  - [Blueprints](#blueprints)
   - [MCP Server](#mcp-server)
 - [Commands Reference](#commands-reference)
 - [Module Integration](#module-integration)
@@ -115,7 +114,6 @@ project-root/
     ├── boost.json               # Installation state
     ├── map.json                  # Schema snapshot (templates, fields, roles)
     ├── skills/                   # Central skill staging area
-    └── blueprints/               # JSON blueprints (page.json, etc.)
 ```
 
 ### 3. Verify
@@ -265,17 +263,6 @@ Skills are task playbooks that teach AI agents specific ProcessWire patterns. Ea
 | **OpenCode** | Prepends YAML frontmatter (`name`, `description`, `license`, `compatibility`) |
 | **Trae** | Wraps in YAML frontmatter, deploys to `.trae/rules/` |
 | **All others** | Plain Markdown `SKILL.md` in `{skillName}/SKILL.md` structure |
-
----
-
-### Blueprints
-
-JSON schema snapshots of ProcessWire structures for quick agent reference:
-
-```bash
-ls .llms/blueprints/
-# page.json  — Page class method/property summary
-```
 
 ---
 
@@ -470,8 +457,7 @@ Place overrides in `site/boost/` to add project-specific resources:
 ```
 site/boost/
 ├── guidelines/    # Project-specific guidelines
-├── skills/        # Project-specific skills
-└── blueprints/    # Project-specific blueprints
+└── skills/        # Project-specific skills
 ```
 
 ---

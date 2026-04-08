@@ -19,7 +19,7 @@ final class BoostManager
     /**
      * Get all modules that have boost/ directory
      * 
-     * @return array<string, array{path: string, has_guidelines: bool, has_skills: bool, has_blueprints: bool}>
+     * @return array<string, array{path: string, has_guidelines: bool, has_skills: bool}>
      */
     public function getDiscoverableModules(): array
     {
@@ -43,17 +43,14 @@ final class BoostManager
                 // Priority chain for each resource type: boost/{type} > .llms/{type} > {type}
                 $guidelinesDir = $this->resolveResourceDir($modulePath, 'guidelines');
                 $skillsDir = $this->resolveResourceDir($modulePath, 'skills');
-                $blueprintsDir = $this->resolveResourceDir($modulePath, 'blueprints');
 
-                if ($guidelinesDir || $skillsDir || $blueprintsDir) {
+                if ($guidelinesDir || $skillsDir) {
                     $discoveries[$file->getFilename()] = [
                         'path' => $modulePath,
                         'guidelines_path' => $guidelinesDir,
                         'skills_path' => $skillsDir,
-                        'blueprints_path' => $blueprintsDir,
                         'has_guidelines' => $guidelinesDir !== null,
                         'has_skills' => $skillsDir !== null,
-                        'has_blueprints' => $blueprintsDir !== null,
                     ];
                 }
             }
@@ -66,10 +63,8 @@ final class BoostManager
                 'path' => $siteBoostPath,
                 'guidelines_path' => is_dir($siteBoostPath . '/guidelines') ? $siteBoostPath . '/guidelines' : null,
                 'skills_path' => is_dir($siteBoostPath . '/skills') ? $siteBoostPath . '/skills' : null,
-                'blueprints_path' => is_dir($siteBoostPath . '/blueprints') ? $siteBoostPath . '/blueprints' : null,
                 'has_guidelines' => is_dir($siteBoostPath . '/guidelines'),
                 'has_skills' => is_dir($siteBoostPath . '/skills'),
-                'has_blueprints' => is_dir($siteBoostPath . '/blueprints'),
             ];
         }
 
@@ -89,7 +84,7 @@ final class BoostManager
     /**
      * Perform the installation based on choices
      * 
-     * @param string[] $features Selected features (Guidelines, Skills, Blueprints, MCP)
+     * @param string[] $features Selected features (Guidelines, Skills, MCP)
      * @param string[] $modules Selected modules to aggregate from
      * @param Agent[] $agents Selected agent instances
      */
@@ -109,17 +104,11 @@ final class BoostManager
                 $this->delTree($this->targetDir . '/guidelines');
             }
         }
-        if (in_array('Blueprints', $features)) {
-            $this->clearDirectory($this->targetDir . '/blueprints');
-        }
         if (in_array('Agent Skills', $features)) {
             $this->clearDirectory($this->targetDir . '/skills');
         }
 
         // 3. Export Core Resources
-        if (in_array('Blueprints', $features)) {
-            $this->exportCoreResources($this->targetDir . '/blueprints', 'blueprints');
-        }
         if (in_array('Agent Skills', $features)) {
             $this->exportCoreResources($this->targetDir . '/skills', 'skills');
         }
@@ -406,10 +395,6 @@ final class BoostManager
 
     private function aggregateResources(string $moduleName, array $moduleInfo, array $features): void
     {
-        if (in_array('Blueprints', $features) && $moduleInfo['blueprints_path']) {
-            $this->copyDirectory($moduleInfo['blueprints_path'], $this->targetDir . '/blueprints/' . $moduleName);
-        }
-
         if (in_array('Agent Skills', $features) && $moduleInfo['skills_path']) {
             $this->copyDirectory($moduleInfo['skills_path'], $this->targetDir . '/skills');
         }
@@ -466,9 +451,6 @@ final class BoostManager
                 if (is_dir($this->targetDir . '/guidelines')) {
                     $this->delTree($this->targetDir . '/guidelines');
                 }
-                break;
-            case 'Blueprints':
-                $this->clearDirectory($this->targetDir . '/blueprints');
                 break;
             case 'Agent Skills':
                 $this->clearDirectory($this->targetDir . '/skills');
