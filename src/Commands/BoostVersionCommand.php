@@ -37,6 +37,20 @@ final class BoostVersionCommand extends Command
 
     private function getVersion(string $package): string
     {
+        if ($package === 'processwire/processwire' || $package === 'processwire/core') {
+            if (class_exists(\ProcessWire\ProcessWire::class)) {
+                $version = \ProcessWire\ProcessWire::versionMajor . '.' . 
+                           \ProcessWire\ProcessWire::versionMinor . '.' . 
+                           \ProcessWire\ProcessWire::versionRevision;
+                
+                $suffix = \ProcessWire\ProcessWire::versionSuffix;
+                if ($suffix) {
+                    $version .= '-' . $suffix;
+                }
+                return $version;
+            }
+        }
+
         try {
             if (class_exists(\Composer\InstalledVersions::class)) {
                 /** @var class-string $iv */
