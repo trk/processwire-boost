@@ -1,12 +1,12 @@
 {
   "name": "trk/processwire-boost",
   "description": "AI context bridge for ProcessWire CMS.",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "type": "library",
   "license": "MIT",
   "require": {
     "php": ">=8.3",
-    "trk/processwire-console": "^0.0.5"
+    "trk/processwire-console": "^0.0.6"
   },
   "autoload": {
     "psr-4": {
