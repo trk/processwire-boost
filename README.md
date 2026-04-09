@@ -52,27 +52,6 @@ AI agents can write PHP — but writing *correct ProcessWire code* requires deep
 
 ### Architecture
 
-```mermaid
-flowchart TB
-    Agent["🤖 AI Coding Agent\nCursor · Claude Code · Gemini CLI · Copilot · Amp · ..."]
-
-    subgraph Boost["ProcessWire Boost — Context Bridge"]
-        direction LR
-        Guidelines["📋 Guidelines\nAGENTS.md · CLAUDE.md\nAlways-on rules"]
-        Skills["📖 Skills\nSKILL.md playbooks\nOn-demand workflows"]
-        Map["🗺️ Schema Map\nmap.json\nTemplates · Fields · Roles"]
-        MCP["⚡ MCP Server\nJSON-RPC over stdio\nLive queries · Logs"]
-    end
-
-    PW["ProcessWire CMS\nTemplates · Fields · Pages · Modules"]
-
-    Agent -->|reads on every prompt| Guidelines
-    Agent -->|activates when task matches| Skills
-    Agent -->|references during code gen| Map
-    Agent -->|queries at runtime| MCP
-    MCP -->|live access| PW
-```
-
 **Four context layers**, each serving a different purpose:
 
 | Layer | Format | Purpose | When Used |
@@ -82,64 +61,16 @@ flowchart TB
 | **Schema Map** | `map.json` | Project-specific templates, fields, roles | Code generation — agent knows what exists |
 | **MCP Server** | JSON-RPC over stdio | Live queries, logs, module info | Runtime — agent inspects real data |
 
-### Install Flow
-
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant CLI as vendor/bin/wire
-    participant Boost as BoostManager
-    participant FS as Project Files
-    participant PW as ProcessWire
-
-    Dev->>CLI: boost:install
-    CLI->>Dev: Select features, agents, modules
-    Dev-->>CLI: ✓ Guidelines ✓ Skills ✓ MCP
-
-    CLI->>Boost: install(features, modules, agents)
-
-    Boost->>PW: Read schema (templates, fields, roles)
-    PW-->>Boost: Schema data
-    Boost->>FS: Write map.json
-
-    Boost->>FS: Write AGENTS.md / CLAUDE.md / GEMINI.md
-    Note over Boost,FS: Merge strategy preserves<br/>user's custom instructions
-
-    Boost->>FS: Deploy SKILL.md playbooks per agent
-    Boost->>FS: Write MCP configs (.mcp.json, .cursor/mcp.json, ...)
-    Boost->>FS: Save state → .agents/boost.json
-
-    CLI-->>Dev: ✅ Done — agent is now ProcessWire-aware
-```
-
 ### Runtime Flow
 
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant Agent as AI Agent
-    participant Files as Guidelines + Skills + Map
-    participant MCP as boost:mcp
-    participant PW as ProcessWire
+Here is a brief outline of how an AI works under the hood at runtime with these layers:
 
-    Dev->>Agent: "Create a migration to add a blog template"
-
-    Agent->>Files: Read AGENTS.md (rules, conventions)
-    Agent->>Files: Activate pw-migrations skill
-    Files-->>Agent: Creation order: Field → Template → Page<br/>Rollback order: Page → Template → Field
-
-    Agent->>Files: Read map.json
-    Files-->>Agent: Existing templates, fields, roles
-
-    Agent->>MCP: pw_schema_read()
-    MCP->>PW: Query live schema
-    PW-->>MCP: Current state
-    MCP-->>Agent: Fields, templates, indexes
-
-    Note over Agent: Generates migration code using<br/>verified schema + skill rules
-
-    Agent-->>Dev: Migration file with correct<br/>create/rollback logic
-```
+1. **User asks for a task** (e.g., "Create a migration to add a blog template").
+2. **Agent reads Guidelines** (e.g., `AGENTS.md`) for base framework rules & conventions.
+3. **Agent activates relevant Skill** (like `pw-migrations`) providing the specific, step-by-step workflow required.
+4. **Agent reads Schema Map** (`map.json`) to learn the existing project templates, roles, and fields.
+5. **Agent queries MCP Server** (`pw_schema_read` etc.) for live configurations or logs natively inside the processwire environment.
+6. **Agent generates the code**, reliably completing the task with full system awareness.
 
 ---
 
