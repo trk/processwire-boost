@@ -285,25 +285,18 @@ This is the most powerful context layer — it enables agents to inspect live da
 
 Boost auto-generates MCP configuration in each agent's native format during `boost:install`:
 
-**JSON — Relative paths** (Cursor, Claude Code, Copilot, Amp):
+**JSON — Standard Context (Claude Code, Cursor, Copilot, Amp, Junie):**
 ```json
 {
   "mcpServers": {
     "processwire": {
       "command": "php",
-      "args": ["vendor/bin/wire", "boost:mcp"]
-    }
-  }
-}
-```
-
-**JSON — Absolute paths** (Gemini CLI, Junie):
-```json
-{
-  "mcpServers": {
-    "processwire": {
-      "command": "/opt/homebrew/bin/php",
-      "args": ["/Users/you/project/vendor/bin/wire", "boost:mcp"]
+      "args": ["vendor/bin/wire", "boost:mcp"],
+      "env": {
+        "PW_MCP_ALLOW_EXECUTE": "1",
+        "PW_MCP_ALLOW_RESTORE": "1"
+      },
+      "cwd": "/absolute/path/to/project"
     }
   }
 }
@@ -315,7 +308,12 @@ Boost auto-generates MCP configuration in each agent's native format during `boo
   "mcpServers": {
     "processwire": {
       "command": "php",
-      "args": ["${workspaceFolder}/vendor/bin/wire", "boost:mcp"]
+      "args": ["vendor/bin/wire", "boost:mcp"],
+      "env": {
+        "PW_MCP_ALLOW_EXECUTE": "1",
+        "PW_MCP_ALLOW_RESTORE": "1"
+      },
+      "cwd": "${workspaceFolder}"
     }
   }
 }
@@ -326,6 +324,11 @@ Boost auto-generates MCP configuration in each agent's native format during `boo
 [mcp_servers.processwire]
 command = "php"
 args = ["vendor/bin/wire", "boost:mcp"]
+cwd = "/absolute/path/to/project"
+
+[mcp_servers.processwire.env]
+PW_MCP_ALLOW_EXECUTE = "1"
+PW_MCP_ALLOW_RESTORE = "1"
 ```
 
 **OpenCode** (nested command array):
@@ -336,7 +339,12 @@ args = ["vendor/bin/wire", "boost:mcp"]
     "processwire": {
       "type": "local",
       "enabled": true,
-      "command": ["php", "vendor/bin/wire", "boost:mcp"]
+      "command": ["php", "vendor/bin/wire", "boost:mcp"],
+      "env": {
+        "PW_MCP_ALLOW_EXECUTE": "1",
+        "PW_MCP_ALLOW_RESTORE": "1"
+      },
+      "cwd": "/absolute/path/to/project"
     }
   }
 }
