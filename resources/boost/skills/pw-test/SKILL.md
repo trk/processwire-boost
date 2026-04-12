@@ -21,9 +21,18 @@ ProcessWire Console uses **Pest PHP** coupled with a powerful `FeatureDiscoverer
 Tests automatically execute if placed in one of three locations:
 1. `/tests/`: Root-level generic tests.
 2. `/site/tests/`: Project-specific or integration tests.
-3. `/site/modules/[ModuleName]/tests/`: Module-isolated tests for active modules.
-
 When you run `php vendor/bin/wire test`, the console discovers all active test folders and runs Pest across them simultaneously.
+
+### Pest Initialization & Bootstrapping
+When Pest is first initialized via `wire test`, the test engine automatically appends logic to `/tests/Pest.php` to boot ProcessWire:
+
+```php
+if (!class_exists('\\ProcessWire\\ProcessWire')) {
+    require_once dirname(__DIR__) . '/index.php';
+}
+```
+This is critical: **It exposes the full `wire()` API, `$pages`, `$sanitizer`, and global state to the isolated Pest test process.** You do not need to manually boot ProcessWire in your test files.
+
 
 ### Scaffolding Tests
 Never create test files manually. Always use the scaffolding commands to ensure naming and path conventions are correct:
