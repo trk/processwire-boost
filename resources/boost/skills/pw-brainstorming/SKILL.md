@@ -8,294 +8,70 @@ date_added: "2026-04-08"
 
 # ProcessWire Brainstorming
 
-## Purpose
+Help turn raw ideas into **clear, validated designs and specifications** in ProcessWire through structured dialogue.
 
-Turn raw ideas into **clear, validated designs and specifications** through structured dialogue **before any implementation begins**.
-
-This skill prevents:
-- Premature module or template creation
-- Hidden schema assumptions
-- Misaligned field structures
-- Fragile hook chains
-
-You are **not allowed** to implement, code, or create files while this skill is active.
-
----
-
-## Operating Mode
-
-You are a **design facilitator for ProcessWire projects**, not a builder.
-
-- No creating modules, fields, or templates
-- No writing migration files
-- No speculative hooks or features
-- No silent assumptions about schema
-
-Your job is to **slow the process down just enough to get the architecture right**.
-
----
+<HARD-GATE>
+Do NOT invoke any implementation skill, write any code, scaffold any project, or run any migrations until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
+</HARD-GATE>
 
 ## The Process
 
-### 1️⃣ Understand the Current Context (Mandatory First Step)
+You must complete these items in order. Do NOT skip steps or combine them.
 
-Before asking any questions:
-
-- Run `pw_schema_read` to understand existing templates and fields
-- Review `site/modules/` for installed custom modules
-- Check `site/migrations/` for recent schema changes
-- Identify what already exists vs. what is proposed
-- Note constraints that appear implicit but unconfirmed
-
+### 1️⃣ Explore Current ProcessWire Context (Mandatory)
+Before asking any questions, explore the existing state:
+- Run `pw_schema_read` via MCP to understand existing templates and fields (never hallucinate schema).
+- Review `site/modules/` for installed custom modules.
+- If the request describes multiple independent subsystems, decompose the project first. Brainstorm the first sub-project only.
 **Do not design yet.**
 
----
-
 ### 2️⃣ Understanding the Idea (One Question at a Time)
-
 Your goal is **shared clarity**, not speed.
+- Ask **one question per message** (prefer multiple-choice).
+- Understand: templates/fields needed, page tree structure, access control (RBAC), and explicit non-goals.
 
-**Rules:**
+### 3️⃣ ProcessWire Constraints Check
+Identify hidden complexities:
+- **Schema Impact:** Brand new fields vs. modifying existing?
+- **Data Relationships:** Page references vs. Repeaters vs. Custom Fieldtypes?
+- **Module Dependencies:** Does this require HTMX, ProFields, or specific Textformatters?
+If the user is unsure, propose reasonable ProcessWire defaults, but mark them explicitly as assumptions.
 
-- Ask **one question per message**
-- Prefer **multiple-choice questions** when possible
-- Use open-ended questions only when necessary
+### 4️⃣ Understanding Lock (Soft Gate)
+Before proposing any design, summarize what you know:
+1. What is being built / Affected ProcessWire components
+2. Key constraints & Explicit non-goals
+3. List all **Assumptions**
+Then explicitly ask: *"Does this accurately reflect your intent?"*
 
-Focus on understanding:
+### 5️⃣ Propose Approaches & Present Design
+Once confirmed, propose 2-3 technical approaches (e.g., Hook-centric vs. Process Module vs. Custom Page Class). Lead with your recommended option.
+Then present the detailed design in sections (200-300 words). Ask *"Does this look right so far?"* after each section.
 
-- What templates and fields are needed?
-- What is the page tree structure?
-- What access control (roles/permissions) is required?
-- What are the front-end output requirements?
-- What are explicit non-goals?
+### 6️⃣ Write Design Doc & Spec Self-Review
+Write the approved design to a tracking markdown file (e.g. `docs/specs/YYYY-MM-DD-<topic>.md`).
+Before asking the user to review it, **Review yourself inline**:
+- **Placeholder scan:** Any "TODO" or vague requirements? Fix them inline.
+- **Internal consistency:** Does the architecture match ProcessWire's Data Model limits?
+- **Ambiguity check:** Fix anything interpreted two ways.
 
----
+### 7️⃣ User Review Gate
+Ask the user to review the written spec. Proceed only once approved.
 
-### 3️⃣ ProcessWire-Specific Constraints (Mandatory)
-
-You MUST explicitly clarify:
-
-- **Schema impact:** New fields/templates or modifications to existing ones?
-- **Data relationships:** Page references, repeaters, or custom fieldtypes?
-- **Access control:** Which roles need access? Any custom permissions?
-- **Migration strategy:** Will this need migration files for reproducibility?
-- **Module dependencies:** Any required modules (e.g., Htmx, ProFields)?
-- **Performance:** Expected page count? Large selector queries needed?
-
-If the user is unsure:
-
-- Propose reasonable defaults
-- Clearly mark them as **assumptions**
-
----
-
-### 4️⃣ Understanding Lock (Hard Gate)
-
-Before proposing **any design**, you MUST pause and provide:
-
-#### Understanding Summary (5–7 bullets)
-- What is being built
-- Which templates/fields are involved
-- What is the page tree structure
-- Key constraints
-- Explicit non-goals
-
-#### Assumptions
-List all assumptions explicitly.
-
-#### Open Questions
-List unresolved questions.
-
-Then ask:
-
-> "Does this accurately reflect your intent?
-> Please confirm or correct anything before we move to design."
-
-**Do NOT proceed until explicit confirmation is given.**
+### 8️⃣ Transition to Implementation
+- **Terminal State:** Invoke the `writing-plans` skill to create the actual implementation and migration plan.
+- **Do NOT** write implementation code or migrations while brainstorming.
 
 ---
 
-### 5️⃣ Explore Design Approaches
+## Anti-Patterns
 
-Once understanding is confirmed:
+- ❌ **"This is too simple to need a design"**: Every project needs confirmation. "Simple" hooks are where unexamined assumptions cause the most wasted work.
+- ❌ **Multiple questions at once**: Never overwhelm the user with a wall of 5 questions.
+- ❌ **Writing migrations during brainstorming**: Implementation belongs strictly to `writing-plans` (or `pw-migrations`). Brainstorming creates the spec.
+- ❌ **Assuming schema structures**: Always run `pw_schema_read` first to base designs on reality, not guesswork.
+- ❌ **Multi-Agent Roleplay**: Do not hallucinate review personas (Skeptics, Integrators); rigorously Self-Review your Spec instead.
 
-- Propose **2–3 viable approaches**
-- Consider ProcessWire-native solutions first:
-  - Page references vs. repeaters
-  - Custom page classes vs. hook-based logic
-  - URL hooks vs. template-based routing
-- Explain trade-offs clearly
-- **YAGNI ruthlessly**
-
----
-
-### 6️⃣ Present the Design (Incrementally)
-
-Break into sections of **200–300 words max**. After each section, ask:
-
-> "Does this look right so far?"
-
-Cover, as relevant:
-
-- Template/field schema
-- Page tree structure
-- Module architecture (if custom module)
-- Hook strategy
-- Migration plan
-- Access control design
-- Front-end rendering approach
-
----
-
-### 7️⃣ Decision Log (Mandatory)
-
-Maintain a running **Decision Log** throughout:
-
-For each decision:
-- What was decided
-- Alternatives considered
-- Why this option was chosen
-
----
-
-## 8️⃣ Multi-Agent Escalation (High-Impact Decisions)
-
-For **high-impact decisions** (new module architecture, major schema changes, complex hook chains, or production migration strategies), escalate design validation using structured peer review.
-
-### Agent Roles
-
-| Role | Responsibility | Constraint |
-|------|---------------|------------|
-| **Primary Designer** | Runs the brainstorming process, produces the initial design, maintains Decision Log | May NOT self-approve the final design |
-| **Skeptic** | Assumes the design will fail in production. Questions scale, edge cases, YAGNI violations | May NOT propose new features |
-| **Constraint Guardian** | Enforces PW limits: selector performance, memory, migration rollback, module dependencies | May NOT debate product goals |
-| **User Advocate** | Evaluates admin UX: field labels, template structure, error messages | May NOT redesign architecture |
-| **Integrator** | Resolves conflicts between reviewers, finalizes decisions, declares disposition | May NOT invent new ideas |
-
-### Process
-
-1. Primary Designer completes Steps 1–7 above
-2. Agents invoked **one at a time** in order: Skeptic → Constraint Guardian → User Advocate
-3. Each reviewer provides scoped, explicit feedback — no new features
-4. Integrator reviews Decision Log and declares: **APPROVED**, **REVISE**, or **REJECT**
-
-### Escalation Exit Criteria
-
-All must be true:
-- Understanding Lock confirmed
-- All reviewer agents invoked
-- All objections resolved or rejected with rationale
-- Decision Log complete
-- Integrator declared disposition
-
----
-
-## 9️⃣ Implementation Planning
-
-Once the design is validated, create an implementation plan before coding.
-
-### Migration-First Order
-
-ProcessWire schema changes MUST follow this order:
-
-1. **Create fields** (no dependencies)
-2. **Create templates** (may reference fields)
-3. **Attach fields to templates** (requires both to exist)
-4. **Create pages** (requires templates to exist)
-5. **Create roles/permissions** (if RBAC needed)
-6. **Install modules** (if dependencies needed)
-
-### Bite-Sized Tasks (2–5 minutes each)
-
-Each task must include:
-- Exact file paths to create or modify
-- Complete code (not "add validation")
-- Exact CLI commands with expected output
-- Verification step after each change
-- Commit instruction
-
-```markdown
-### Task N: [Component Name]
-
-**Files:** Create: `site/migrations/YYYY_MM_DD_HHMMSS_create_summary_field.php`
-
-**Step 1:** Create migration
-```bash
-wire make:migration create_summary_field --type=create-field --field=summary
-```
-
-**Step 2:** Run migration
-```bash
-wire migrate
-```
-
-**Step 3:** Verify
-```bash
-wire field:info summary --json
-```
-
-**Step 4:** Commit
-```bash
-git add site/migrations/ && git commit -m "migration: add summary field"
-```
-```
-
-### Principles
-
-- DRY. YAGNI. Migration-first. Frequent commits.
-- One migration per concern
-- Always include verification step
-
-### Execution Handoff
-
-After saving the plan:
-
-> "Plan complete. Ready to execute? Should I start with the first migration?"
-
----
-
-## After the Design
-
-### Documentation
-
-Once validated, document:
-- Understanding summary
-- Assumptions
-- Decision log
-- Final schema design
-- Migration sequence (field → template → page order)
-
-### Implementation Handoff
-
-Only after documentation is complete, ask:
-
-> "Ready to implement? Should we start with migrations?"
-
-If yes:
-- Create migration files in proper order
-- Proceed incrementally
-
----
-
-## Exit Criteria (Hard Stop)
-
-You may exit brainstorming **only when all are true**:
-
-- Understanding Lock confirmed
-- At least one design approach accepted
-- Major assumptions documented
-- Key risks acknowledged
-- Decision Log complete
-
-If any criterion is unmet — **do NOT proceed to implementation**.
-
----
-
-## Key Principles (Non-Negotiable)
-
-- One question at a time
-- Assumptions must be explicit
-- Explore alternatives
-- Validate incrementally
-- Prefer ProcessWire-native solutions
-- YAGNI ruthlessly
+## Related Skills
+- `pw-writing-skills`: Use for formatting AI skill files.
+- `writing-plans`: Triggered immediately AFTER brainstorming completes.
