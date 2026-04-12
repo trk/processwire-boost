@@ -11,6 +11,7 @@ When performing administrative actions, prefer running these terminal commands o
 - **Users/RBAC:** `user:list|update|delete`, `role:grant|revoke`, `permission:delete`
 - **Migrations:** `make:migration`, `migrate`, `migrate:status|rollback|reset|refresh|fresh|install`
 - **Cache/Logs/Backup:** `cache:wire:clear`, `log:list|read|tail|clear`, `db:backup|restore`, `backup:list|purge`
+- **Testing:** `test`, `make:test`
 
 ## ProcessWire MCP Server (JSON-RPC)
 
