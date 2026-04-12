@@ -120,6 +120,40 @@ Description with code example...
 Description with code example...
 ```
 
+#### API.md (Module API Reference)
+
+For modules exposing public methods, always create an `API.md` file alongside `README.md`.
+
+```markdown
+# MyModuleClass
+
+> API reference for interacting with MyModule from templates or hooks.
+
+## Value Types
+- Returns `\ProcessWire\WireArray` for grouped items.
+- Returns `\ProcessWire\NullPage` on search failure.
+
+## Selectors
+\`\`\`php
+$results = $modules->get('MyModuleClass')->find("status=active");
+\`\`\`
+```
+
+#### Fieldtype IDE Companion Class
+
+For Fieldtype modules, document properties by creating a companion `[Type]Field.php` class with PHPDoc annotations. This is how IDEs understand the Field settings.
+
+```php
+<?php namespace ProcessWire;
+/**
+ * Companion class for IDE autocompletion 
+ * 
+ * @property int $maxLength Maximum string length
+ * @property string $defaultText Default fallback text
+ */
+class FieldtypeMyCustomField extends Field {}
+```
+
 #### CLI Command Documentation
 
 ```markdown
@@ -246,6 +280,8 @@ URL hooks provide cleaner separation between data API and content pages.
 
 Before publishing documentation:
 
+- [ ] `API.md` is generated for modules exposing public API methods
+- [ ] `[Type]Field.php` companion class is created for Fieldtypes
 - [ ] Executive summary exists and is clear in 1 paragraph
 - [ ] Installation steps are copy-paste ready
 - [ ] Quick Start example works within 30 seconds
