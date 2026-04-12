@@ -73,12 +73,16 @@ abstract class Agent
         return [$this->mcpConfigKey() => []];
     }
 
-    public function mcpServerConfig(string $command, array $args = [], array $env = []): array
+    public function mcpServerConfig(string $command, array $args = [], array $env = [], string $cwd = ''): array
     {
-        return ['command' => $command, 'args' => $args, 'env' => $env];
+        $payload = ['command' => $command, 'args' => $args, 'env' => $env];
+        if ($cwd !== '') {
+            $payload['cwd'] = $cwd;
+        }
+        return $payload;
     }
 
-    public function installMcp(string $key, string $command, array $args = [], array $env = []): bool
+    public function installMcp(string $key, string $command, array $args = [], array $env = [], string $cwd = ''): bool
     {
         $path = $this->mcpConfigPath();
         if (!$path) {
@@ -87,11 +91,11 @@ abstract class Agent
 
         if (str_ends_with($path, '.toml')) {
             $w = new TomlFileWriter($path, $this->defaultMcpConfig());
-            return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env))->save();
+            return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env, $cwd))->save();
         }
 
         $w = new FileWriter($path, $this->defaultMcpConfig());
-        return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env))->save();
+        return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env, $cwd))->save();
     }
 
     public function exportSkill(string $skillName, string $skillPath, string $targetDir): string

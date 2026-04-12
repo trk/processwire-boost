@@ -229,7 +229,8 @@ final class BoostInstallCommand extends Command
                         $command = $agent->getPhpPath();
                         $wire = $agent->getWirePath($projectRoot);
                         $args = [$wire, 'boost:mcp'];
-                        $agent->installMcp($key, $command, $args, []);
+                        $cwd = $projectRoot;
+                        $agent->installMcp($key, $command, $args, [], $cwd);
                     }
                 }, 'Writing agent MCP configurations...');
                 $output->writeln("  <fg=green>✓ MCP configurations written</>");
