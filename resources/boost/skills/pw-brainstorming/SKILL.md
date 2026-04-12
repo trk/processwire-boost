@@ -1,6 +1,6 @@
 ---
 name: pw-brainstorming
-description: "Use before designing ProcessWire modules, templates, field schemas, or hooks. Transforms vague ideas into validated designs through disciplined reasoning before implementation. For high-impact decisions, escalate to multi-agent peer review."
+description: "Use before designing ProcessWire modules, templates, field schemas, or hooks to resolve ambiguity and validate architectural decisions prior to implementation."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"

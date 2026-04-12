@@ -1,6 +1,6 @@
 ---
 name: pw-security-audit
-description: "Use when auditing ProcessWire modules, hooks, templates, or MCP endpoints for security vulnerabilities. Covers OWASP, input sanitization, RBAC, CSRF, and SQL injection prevention."
+description: "Use when auditing ProcessWire modules, hooks, templates, or MCP endpoints for security vulnerabilities like OWASP, input sanitization, RBAC, CSRF, and SQL injections."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"

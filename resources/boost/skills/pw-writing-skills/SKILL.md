@@ -1,6 +1,6 @@
 ---
 name: pw-writing-skills
-description: "Use when creating or improving Boost skills for ProcessWire agents. Covers skill architecture, YAML frontmatter, CSO optimization, and testing."
+description: "Use when creating or improving Boost skills for ProcessWire agents to ensure optimal CSO formatting and testing requirements."
 category: meta
 risk: safe
 source: processwire-boost

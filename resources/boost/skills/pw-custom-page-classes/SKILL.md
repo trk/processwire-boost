@@ -1,6 +1,6 @@
 ---
 name: pw-custom-page-classes
-description: Use when extending ProcessWire's base Page class to create specialized, strongly-typed custom classes representing specific templates.
+description: "Use when extending ProcessWire's base Page class to create specialized, strongly-typed custom classes representing specific templates."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"

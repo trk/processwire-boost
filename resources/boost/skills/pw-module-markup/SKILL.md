@@ -1,6 +1,6 @@
 ---
 name: pw-module-markup
-description: Use when creating independent frontend rendering systems explicitly extending the ProcessWire Markup module ecosystem.
+description: "Use when creating independent frontend rendering systems explicitly extending the ProcessWire Markup module ecosystem."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"

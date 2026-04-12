@@ -1,6 +1,6 @@
 ---
 name: pw-module-process
-description: Use when constructing custom admin page pipelines, dashboards, or routing structures within ProcessWire implementing isolated Process models and RBAC.
+description: "Use when constructing custom admin page pipelines, dashboards, or routing structures within ProcessWire implementing isolated Process models and RBAC."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"

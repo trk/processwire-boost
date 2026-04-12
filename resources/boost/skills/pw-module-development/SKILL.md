@@ -1,6 +1,6 @@
 ---
 name: pw-module-development
-description: "Use when building, structuring, or refactoring native backend modules for ProcessWire using PHP 8.4 and strict typing. Covers module scaffold, hooks, security, and advanced PHP patterns."
+description: "Use when building, structuring, or refactoring native backend modules for ProcessWire using PHP 8.4 and strict typing."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"

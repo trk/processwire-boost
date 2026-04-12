@@ -1,6 +1,6 @@
 ---
 name: pw-module-fieldtype-inputfield
-description: Use when building custom database fieldtypes and their corresponding interface inputfields in ProcessWire.
+description: "Use when building custom database fieldtypes and their corresponding interface inputfields in ProcessWire."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
