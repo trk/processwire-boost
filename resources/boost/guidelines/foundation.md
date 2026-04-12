@@ -28,15 +28,15 @@ This project implements domain-specific skills (Playbooks). You MUST activate th
 
 {{ SKILLS_MENU }}
 
-## Dual MCP Integration
+## ProcessWire MCP Integration
 
-This project uses dual MCP integration. You might have access to:
+This project exposes an MCP server for intelligent context discovery. You might have access to:
 
-1. `laravel-boost`: Provides semantic search across ecosystem documentation (`search-docs`), codebase analysis tools, and database schema interrogation (`application-info`, `database-schema`). You can and should use this to lookup ProcessWire module docs!
-2. `processwire-boost`: (If implemented natively) Built-in JSON-RPC server mapped over CLI to handle raw structural tasks (`pw_schema_read`, `pw_query` etc).
+1. `processwire-boost`: Built-in JSON-RPC server handling structural tasks (`pw_schema_read`, `pw_query`, `pw_system_get_logs`, etc). You can and should use this to safely read state and debug code.
+2. `search-docs`: If `mcp-server-sqlite` or similar tool is provided in your environment, use it to search ecosystem documentation before hallucinating API structures.
 
 > [!TIP]
-> If available, ALWAYS run the `search-docs` tool querying ProcessWire or specific ProcessWire modules before guessing API structures.
+> ALWAYS run `pw_schema_read` before guessing template names, fields, or database designs. Do not guess API structures.
 
 ## Documentation Resources
 
