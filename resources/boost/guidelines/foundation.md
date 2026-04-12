@@ -32,7 +32,7 @@ This project implements domain-specific skills (Playbooks). You MUST activate th
 
 This project exposes an MCP server for intelligent context discovery. You might have access to:
 
-1. `processwire-boost`: Built-in JSON-RPC server handling structural tasks (`pw_schema_read`, `pw_query`, `pw_system_get_logs`, etc). You can and should use this to safely read state and debug code.
+1. `processwire`: Built-in JSON-RPC server handling structural tasks (`pw_schema_read`, `pw_query`, `pw_system_get_logs`, etc). You can and should use this to safely read state and debug code.
 2. `search-docs`: If `mcp-server-sqlite` or similar tool is provided in your environment, use it to search ecosystem documentation before hallucinating API structures.
 
 > [!TIP]
