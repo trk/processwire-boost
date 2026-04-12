@@ -2,6 +2,7 @@
 
 - Always use curly braces for control structures, even for single lines.
 - Prefer strict typing: `declare(strict_types=1);` in all new files.
+- Prefer strict comparisons: `=== null` over `!$var`, `array_key_exists()` over `isset()` where null is valid.
 - Favor explicit return types for all functions and methods.
 - Use explicit type hints for parameters in all method calls.
 
