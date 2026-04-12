@@ -20,7 +20,6 @@ use Totoglu\Console\Boost\Install\Agents\Trae as TraeAgent;
 use function Laravel\Prompts\intro;
 use function Laravel\Prompts\outro;
 use function Laravel\Prompts\info;
-use function Laravel\Prompts\spin;
 
 final class BoostUpdateCommand extends Command
 {
@@ -67,36 +66,36 @@ final class BoostUpdateCommand extends Command
 
         $manager = new BoostManager($projectRoot);
 
-        spin(function () use ($manager, $config) {
-            $modules = $config['modules'] ?? [];
+        info('Re-syncing guidelines and skills...');
 
-            // Map boolean flags to feature labels that BoostManager expects
-            $features = [];
-            if ($config['guidelines'] ?? false) {
-                $features[] = self::FEATURE_MAP['guidelines'];
-            }
-            if ($config['skills'] ?? false) {
-                $features[] = self::FEATURE_MAP['skills'];
-            }
-            if ($config['mcp'] ?? false) {
-                $features[] = self::FEATURE_MAP['mcp'];
-            }
+        $modules = $config['modules'] ?? [];
 
-            // Resolve agent display names to Agent instances
-            $agents = [];
-            foreach ($config['agents'] ?? [] as $name) {
-                $class = self::AGENT_MAP[$name] ?? null;
-                if ($class) {
-                    $agents[] = new $class();
-                }
-            }
+        // Map boolean flags to feature labels that BoostManager expects
+        $features = [];
+        if ($config['guidelines'] ?? false) {
+            $features[] = self::FEATURE_MAP['guidelines'];
+        }
+        if ($config['skills'] ?? false) {
+            $features[] = self::FEATURE_MAP['skills'];
+        }
+        if ($config['mcp'] ?? false) {
+            $features[] = self::FEATURE_MAP['mcp'];
+        }
 
-            $manager->install(
-                features: $features,
-                modules: $modules,
-                agents: $agents,
-            );
-        }, 'Re-syncing guidelines and skills...');
+        // Resolve agent display names to Agent instances
+        $agents = [];
+        foreach ($config['agents'] ?? [] as $name) {
+            $class = self::AGENT_MAP[$name] ?? null;
+            if ($class) {
+                $agents[] = new $class();
+            }
+        }
+
+        $manager->install(
+            features: $features,
+            modules: $modules,
+            agents: $agents,
+        );
 
         info('Boost guidelines and skills updated successfully.');
 
