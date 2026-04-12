@@ -23,7 +23,7 @@ final class Cursor extends Agent
 
     public function guidelinesPath(): string
     {
-        return 'AGENTS.md';
+        return '.cursorrules';
     }
 
     public function skillsPath(): string

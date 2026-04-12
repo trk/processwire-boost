@@ -28,7 +28,7 @@ final class Copilot extends Agent
 
     public function guidelinesPath(): string
     {
-        return 'AGENTS.md';
+        return '.github/copilot-instructions.md';
     }
 
     public function skillsPath(): string

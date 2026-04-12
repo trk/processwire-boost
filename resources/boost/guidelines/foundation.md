@@ -33,14 +33,13 @@ This project implements domain-specific skills (Playbooks). You MUST activate th
 This project exposes an MCP server for intelligent context discovery. You might have access to:
 
 1. `processwire`: Built-in JSON-RPC server handling structural tasks (`pw_schema_read`, `pw_query`, `pw_system_get_logs`, etc). You can and should use this to safely read state and debug code.
-2. `search-docs`: If `mcp-server-sqlite` or similar tool is provided in your environment, use it to search ecosystem documentation before hallucinating API structures.
 
 > [!TIP]
 > ALWAYS run `pw_schema_read` before guessing template names, fields, or database designs. Do not guess API structures.
 
 ## Documentation Resources
 
-- **Core API Reference:** The `.agents/docs` directory contains the complete generated ProcessWire Core API documentation. ALWAYS use the `grep_search` and `view_file` tools to search this directory before hallucinating ProcessWire methods or classes.
+- **Core API Reference:** The `.agents/docs` directory contains the complete generated ProcessWire Core API documentation. ALWAYS use your file reading and search tools to search this directory before hallucinating ProcessWire methods or classes.
 
 ## Conventions & Rules
 
