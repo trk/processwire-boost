@@ -282,11 +282,14 @@ final class BoostManager
         foreach ($agents as $agent) {
             $guidelinesFile = $agent->guidelinesPath();
 
-            // Write guidelines (skip if same file already written, e.g. multiple agents use AGENTS.md)
+            // Write stub guidelines that point to AGENTS.md
             if (!in_array($guidelinesFile, $writtenGuidelines, true)) {
                 $guidelinesFullPath = $this->projectRoot . '/' . $guidelinesFile;
-                $agentHeader = "# {$agent->displayName()} Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n";
-                $this->writeBoostBlock($guidelinesFullPath, $boostBlock, $agentHeader);
+                $stub = "# {$agent->displayName()} Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n";
+                $stub .= "> [!IMPORTANT]\n";
+                $stub .= "> Please strictly follow and read the primary `AGENTS.md` file located in the root directory for all system instructions, architecture rules, and processwire-boost guidelines.\n";
+                
+                file_put_contents($guidelinesFullPath, $stub);
                 $writtenGuidelines[] = $guidelinesFile;
             }
 
