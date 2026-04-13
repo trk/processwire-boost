@@ -47,9 +47,8 @@ final class BoostAddSkillCommand extends Command
 
         $skills = [];
         try {
-            spin(function () use ($provider, &$skills) {
-                $skills = $provider->discoverSkills();
-            }, "Fetching skills from {$repo->fullName()}...");
+            info("Fetching skills from {$repo->fullName()}...");
+            $skills = $provider->discoverSkills();
         } catch (\RuntimeException $e) {
             $output->writeln("<error>{$e->getMessage()}</error>");
             return Command::FAILURE;

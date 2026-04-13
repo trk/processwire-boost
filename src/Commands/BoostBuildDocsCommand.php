@@ -39,9 +39,8 @@ final class BoostBuildDocsCommand extends Command
 
         $files = $this->getPhpFiles($wireDir);
 
-        spin(function () use ($files, $wireDir, $docsDir) {
-            $this->processFiles($files, $wireDir, $docsDir);
-        }, 'Generating API reference markdown files...');
+        info('Generating API reference markdown files...');
+        $this->processFiles($files, $wireDir, $docsDir);
 
         info('ProcessWire Core API Documentation generated into .agents/docs');
 

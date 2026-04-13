@@ -192,10 +192,9 @@ final class BoostInstallCommand extends Command
             foreach ($selectedFeatures as $key) {
                 $featureLabels[] = self::FEATURES[$key];
             }
-            spin(function () use ($manager, $featureLabels, $selectedModules, $selectedAgents) {
-                $agents = $this->resolveAgents($selectedAgents);
-                $manager->sync($featureLabels, $selectedModules, $agents);
-            }, 'Syncing Boost configuration...');
+            info('Syncing Boost configuration...');
+            $agents = $this->resolveAgents($selectedAgents);
+            $manager->sync($featureLabels, $selectedModules, $agents);
             $output->writeln("  <fg=green>✓ Sync complete</>\n");
         }
 
@@ -223,16 +222,15 @@ final class BoostInstallCommand extends Command
         if (in_array('mcp', $selectedFeatures) && !empty($selectedAgents)) {
             $agentsForMcp = $this->resolveAgents($selectedAgents);
             if (!empty($agentsForMcp)) {
-                spin(function () use ($agentsForMcp, $projectRoot) {
-                    $key = 'processwire';
-                    foreach ($agentsForMcp as $agent) {
-                        $command = $agent->getPhpPath();
-                        $wire = $agent->getWirePath($projectRoot);
-                        $args = [$wire, 'boost:mcp'];
-                        $cwd = $projectRoot;
-                        $agent->installMcp($key, $command, $args, [], $cwd);
-                    }
-                }, 'Writing agent MCP configurations...');
+                info('Writing agent MCP configurations...');
+                $key = 'processwire';
+                foreach ($agentsForMcp as $agent) {
+                    $command = $agent->getPhpPath();
+                    $wire = $agent->getWirePath($projectRoot);
+                    $args = [$wire, 'boost:mcp'];
+                    $cwd = $projectRoot;
+                    $agent->installMcp($key, $command, $args, [], $cwd);
+                }
                 $output->writeln("  <fg=green>✓ MCP configurations written</>");
             }
         }
