@@ -70,6 +70,9 @@ class GitHubSkillProvider
 
         foreach ($directories as $dir) {
             $relativePath = $this->getRelativePath($dir['path'], $skill->path);
+            if (!$this->isSafeRelativePath($relativePath)) {
+                return false;
+            }
             $localPath = $targetPath . '/' . $relativePath;
 
             if (!$this->ensureDirectoryExists($localPath)) {
@@ -131,6 +134,9 @@ class GitHubSkillProvider
         foreach ($files as $item) {
             $url = $this->buildRawFileUrl($item['path']);
             $relativePath = $this->getRelativePath($item['path'], $basePath);
+            if (!$this->isSafeRelativePath($relativePath)) {
+                return false;
+            }
             $localPath = $targetPath . '/' . $relativePath;
 
             if (!$this->ensureDirectoryExists(dirname($localPath))) {
@@ -147,6 +153,24 @@ class GitHubSkillProvider
             }
         }
 
+        return true;
+    }
+
+    protected function isSafeRelativePath(string $path): bool
+    {
+        if ($path === '') {
+            return false;
+        }
+        if (str_contains($path, "\0")) {
+            return false;
+        }
+        $path = str_replace('\\', '/', $path);
+        if (str_starts_with($path, '/') || preg_match('/^[a-zA-Z]:\\//', $path)) {
+            return false;
+        }
+        if (preg_match('#(^|/)\\.\\.(/|$)#', $path)) {
+            return false;
+        }
         return true;
     }
 

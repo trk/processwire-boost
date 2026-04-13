@@ -152,7 +152,7 @@ final class BoostAddSkillCommand extends Command
 
     private function downloadSkills(array $skills, string $projectRoot, bool $force): array
     {
-        $skillsPath = $projectRoot . '/.agents/skills/pw_core';
+        $skillsPath = $projectRoot . '/.agents/skills';
         if (!is_dir($skillsPath)) {
             @mkdir($skillsPath, 0755, true);
         }
@@ -160,7 +160,13 @@ final class BoostAddSkillCommand extends Command
         $results = ['installed' => [], 'failed' => []];
 
         foreach ($skills as $skill) {
-            $targetPath = $skillsPath . '/' . $skill->name;
+            $safeSkillName = $this->sanitizeSkillName($skill->name);
+            if ($safeSkillName === '') {
+                $results['failed'][$skill->name] = 'Invalid skill name';
+                continue;
+            }
+
+            $targetPath = $skillsPath . '/' . $safeSkillName;
             $exists = is_dir($targetPath);
 
             if ($exists && !$force) {
@@ -188,6 +194,14 @@ final class BoostAddSkillCommand extends Command
         }
 
         return $results;
+    }
+
+    private function sanitizeSkillName(string $name): string
+    {
+        $name = basename(str_replace('\\', '/', $name));
+        $name = preg_replace('/[^a-z0-9_-]/i', '', $name) ?: '';
+
+        return $name;
     }
 
     private function removeDirectory(string $path): bool
