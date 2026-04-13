@@ -37,29 +37,30 @@ This is **not** a CLI tool collection — Boost is a knowledge layer. It sits be
 
 ## Why Boost?
 
-AI agents can write PHP — but writing *correct ProcessWire code* requires deep context:
+AI agents can write PHP — but writing _correct ProcessWire code_ requires deep context:
 
-| Without Boost | With Boost |
-|---------------|------------|
-| Agent guesses API methods, often hallucinating | Guidelines provide verified API patterns with version-specific signatures |
-| Agent uses raw SQL or incorrect selectors | `pw-pages` skill teaches operator syntax, sanitization, and performance rules |
-| Agent creates fields/templates manually | `pw-migrations` skill guides the agent through safe, versioned schema changes |
-| Agent has no idea what templates or fields exist | `map.json` provides a complete schema snapshot — no guessing |
-| Agent cannot inspect live data | MCP server exposes real-time queries, logs, and module info |
+| Without Boost                                    | With Boost                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Agent guesses API methods, often hallucinating   | Guidelines provide verified API patterns with version-specific signatures     |
+| Agent uses raw SQL or incorrect selectors        | `pw-pages` skill teaches operator syntax, sanitization, and performance rules |
+| Agent creates fields/templates manually          | `pw-migrations` skill guides the agent through safe, versioned schema changes |
+| Agent has no idea what templates or fields exist | `map.json` provides a complete schema snapshot — no guessing                  |
+| Agent cannot inspect live data                   | MCP server exposes real-time queries, logs, and module info                   |
 
 **Boost turns a general-purpose AI into a ProcessWire specialist.**
+
 ## How It Works
 
 ### Architecture
 
 **Four context layers**, each serving a different purpose:
 
-| Layer | Format | Purpose | When Used |
-|-------|--------|---------|-----------| 
-| **Guidelines** | Markdown in agent config | Encode rules, conventions, API patterns | Every prompt — always-on context |
-| **Skills** | `SKILL.md` playbooks | Teach step-by-step workflows | On-demand — agent activates when task matches |
-| **Schema Map** | `map.json` | Project-specific templates, fields, roles | Code generation — agent knows what exists |
-| **MCP Server** | JSON-RPC over stdio | Live queries, logs, module info | Runtime — agent inspects real data |
+| Layer          | Format                   | Purpose                                   | When Used                                     |
+| -------------- | ------------------------ | ----------------------------------------- | --------------------------------------------- |
+| **Guidelines** | Markdown in agent config | Encode rules, conventions, API patterns   | Every prompt — always-on context              |
+| **Skills**     | `SKILL.md` playbooks     | Teach step-by-step workflows              | On-demand — agent activates when task matches |
+| **Schema Map** | `map.json`               | Project-specific templates, fields, roles | Code generation — agent knows what exists     |
+| **MCP Server** | JSON-RPC over stdio      | Live queries, logs, module info           | Runtime — agent inspects real data            |
 
 ### Runtime Flow
 
@@ -76,10 +77,10 @@ Here is a brief outline of how an AI works under the hood at runtime with these 
 
 ## Requirements
 
-| Dependency | Version |
-|------------|---------|
-| PHP | `>= 8.3` |
-| ProcessWire | `3.x` |
+| Dependency                                                        | Version                      |
+| ----------------------------------------------------------------- | ---------------------------- |
+| PHP                                                               | `>= 8.3`                     |
+| ProcessWire                                                       | `3.x`                        |
 | [processwire-console](https://github.com/trk/processwire-console) | `dev-main` (peer dependency) |
 
 ---
@@ -163,15 +164,15 @@ Every time the agent processes a prompt, it reads these rules. This is where con
 
 #### What Gets Compiled
 
-| Section | Content |
-|---------|---------|
-| **Foundation** | System identity, PHP/PW version binding, installed module roster, skill activation menu |
-| **Boost** | CLI & MCP tool reference, dual MCP integration patterns |
-| **PHP** | Strict typing, constructor promotion, PHPDoc, enums, array shapes |
-| **ProcessWire Core** | API variables (`$pages`, `$fields`, `$users`, `$input`, `$config`, `$sanitizer`) |
-| **ProcessWire Development** | Hook system (`addHookBefore`/`addHookAfter`), module types, namespaces |
-| **ProcessWire Security** | Input sanitization, RBAC (`hasRole`, `hasPermission`, `editable`), CSRF tokens |
-| **ProcessWire Selectors** | Query syntax, operators, `limit=`, indexed field priority, `selectorValue()` |
+| Section                     | Content                                                                                 |
+| --------------------------- | --------------------------------------------------------------------------------------- |
+| **Foundation**              | System identity, PHP/PW version binding, installed module roster, skill activation menu |
+| **Boost**                   | CLI & MCP tool reference, dual MCP integration patterns                                 |
+| **PHP**                     | Strict typing, constructor promotion, PHPDoc, enums, array shapes                       |
+| **ProcessWire Core**        | API variables (`$pages`, `$fields`, `$users`, `$input`, `$config`, `$sanitizer`)        |
+| **ProcessWire Development** | Hook system (`addHookBefore`/`addHookAfter`), module types, namespaces                  |
+| **ProcessWire Security**    | Input sanitization, RBAC (`hasRole`, `hasPermission`, `editable`), CSRF tokens          |
+| **ProcessWire Selectors**   | Query syntax, operators, `limit=`, indexed field priority, `selectorValue()`            |
 
 #### Source Priority
 
@@ -181,11 +182,11 @@ Every time the agent processes a prompt, it reads these rules. This is where con
 
 #### Merge Strategy
 
-| File State | Behavior |
-|------------|----------|
+| File State                                     | Behavior                                                                   |
+| ---------------------------------------------- | -------------------------------------------------------------------------- |
 | File has `<processwire-boost-guidelines>` tags | Replace content between tags only — your custom instructions are preserved |
-| File exists, no tags | Append tags after existing content |
-| File doesn't exist | Create from scratch with header |
+| File exists, no tags                           | Append tags after existing content                                         |
+| File doesn't exist                             | Create from scratch with header                                            |
 
 This means your custom instructions in `CLAUDE.md` or `AGENTS.md` survive across reinstalls.
 
@@ -197,30 +198,41 @@ Skills are **on-demand context** — the agent activates a specific skill when t
 
 Unlike guidelines (which are always present), skills are loaded only when relevant. This keeps the context window efficient while providing deep expertise when needed.
 
-#### Built-in Skills (12)
+#### Built-in Skills (23)
 
-| Skill | What It Teaches the Agent |
-|-------|--------------------------|
-| `pw-api-variables` | How to safely access `$pages`, `$user`, `$config` in templates, modules, and hooks |
-| `pw-custom-page-classes` | Building strongly-typed Page subclasses bound to specific templates |
-| `pw-pages` | The complete lifecycle: find → create → edit → save → trash → delete |
-| `pw-migrations` | Safe, versioned schema changes: field → template → page creation order, rollback guards |
-| `pw-module-development` | Native module architecture: `init()`, `ready()`, config, install/uninstall lifecycle |
-| `pw-module-fieldtype-inputfield` | Custom database fieldtypes and their corresponding input UI components |
-| `pw-module-filevalidator` | File upload validation, security normalization, MIME checking |
-| `pw-module-markup` | Frontend rendering systems using the ProcessWire Markup module pattern |
-| `pw-module-process` | Admin page pipelines, dashboards, routing, and RBAC within ProcessWire admin |
-| `pw-module-textformatter` | String formatting modules that transform field output at render time |
-| `pw-pages` | Complete selector language reference: operators, sub-selectors, OR-groups, pagination |
-| `pw-url-routing` | URL/Path hooks for REST APIs, virtual pages, and custom endpoints |
+| Skill                            | What It Teaches the Agent                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `pw-admin-ui`                    | Building ProcessWire Admin interfaces, Process modules, and Inputfield UIs                             |
+| `pw-brainstorming`               | Validating architecture decisions before implementation (modules/templates/fields/hooks)               |
+| `pw-custom-page-classes`         | Building strongly-typed Page subclasses bound to specific templates                                    |
+| `pw-docs-architect`              | Writing/maintaining module docs, READMEs, architecture guides, CLI references                          |
+| `pw-expert`                      | Correct ProcessWire API usage patterns, console workflows, context-safe access to `$page/$pages/$user` |
+| `pw-maintenance`                 | Toggling maintenance mode safely (down/up) and managing downtime configuration                         |
+| `pw-migrations`                  | Safe, versioned schema changes and rollbacks (fields/templates/pages)                                  |
+| `pw-module-development`          | Native module architecture: `init()`, `ready()`, config, install/uninstall lifecycle                   |
+| `pw-module-fieldtype-inputfield` | Custom database fieldtypes and their corresponding input UI components                                 |
+| `pw-module-filevalidator`        | File upload validation, security normalization, MIME checking                                          |
+| `pw-module-markup`               | Frontend rendering systems using the ProcessWire Markup module pattern                                 |
+| `pw-module-process`              | Admin page pipelines, dashboards, routing, and RBAC within ProcessWire admin                           |
+| `pw-module-textformatter`        | Textformatter modules to safely transform field output at render time                                  |
+| `pw-pages`                       | Selectors + Page lifecycle: find/filter/create/edit/trash/delete, performance patterns                 |
+| `pw-queue`                       | Creating/dispatching/interacting with Queue jobs in ProcessWire                                        |
+| `pw-scheduling`                  | Time-based tasks using cron expressions and scheduling wrappers                                        |
+| `pw-security-audit`              | Security audits for modules/hooks/templates: OWASP, sanitization, RBAC, CSRF                           |
+| `pw-seeder`                      | Database seeding patterns using file-based seeders                                                     |
+| `pw-systematic-debugging`        | A disciplined approach to diagnosing bugs and unexpected behavior                                      |
+| `pw-test`                        | Writing and running Pest tests in ProcessWire projects/modules                                         |
+| `pw-url-routing`                 | URL/Path hooks for REST APIs, virtual pages, and custom endpoints                                      |
+| `pw-writing-plans`               | Turning specs into safe implementation plans (ProcessWire-native)                                      |
+| `pw-writing-skills`              | Creating and improving Boost skills (formatting, testing requirements, conventions)                    |
 
 #### Module-Provided Skills
 
 Third-party ProcessWire modules can ship their own Boost skills. When selected during `boost:install`, these are merged alongside the built-in skills:
 
-| Module | Skill | What It Teaches the Agent |
-|--------|-------|--------------------------|
-| `Totoglu\Htmx` | `pw-htmx` | HTMX components, swaps, OOB fragments, and state management |
+| Module | Skill     | What It Teaches the Agent                                   |
+| ------ | --------- | ----------------------------------------------------------- |
+| `Htmx` | `pw-htmx` | HTMX components, swaps, OOB fragments, and state management |
 
 #### How Skills Guide Agents
 
@@ -235,11 +247,11 @@ Without this skill, the agent would guess at the API and likely produce unsafe o
 
 #### Agent-Specific Formats
 
-| Agent | Skill Format |
-|-------|-------------|
-| **OpenCode** | YAML frontmatter (`name`, `description`, `license`, `compatibility`) prepended |
-| **Trae** | YAML frontmatter wrapping, deployed to `.trae/rules/` |
-| **All others** | Plain Markdown `SKILL.md` in `{skillName}/SKILL.md` structure |
+| Agent          | Skill Format                                                                   |
+| -------------- | ------------------------------------------------------------------------------ |
+| **OpenCode**   | YAML frontmatter (`name`, `description`, `license`, `compatibility`) prepended |
+| **Trae**       | YAML frontmatter wrapping, deployed to `.trae/rules/`                          |
+| **All others** | Plain Markdown `SKILL.md` in `{skillName}/SKILL.md` structure                  |
 
 ---
 
@@ -249,15 +261,16 @@ The schema map (`map.json`) gives agents **project-specific awareness** without 
 
 Generated on every `boost:install` run, it contains:
 
-| Section | Content |
-|---------|---------|
-| **Templates** | Names, IDs, and assigned field lists |
-| **Fields** | Names, IDs, fieldtype class names, and labels |
-| **Modules** | Installed modules with titles and versions |
-| **Roles** | Names, IDs, and assigned permissions |
-| **Permissions** | Names, IDs, and titles |
+| Section         | Content                                       |
+| --------------- | --------------------------------------------- |
+| **Templates**   | Names, IDs, and assigned field lists          |
+| **Fields**      | Names, IDs, fieldtype class names, and labels |
+| **Modules**     | Installed modules with titles and versions    |
+| **Roles**       | Names, IDs, and assigned permissions          |
+| **Permissions** | Names, IDs, and titles                        |
 
 This map enables agents to:
+
 - Generate code that references **real template and field names** instead of placeholders
 - Avoid creating duplicate fields or templates
 - Understand the permission structure before creating access control logic
@@ -272,20 +285,21 @@ This is the most powerful context layer — it enables agents to inspect live da
 
 #### Available Tools (28)
 
-| Category | Tools | Safety |
-|----------|-------|--------|
-| **Schema** | `pw_schema_read`, `pw_schema_field_create`, `pw_schema_template_create` | Read + ⚠️ Write |
-| **Query** | `pw_query`, `pw_execute` | Read + ⚠️ Guarded |
-| **Modules** | `pw_module_list`, `pw_module_info`, `pw_module_install`, `pw_module_uninstall`, `pw_module_enable`, `pw_module_disable`, `pw_module_refresh`, `pw_module_upgrade` | Read + ⚠️ Write |
-| **Access** | `pw_access_user_list`, `pw_access_user_create`, `pw_access_user_update`, `pw_access_user_delete`, `pw_access_role_create`, `pw_access_role_grant`, `pw_access_role_revoke`, `pw_permission_delete` | Read + ⚠️ Write |
-| **System** | `pw_system_get_logs`, `pw_system_logs_tail_last`, `pw_system_logs_clear`, `pw_system_cache_clear`, `pw_system_cache_wire_clear` | Read + ⚠️ Write |
-| **Backup** | `pw_system_backup`, `pw_system_backup_list`, `pw_system_backup_purge`, `pw_system_restore` | ⚠️ Write |
+| Category    | Tools                                                                                                                                                                                              | Safety            |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| **Schema**  | `pw_schema_read`, `pw_schema_field_create`, `pw_schema_template_create`                                                                                                                            | Read + ⚠️ Write   |
+| **Query**   | `pw_query`, `pw_execute`                                                                                                                                                                           | Read + ⚠️ Guarded |
+| **Modules** | `pw_module_list`, `pw_module_info`, `pw_module_install`, `pw_module_uninstall`, `pw_module_enable`, `pw_module_disable`, `pw_module_refresh`, `pw_module_upgrade`                                  | Read + ⚠️ Write   |
+| **Access**  | `pw_access_user_list`, `pw_access_user_create`, `pw_access_user_update`, `pw_access_user_delete`, `pw_access_role_create`, `pw_access_role_grant`, `pw_access_role_revoke`, `pw_permission_delete` | Read + ⚠️ Write   |
+| **System**  | `pw_system_get_logs`, `pw_system_logs_tail_last`, `pw_system_logs_clear`, `pw_system_cache_clear`, `pw_system_cache_wire_clear`                                                                    | Read + ⚠️ Write   |
+| **Backup**  | `pw_system_backup`, `pw_system_backup_list`, `pw_system_backup_purge`, `pw_system_restore`                                                                                                         | ⚠️ Write          |
 
 #### MCP Config Formats
 
 Boost auto-generates MCP configuration in each agent's native format during `boost:install`:
 
 **JSON — Standard Context (Claude Code, Cursor, Copilot, Amp, Junie):**
+
 ```json
 {
   "mcpServers": {
@@ -303,6 +317,7 @@ Boost auto-generates MCP configuration in each agent's native format during `boo
 ```
 
 **JSON — ${workspaceFolder}** (Trae):
+
 ```json
 {
   "mcpServers": {
@@ -320,6 +335,7 @@ Boost auto-generates MCP configuration in each agent's native format during `boo
 ```
 
 **TOML** (Codex):
+
 ```toml
 [mcp_servers.processwire]
 command = "php"
@@ -332,6 +348,7 @@ PW_MCP_ALLOW_RESTORE = "1"
 ```
 
 **OpenCode** (nested command array):
+
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
@@ -356,27 +373,27 @@ PW_MCP_ALLOW_RESTORE = "1"
 
 Boost uses a polymorphic `Agent` class hierarchy. Each agent declares how it wants to receive context:
 
-| Method | Purpose |
-|--------|---------|
-| `guidelinesPath()` | Where the agent reads its instruction file |
-| `skillsPath()` | Where task playbooks are deployed |
+| Method              | Purpose                                                                |
+| ------------------- | ---------------------------------------------------------------------- |
+| `guidelinesPath()`  | Where the agent reads its instruction file                             |
+| `skillsPath()`      | Where task playbooks are deployed                                      |
 | `mcpPathStrategy()` | How MCP paths are resolved (`Relative`, `Absolute`, `WorkspaceFolder`) |
-| `mcpConfigPath()` | Where MCP server configuration is written |
-| `exportSkill()` | How to format skills (override for YAML frontmatter, etc.) |
+| `mcpConfigPath()`   | Where MCP server configuration is written                              |
+| `exportSkill()`     | How to format skills (override for YAML frontmatter, etc.)             |
 
 ### Supported Agents
 
-| Agent | Guidelines | Skills | MCP Config | Path Mode |
-|-------|-----------|--------|------------|-----------|
-| **Amp** | `AGENTS.md` | `.agents/skills` | `.amp/settings.json` | `Relative` |
-| **Claude Code** | `CLAUDE.md` | `.claude/skills` | `.mcp.json` | `Relative` |
-| **Codex** | `AGENTS.md` | `.agents/skills` | `.codex/config.toml` | `Relative` |
-| **Cursor** | `AGENTS.md` | `.cursor/skills` | `.cursor/mcp.json` | `Relative` |
-| **Gemini CLI** | `GEMINI.md` | `.agents/skills` | `.gemini/settings.json` | `Absolute` |
-| **GitHub Copilot** | `AGENTS.md` | `.github/skills` | `.vscode/mcp.json` | `Relative` |
-| **Junie** | `AGENTS.md` | `.junie/skills` | `.junie/mcp/mcp.json` | `Absolute` |
-| **OpenCode** | `AGENTS.md` | `.agents/skills` | `opencode.json` | `Relative` |
-| **Trae** | `AGENTS.md` | `.trae/rules` | `.trae/mcp.json` | `WorkspaceFolder` |
+| Agent              | Guidelines  | Skills           | MCP Config              | Path Mode         |
+| ------------------ | ----------- | ---------------- | ----------------------- | ----------------- |
+| **Amp**            | `AGENTS.md` | `.agents/skills` | `.amp/settings.json`    | `Relative`        |
+| **Claude Code**    | `CLAUDE.md` | `.claude/skills` | `.mcp.json`             | `Relative`        |
+| **Codex**          | `AGENTS.md` | `.agents/skills` | `.codex/config.toml`    | `Relative`        |
+| **Cursor**         | `AGENTS.md` | `.cursor/skills` | `.cursor/mcp.json`      | `Relative`        |
+| **Gemini CLI**     | `GEMINI.md` | `.agents/skills` | `.gemini/settings.json` | `Absolute`        |
+| **GitHub Copilot** | `AGENTS.md` | `.github/skills` | `.vscode/mcp.json`      | `Relative`        |
+| **Junie**          | `AGENTS.md` | `.junie/skills`  | `.junie/mcp/mcp.json`   | `Absolute`        |
+| **OpenCode**       | `AGENTS.md` | `.agents/skills` | `opencode.json`         | `Relative`        |
+| **Trae**           | `AGENTS.md` | `.trae/rules`    | `.trae/mcp.json`        | `WorkspaceFolder` |
 
 > **Auto Path Resolution:** Each agent declares its `mcpPathStrategy()` via the `McpPathStrategy` enum. No manual configuration needed — paths are resolved automatically.
 
@@ -444,6 +461,7 @@ site/boost/
 Manage AI helper setup (ProcessWire Boost). Select features to install/update, deselect to remove.
 
 **Usage:**
+
 ```bash
 wire boost:install [options]
 ```
@@ -458,6 +476,7 @@ wire boost:install [options]
 | `--agents` | `-a` | `null` | Comma-separated agents to configure |
 
 **Examples:**
+
 ```bash
 # Interactive installation
 wire boost:install
@@ -471,11 +490,13 @@ wire boost:install --guidelines --skills -a "Cursor,Claude Code" -m "Htmx"
 Re-sync ProcessWire Boost guidelines & skills from saved configuration.
 
 **Usage:**
+
 ```bash
 wire boost:update
 ```
 
 **Examples:**
+
 ```bash
 # Update resources from .agents/boost.json
 wire boost:update
@@ -486,27 +507,30 @@ wire boost:update
 Start the ProcessWire MCP server (JSON-RPC over stdio).
 
 **Usage:**
+
 ```bash
 wire boost:mcp
 ```
 
 **Examples:**
+
 ```bash
 # Start the MCP server (Typically invoked by AI agents, not manually)
 wire boost:mcp
 ```
-
 
 ### `boost:build:docs`
 
 Generate ProcessWire Core API reference documentation from source files.
 
 **Usage:**
+
 ```bash
 wire boost:build:docs
 ```
 
 **Examples:**
+
 ```bash
 # Build documentation into .agents/docs
 wire boost:build:docs
@@ -517,6 +541,7 @@ wire boost:build:docs
 Add skills from a remote GitHub repository.
 
 **Usage:**
+
 ```bash
 wire boost:add-skill [options] [repo]
 ```
@@ -535,6 +560,7 @@ wire boost:add-skill [options] [repo]
 | `--force` | `-f` | `false` | Overwrite existing skills |
 
 **Examples:**
+
 ```bash
 # Interactive selection
 wire boost:add-skill owner/repo
