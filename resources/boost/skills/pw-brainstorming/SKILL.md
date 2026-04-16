@@ -1,6 +1,6 @@
 ---
 name: pw-brainstorming
-description: "Use before designing ProcessWire modules, templates, field schemas, or hooks to resolve ambiguity and validate architectural decisions prior to implementation."
+description: "Use when brainstorming or designing ProcessWire modules, templates, field schemas, or hooks to resolve ambiguity and validate architecture before implementation."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
@@ -9,6 +9,10 @@ date_added: "2026-04-08"
 # ProcessWire Brainstorming
 
 Help turn raw ideas into **clear, validated designs and specifications** in ProcessWire through structured dialogue.
+
+## When to Use
+- Before starting any non-trivial ProcessWire work that could affect schema, routing, permissions, or module architecture.
+- When the user’s request has ambiguity (scope, RBAC, data model, UI approach) that would cause costly rework if assumed.
 
 <HARD-GATE>
 Do NOT invoke any implementation skill, write any code, scaffold any project, or run any migrations until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
@@ -74,4 +78,4 @@ Ask the user to review the written spec. Proceed only once approved.
 
 ## Related Skills
 - `pw-writing-skills`: Use for formatting AI skill files.
-- `writing-plans`: Triggered immediately AFTER brainstorming completes.
+- `pw-writing-plans`: Triggered immediately AFTER brainstorming completes.

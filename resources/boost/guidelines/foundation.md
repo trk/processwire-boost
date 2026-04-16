@@ -60,3 +60,13 @@ Otherwise, create a scratch file in the root, execute it with `php scratch.php` 
 - `site/modules/`: Custom third-party or local module extensions.
 - `site/migrations/`: Schema migration files (timestamped PHP, managed via `make:migration` / `migrate` CLI).
 - Stick to the existing layout; do not introduce foreign framework folder structures (`app/`, `routes/`) without explicit user permission.
+
+## Align With Upstream ProcessWire (AGENTS.md / CLAUDE.md)
+ProcessWire core now ships its own `AGENTS.md` and `CLAUDE.md` files with conventions for:
+- API orientation and common patterns
+- API.md documentation structure for Fieldtypes
+- `[Type]Field.php` settings typing pattern
+- `$database` being `WireDatabasePDO` (PDO-like wrapper) and accessed as a property
+- Tabs indentation (not spaces)
+
+Boost guidelines should remain compatible with these upstream conventions to reduce friction for agents working across projects.

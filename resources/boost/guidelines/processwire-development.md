@@ -11,8 +11,26 @@ Place hooks in `site/ready.php` or Module `init()`/`ready()` methods:
 
 ## Module Documentation
 
-- **API.md**: Each module directory should have an `API.md` using an H1 header with the class name (no "API" suffix) and detailing value types, getting/setting, selectors, and markup.
-- **[Type]Field.php**: Fieldtype modules should have a companion `[Type]Field.php` class with PHPDoc annotations covering settings, loaded via `getFieldClass()`.
+### API.md files
+Each Fieldtype module directory should have an `API.md` covering usage of that module's Fieldtype (and related classes) from a developer's perspective.
+Recommended structure (one entry per Fieldtype):
+- `# FieldtypeClassName` — H1 is the class name, no "API" suffix
+- One-line description
+- `## Value type` — the PHP type returned
+- `## Getting and setting values` — code examples
+- `## Selectors` — selector usage with notes on non-obvious behavior
+- `## Output / markup` — rendering examples
+- `## Notes` — defaults, sanitization, DB column, compatible types
+
+### [Type]Field.php classes (Fieldtype settings typing)
+Each Fieldtype module should have a corresponding `[Type]Field.php` file (e.g. `TextField.php`, `IntegerField.php`) in the same directory:
+- Extends `Field`
+- Contains PHPDoc `@property` annotations for all configurable settings from both the Fieldtype and its Inputfield
+- Fieldtype implements `getFieldClass()` returning the class name
+- The Fieldtype module loads it (commonly via `require_once` at the bottom of the module file)
+
+### Database access
+- Always access as `$this->wire()->database` (property), not `$this->wire()->database()` (method call).
 
 ## Module Types
 

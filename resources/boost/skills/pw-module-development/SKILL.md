@@ -8,7 +8,7 @@ date_added: "2026-04-08"
 
 # ProcessWire Core Module Development (wire-module-development)
 
-This skill dictates the principles of building **Modules** (not simple plugins) for the ProcessWire CMS ecosystem. It requires "deep thinking", "zero tolerance for structural flaws", adherence to "strict typing", and total integration with ProcessWire's core philosophy. It is tailored specifically for ProcessWire 3.x architectures and PHP 8.4 standards.
+This skill dictates the principles of building **Modules** (not simple plugins) for the ProcessWire CMS ecosystem. It requires "deep thinking", "zero tolerance for structural flaws", adherence to "strict typing", and total integration with ProcessWire's core philosophy. It is tailored specifically for ProcessWire 3.x architectures and PHP 8+ standards.
 
 ## Pre-Computation / Anti-Rationalization Check
 
@@ -99,7 +99,7 @@ class MyCustomModule extends WireData implements Module
 ### Phase 3: Database & Security (PDO & Sanitizer)
 
 - **Never trust user input.** Whether it originates from a URL or a POST payload, sanitize it thoroughly before utilization: `$this->wire()->input->post('email', 'email')` or `$this->wire()->sanitizer->text($string)`.
-- When executing raw queries (e.g., custom module tables), utilize the `$this->wire()->database` object, which is a native PDO instance. **Always use Prepared Statements.** Do not use string interpolation for SQL queries.
+- When executing raw queries (e.g., custom module tables), utilize the `$this->wire()->database` object. In ProcessWire this is typically a `WireDatabasePDO` wrapper (PDO-like API), not a native `PDO` instance. **Always use prepared statements.** Do not use string interpolation for SQL queries.
 - During module uninstallation (`___uninstall()`), ensure complete cleanup of custom database tables, cache files, and residual data.
 
 ```php
@@ -156,7 +156,7 @@ When you need to understand, use, or hook into a ProcessWire core class or modul
 
 ## Appendix: PHP 8.4+ Advanced Patterns
 
-> See also: `pw-api-variables` for detailed API variable access patterns across different contexts.
+> See also: `pw-expert` for detailed API variable access patterns across different contexts.
 
 ### Generators for Large Datasets
 
