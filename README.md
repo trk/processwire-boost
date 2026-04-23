@@ -275,6 +275,35 @@ This map enables agents to:
 - Avoid creating duplicate fields or templates
 - Understand the permission structure before creating access control logic
 
+#### Field Schema Extenders (Optional)
+
+Boost supports optional field schema extenders so non-core or complex fieldtypes can append additional metadata.
+
+- Generic metadata is appended under `fields.{name}.extra`.
+- The extension key `fields` is reserved and promoted to top-level `fields.{name}.fields` for nested field definitions.
+- Built-in repeater extender support covers `FieldtypeRepeater` and `FieldtypeFieldsetPage`, adding nested field schema entries (`id`, `type`, `label`) keyed by subfield name.
+
+Discovery paths:
+
+- `site/boost/schema/field-extenders.php`
+- `site/modules/*/.agents/schema/field-extenders.php`
+- `wire/modules/*/.agents/schema/field-extenders.php`
+
+Each manifest should return an array of extender class names (or instances) implementing `Totoglu\Console\Boost\Schema\FieldSchemaExtender`. Extenders run in discovery order; if multiple extenders return the same key, the later value wins.
+
+```php
+<?php
+
+use Totoglu\Console\Boost\Schema\FieldSchemaExtender;
+
+return [
+    \Site\Boost\Schema\RepeaterMatrixSchemaExtender::class,
+    // or new \Site\Boost\Schema\FieldsetPageSchemaExtender(),
+];
+```
+
+Extender failures are non-fatal: Boost keeps generating the base schema and logs errors to `processwire-boost`.
+
 ---
 
 ### MCP Server (Live Access)
