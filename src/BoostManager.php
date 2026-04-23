@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost;
 
+use ProcessWire\Field;
 use Totoglu\Console\Boost\Install\Agents\Agent;
+use Totoglu\Console\Boost\Schema\FieldSchemaExtender;
+use Totoglu\Console\Boost\Schema\FieldSchemaExtenderDiscovery;
 
 final class BoostManager
 {
@@ -104,13 +107,24 @@ final class BoostManager
                 $this->delTree($this->targetDir . '/guidelines');
             }
         }
-
-        // 3. Sync Boost-managed skills without touching unknown user skills.
         if (in_array('Agent Skills', $features)) {
-            $this->syncSkills($modules);
+            $this->clearDirectory($this->targetDir . '/skills');
         }
 
-        // 4. Generate Agent specific files
+        // 3. Export Core Resources
+        if (in_array('Agent Skills', $features)) {
+            $this->exportCoreResources($this->targetDir . '/skills', 'skills');
+        }
+
+        // 4. Aggregate from selected modules
+        $availableModules = $this->getDiscoverableModules();
+        foreach ($modules as $moduleName) {
+            if (isset($availableModules[$moduleName])) {
+                $this->aggregateResources($moduleName, $availableModules[$moduleName], $features);
+            }
+        }
+
+        // 5. Generate Agent specific files
         $this->generateAgentFiles($agents, $features, $modules);
     }
 
@@ -131,12 +145,29 @@ final class BoostManager
             ];
         }
 
+        $extenders = $this->resolveFieldSchemaExtenders();
+
         foreach (\ProcessWire\wire('fields') as $field) {
-            $map['fields'][$field->name] = [
+            $base = [
                 'id' => $field->id,
                 'type' => $field->type->className(),
                 'label' => $field->label,
             ];
+
+            $extensions = $this->collectFieldSchemaExtra($field, $base, $extenders);
+
+            // `fields` is a reserved extension key promoted to top-level so
+            // nested schemas stay ergonomic for agents and future extenders.
+            if (array_key_exists('fields', $extensions)) {
+                $base['fields'] = is_array($extensions['fields']) ? $extensions['fields'] : [];
+                unset($extensions['fields']);
+            }
+
+            if (!empty($extensions)) {
+                $base['extra'] = $extensions;
+            }
+
+            $map['fields'][$field->name] = $base;
         }
 
         foreach (\ProcessWire\wire('modules') as $module) {
@@ -166,82 +197,108 @@ final class BoostManager
     }
 
     /**
-     * Sync only skill directories that exist in Boost-owned source locations.
-     *
-     * Existing unknown skill directories in .agents/skills are intentionally left untouched.
-     * If a target directory name also exists in the desired Boost source map, Boost treats it
-     * as managed and overwrites it from source.
-     *
-     * @param string[] $modules Selected module names whose Boost skills should be synced
+     * @return FieldSchemaExtender[]
      */
-    private function syncSkills(array $modules): void
+    private function resolveFieldSchemaExtenders(): array
     {
-        $target = $this->targetDir . '/skills';
-        if (!is_dir($target)) {
-            mkdir($target, 0755, true);
-        }
-
-        foreach ($this->collectDesiredSkillSources($modules) as $skillName => $sourcePath) {
-            $targetPath = $target . '/' . $skillName;
-            if (is_dir($targetPath)) {
-                $this->delTree($targetPath);
-            } elseif (is_file($targetPath)) {
-                unlink($targetPath);
-            }
-
-            $this->copyDirectory($sourcePath, $targetPath);
-        }
+        return (new FieldSchemaExtenderDiscovery($this->projectRoot))->resolve();
     }
 
     /**
-     * @param string[] $modules Selected module names whose Boost skills should be included
-     * @return array<string, string> Skill directory name mapped to source path
+     * @param array{id:int,type:string,label:string} $base
+     * @param FieldSchemaExtender[] $extenders
+     * @return array<string,mixed>
      */
-    private function collectDesiredSkillSources(array $modules): array
+    private function collectFieldSchemaExtra(Field $field, array $base, array $extenders): array
     {
-        $sources = $this->collectSkillSourcesFromDirectory(__DIR__ . '/../resources/boost/skills');
-        $availableModules = $this->getDiscoverableModules();
+        $extra = [];
 
-        foreach ($modules as $moduleName) {
-            if (!isset($availableModules[$moduleName])) {
+        foreach ($extenders as $extender) {
+            try {
+                if (!$extender->supports($field)) {
+                    continue;
+                }
+
+                $extended = $extender->extend($field, $base);
+                $sanitized = $this->sanitizeFieldSchemaExtra($extended);
+            } catch (\Throwable $e) {
+                $this->logSchemaExtenderError($extender, $field, $e);
                 continue;
             }
 
-            $skillsPath = $availableModules[$moduleName]['skills_path'] ?? null;
-            if (!is_string($skillsPath)) {
-                continue;
+            if (!empty($sanitized)) {
+                $extra = array_merge($extra, $sanitized);
             }
-
-            $sources = array_merge($sources, $this->collectSkillSourcesFromDirectory($skillsPath));
         }
 
-        return $sources;
+        return $extra;
     }
 
     /**
-     * @return array<string, string> Skill directory name mapped to source path
+     * @param array<string,mixed> $extra
+     * @return array<string,mixed>
      */
-    private function collectSkillSourcesFromDirectory(string $sourceDir): array
+    private function sanitizeFieldSchemaExtra(array $extra): array
     {
-        if (!is_dir($sourceDir)) {
-            return [];
-        }
+        $clean = [];
 
-        $sources = [];
-        foreach (new \DirectoryIterator($sourceDir) as $file) {
-            if ($file->isDot() || !$file->isDir()) {
+        foreach ($extra as $key => $value) {
+            $sanitized = null;
+            if (!$this->sanitizeFieldSchemaValue($value, $sanitized)) {
                 continue;
             }
 
-            $skillPath = $file->getPathname();
-            if (!is_file($skillPath . '/SKILL.md')) {
-                continue;
-            }
-
-            $sources[$file->getFilename()] = $skillPath;
+            $clean[(string)$key] = $sanitized;
         }
 
-        return $sources;
+        return $clean;
+    }
+
+    private function sanitizeFieldSchemaValue(mixed $value, mixed &$sanitized): bool
+    {
+        if (is_scalar($value) || $value === null) {
+            $sanitized = $value;
+            return true;
+        }
+
+        if (!is_array($value)) {
+            return false;
+        }
+
+        $result = [];
+        foreach ($value as $key => $item) {
+            $child = null;
+            if (!$this->sanitizeFieldSchemaValue($item, $child)) {
+                continue;
+            }
+            $result[(string)$key] = $child;
+        }
+
+        $sanitized = $result;
+        return true;
+    }
+
+    private function logSchemaExtenderError(FieldSchemaExtender $extender, Field $field, \Throwable $e): void
+    {
+        $log = \ProcessWire\wire('log');
+        if (!$log) {
+            return;
+        }
+
+        $log->save('processwire-boost', sprintf(
+            'Field schema extender "%s" failed for field "%s": %s',
+            $extender::class,
+            $field->name,
+            $e->getMessage()
+        ));
+    }
+
+    private function exportCoreResources(string $target, string $type): void
+    {
+        $resourceDir = __DIR__ . '/../resources/boost/' . $type;
+        if (is_dir($resourceDir)) {
+            $this->copyDirectory($resourceDir, $target);
+        }
     }
 
     /**
@@ -448,6 +505,13 @@ final class BoostManager
         return $content;
     }
 
+    private function aggregateResources(string $moduleName, array $moduleInfo, array $features): void
+    {
+        if (in_array('Agent Skills', $features) && $moduleInfo['skills_path']) {
+            $this->copyDirectory($moduleInfo['skills_path'], $this->targetDir . '/skills');
+        }
+    }
+
     private function copyDirectory(string $source, string $target): void
     {
         if (!is_dir($target)) {
@@ -466,6 +530,15 @@ final class BoostManager
             } else {
                 copy($srcFile, $dstFile);
             }
+        }
+    }
+
+    private function clearDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) return;
+        $files = array_diff(scandir($dir), ['.', '..']);
+        foreach ($files as $file) {
+            (is_dir("$dir/$file")) ? $this->delTree("$dir/$file") : unlink("$dir/$file");
         }
     }
 
@@ -492,12 +565,7 @@ final class BoostManager
                 }
                 break;
             case 'Agent Skills':
-                foreach (array_keys($this->collectDesiredSkillSources([])) as $skillName) {
-                    $skillPath = $this->targetDir . '/skills/' . $skillName;
-                    if (is_dir($skillPath)) {
-                        $this->delTree($skillPath);
-                    }
-                }
+                $this->clearDirectory($this->targetDir . '/skills');
                 break;
         }
     }
