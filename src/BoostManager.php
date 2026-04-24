@@ -104,24 +104,13 @@ final class BoostManager
                 $this->delTree($this->targetDir . '/guidelines');
             }
         }
+
+        // 3. Sync Boost-managed skills without touching unknown user skills.
         if (in_array('Agent Skills', $features)) {
-            $this->clearDirectory($this->targetDir . '/skills');
+            $this->syncSkills($modules);
         }
 
-        // 3. Export Core Resources
-        if (in_array('Agent Skills', $features)) {
-            $this->exportCoreResources($this->targetDir . '/skills', 'skills');
-        }
-
-        // 4. Aggregate from selected modules
-        $availableModules = $this->getDiscoverableModules();
-        foreach ($modules as $moduleName) {
-            if (isset($availableModules[$moduleName])) {
-                $this->aggregateResources($moduleName, $availableModules[$moduleName], $features);
-            }
-        }
-
-        // 5. Generate Agent specific files
+        // 4. Generate Agent specific files
         $this->generateAgentFiles($agents, $features, $modules);
     }
 
@@ -176,12 +165,83 @@ final class BoostManager
         file_put_contents($path, json_encode($map, JSON_PRETTY_PRINT));
     }
 
-    private function exportCoreResources(string $target, string $type): void
+    /**
+     * Sync only skill directories that exist in Boost-owned source locations.
+     *
+     * Existing unknown skill directories in .agents/skills are intentionally left untouched.
+     * If a target directory name also exists in the desired Boost source map, Boost treats it
+     * as managed and overwrites it from source.
+     *
+     * @param string[] $modules Selected module names whose Boost skills should be synced
+     */
+    private function syncSkills(array $modules): void
     {
-        $resourceDir = __DIR__ . '/../resources/boost/' . $type;
-        if (is_dir($resourceDir)) {
-            $this->copyDirectory($resourceDir, $target);
+        $target = $this->targetDir . '/skills';
+        if (!is_dir($target)) {
+            mkdir($target, 0755, true);
         }
+
+        foreach ($this->collectDesiredSkillSources($modules) as $skillName => $sourcePath) {
+            $targetPath = $target . '/' . $skillName;
+            if (is_dir($targetPath)) {
+                $this->delTree($targetPath);
+            } elseif (is_file($targetPath)) {
+                unlink($targetPath);
+            }
+
+            $this->copyDirectory($sourcePath, $targetPath);
+        }
+    }
+
+    /**
+     * @param string[] $modules Selected module names whose Boost skills should be included
+     * @return array<string, string> Skill directory name mapped to source path
+     */
+    private function collectDesiredSkillSources(array $modules): array
+    {
+        $sources = $this->collectSkillSourcesFromDirectory(__DIR__ . '/../resources/boost/skills');
+        $availableModules = $this->getDiscoverableModules();
+
+        foreach ($modules as $moduleName) {
+            if (!isset($availableModules[$moduleName])) {
+                continue;
+            }
+
+            $skillsPath = $availableModules[$moduleName]['skills_path'] ?? null;
+            if (!is_string($skillsPath)) {
+                continue;
+            }
+
+            $sources = array_merge($sources, $this->collectSkillSourcesFromDirectory($skillsPath));
+        }
+
+        return $sources;
+    }
+
+    /**
+     * @return array<string, string> Skill directory name mapped to source path
+     */
+    private function collectSkillSourcesFromDirectory(string $sourceDir): array
+    {
+        if (!is_dir($sourceDir)) {
+            return [];
+        }
+
+        $sources = [];
+        foreach (new \DirectoryIterator($sourceDir) as $file) {
+            if ($file->isDot() || !$file->isDir()) {
+                continue;
+            }
+
+            $skillPath = $file->getPathname();
+            if (!is_file($skillPath . '/SKILL.md')) {
+                continue;
+            }
+
+            $sources[$file->getFilename()] = $skillPath;
+        }
+
+        return $sources;
     }
 
     /**
@@ -388,13 +448,6 @@ final class BoostManager
         return $content;
     }
 
-    private function aggregateResources(string $moduleName, array $moduleInfo, array $features): void
-    {
-        if (in_array('Agent Skills', $features) && $moduleInfo['skills_path']) {
-            $this->copyDirectory($moduleInfo['skills_path'], $this->targetDir . '/skills');
-        }
-    }
-
     private function copyDirectory(string $source, string $target): void
     {
         if (!is_dir($target)) {
@@ -413,15 +466,6 @@ final class BoostManager
             } else {
                 copy($srcFile, $dstFile);
             }
-        }
-    }
-
-    private function clearDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) return;
-        $files = array_diff(scandir($dir), ['.', '..']);
-        foreach ($files as $file) {
-            (is_dir("$dir/$file")) ? $this->delTree("$dir/$file") : unlink("$dir/$file");
         }
     }
 
@@ -448,7 +492,12 @@ final class BoostManager
                 }
                 break;
             case 'Agent Skills':
-                $this->clearDirectory($this->targetDir . '/skills');
+                foreach (array_keys($this->collectDesiredSkillSources([])) as $skillName) {
+                    $skillPath = $this->targetDir . '/skills/' . $skillName;
+                    if (is_dir($skillPath)) {
+                        $this->delTree($skillPath);
+                    }
+                }
                 break;
         }
     }
