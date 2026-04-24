@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost;
 
+use ProcessWire\Field;
 use Totoglu\Console\Boost\Install\Agents\Agent;
+use Totoglu\Console\Boost\Schema\FieldSchemaExtender;
+use Totoglu\Console\Boost\Schema\FieldSchemaExtenderDiscovery;
 
 final class BoostManager
 {
@@ -142,12 +145,29 @@ final class BoostManager
             ];
         }
 
+        $extenders = $this->resolveFieldSchemaExtenders();
+
         foreach (\ProcessWire\wire('fields') as $field) {
-            $map['fields'][$field->name] = [
+            $base = [
                 'id' => $field->id,
                 'type' => $field->type->className(),
                 'label' => $field->label,
             ];
+
+            $extensions = $this->collectFieldSchemaExtra($field, $base, $extenders);
+
+            // `fields` is a reserved extension key promoted to top-level so
+            // nested schemas stay ergonomic for agents and future extenders.
+            if (array_key_exists('fields', $extensions)) {
+                $base['fields'] = is_array($extensions['fields']) ? $extensions['fields'] : [];
+                unset($extensions['fields']);
+            }
+
+            if (!empty($extensions)) {
+                $base['extra'] = $extensions;
+            }
+
+            $map['fields'][$field->name] = $base;
         }
 
         foreach (\ProcessWire\wire('modules') as $module) {
@@ -174,6 +194,103 @@ final class BoostManager
         }
 
         file_put_contents($path, json_encode($map, JSON_PRETTY_PRINT));
+    }
+
+    /**
+     * @return FieldSchemaExtender[]
+     */
+    private function resolveFieldSchemaExtenders(): array
+    {
+        return (new FieldSchemaExtenderDiscovery($this->projectRoot))->resolve();
+    }
+
+    /**
+     * @param array{id:int,type:string,label:string} $base
+     * @param FieldSchemaExtender[] $extenders
+     * @return array<string,mixed>
+     */
+    private function collectFieldSchemaExtra(Field $field, array $base, array $extenders): array
+    {
+        $extra = [];
+
+        foreach ($extenders as $extender) {
+            try {
+                if (!$extender->supports($field)) {
+                    continue;
+                }
+
+                $extended = $extender->extend($field, $base);
+                $sanitized = $this->sanitizeFieldSchemaExtra($extended);
+            } catch (\Throwable $e) {
+                $this->logSchemaExtenderError($extender, $field, $e);
+                continue;
+            }
+
+            if (!empty($sanitized)) {
+                $extra = array_merge($extra, $sanitized);
+            }
+        }
+
+        return $extra;
+    }
+
+    /**
+     * @param array<string,mixed> $extra
+     * @return array<string,mixed>
+     */
+    private function sanitizeFieldSchemaExtra(array $extra): array
+    {
+        $clean = [];
+
+        foreach ($extra as $key => $value) {
+            $sanitized = null;
+            if (!$this->sanitizeFieldSchemaValue($value, $sanitized)) {
+                continue;
+            }
+
+            $clean[(string)$key] = $sanitized;
+        }
+
+        return $clean;
+    }
+
+    private function sanitizeFieldSchemaValue(mixed $value, mixed &$sanitized): bool
+    {
+        if (is_scalar($value) || $value === null) {
+            $sanitized = $value;
+            return true;
+        }
+
+        if (!is_array($value)) {
+            return false;
+        }
+
+        $result = [];
+        foreach ($value as $key => $item) {
+            $child = null;
+            if (!$this->sanitizeFieldSchemaValue($item, $child)) {
+                continue;
+            }
+            $result[(string)$key] = $child;
+        }
+
+        $sanitized = $result;
+        return true;
+    }
+
+    private function logSchemaExtenderError(FieldSchemaExtender $extender, Field $field, \Throwable $e): void
+    {
+        $log = \ProcessWire\wire('log');
+        if (!$log) {
+            return;
+        }
+
+        $log->save('processwire-boost', sprintf(
+            'Field schema extender "%s" failed for field "%s": %s',
+            $extender::class,
+            $field->name,
+            $e->getMessage()
+        ));
     }
 
     private function exportCoreResources(string $target, string $type): void

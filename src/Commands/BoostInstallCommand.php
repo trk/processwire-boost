@@ -23,6 +23,7 @@ use function Laravel\Prompts\multiselect;
 use function Laravel\Prompts\intro;
 use function Laravel\Prompts\spin;
 use function Laravel\Prompts\note;
+use function Laravel\Prompts\info;
 
 final class BoostInstallCommand extends Command
 {
