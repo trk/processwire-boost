@@ -99,7 +99,7 @@ final class McpCommand extends Command
                 $this->sendResponse($id, [
                     'protocolVersion' => '2024-11-05',
                     'capabilities' => ['tools' => (object)[]],
-                    'serverInfo' => ['name' => 'processwire-boost', 'version' => '1.0.0']
+                    'serverInfo' => ['name' => 'processwire-boost', 'version' => '0.1.0']
                 ]);
                 break;
             case 'tools/list':

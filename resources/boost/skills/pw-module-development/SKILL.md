@@ -58,7 +58,7 @@ class MyCustomModule extends WireData implements Module
     {
         return [
             'title' => 'My Custom Module',
-            'version' => '1.0.0',
+            'version' => '0.1.0',
             'summary' => 'Executes custom business logic effectively.',
             'autoload' => true,
             'singular' => true,

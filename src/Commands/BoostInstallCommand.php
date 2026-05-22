@@ -71,7 +71,7 @@ final class BoostInstallCommand extends Command
         $configPath = $projectRoot . '/.agents/boost.json';
 
         $config = [
-            'version' => '1.0.0',
+            'version' => '0.1.0',
             'guidelines' => false,
             'skills' => false,
             'mcp' => false,
@@ -241,7 +241,7 @@ final class BoostInstallCommand extends Command
         }
 
         $newConfig = [
-            'version' => '1.0.0',
+            'version' => '0.1.0',
             'guidelines' => in_array('guidelines', $selectedFeatures),
             'skills' => in_array('skills', $selectedFeatures),
             'mcp' => in_array('mcp', $selectedFeatures),
