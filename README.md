@@ -611,7 +611,7 @@ The installer stores its state in `.agents/boost.json`:
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "guidelines": true,
   "skills": true,
   "mcp": true,
