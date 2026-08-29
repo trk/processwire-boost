@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost\Install\Agents;
 
+use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
+use Totoglu\Console\Boost\Contracts\SupportsMcp;
+use Totoglu\Console\Boost\Contracts\SupportsSkills;
 use Totoglu\Console\Boost\Install\Enums\McpPathStrategy;
 use Totoglu\Console\Boost\Install\Mcp\FileWriter;
 use Totoglu\Console\Boost\Install\Mcp\TomlFileWriter;
@@ -12,8 +15,16 @@ abstract class Agent
 {
     abstract public function name(): string;
     abstract public function displayName(): string;
-    abstract public function mcpConfigPath(): ?string;
-    abstract public function guidelinesPath(): string;
+
+    public function mcpConfigPath(): ?string
+    {
+        return null;
+    }
+
+    public function guidelinesPath(): string
+    {
+        return 'AGENTS.md';
+    }
 
     /**
      * The MCP path strategy for this agent.
@@ -63,6 +74,85 @@ abstract class Agent
         return '.agents/skills';
     }
 
+    public function frontmatter(): bool
+    {
+        return false;
+    }
+
+    public function transformGuidelines(string $markdown): string
+    {
+        return $markdown;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function systemDetectionPaths(): array
+    {
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function systemDetectionBinaries(): array
+    {
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function projectDetectionPaths(): array
+    {
+        $paths = [];
+
+        $guidelinesPath = $this->guidelinesPath();
+        if ($guidelinesPath !== 'AGENTS.md' && $guidelinesPath !== '') {
+            $paths[] = $guidelinesPath;
+        }
+
+        $mcpConfigPath = $this->mcpConfigPath();
+        if (is_string($mcpConfigPath) && $mcpConfigPath !== '') {
+            $paths[] = $mcpConfigPath;
+        }
+
+        $skillsPath = $this->skillsPath();
+        if ($skillsPath !== '.agents/skills' && $skillsPath !== '') {
+            $paths[] = $skillsPath;
+        }
+
+        return array_values(array_unique($paths));
+    }
+
+    public function detectOnSystem(): bool
+    {
+        foreach ($this->systemDetectionPaths() as $path) {
+            if ($this->pathExists($this->expandHome($path))) {
+                return true;
+            }
+        }
+
+        foreach ($this->systemDetectionBinaries() as $binary) {
+            if ($this->binaryExists($binary)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function detectInProject(string $basePath): bool
+    {
+        foreach ($this->projectDetectionPaths() as $path) {
+            if ($this->pathExists($basePath . '/' . ltrim($path, '/'))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function mcpConfigKey(): string
     {
         return str_ends_with((string) $this->mcpConfigPath(), '.toml') ? 'mcp_servers' : 'mcpServers';
@@ -109,5 +199,47 @@ abstract class Agent
         copy($skillPath, $targetPath);
 
         return $targetPath;
+    }
+
+    /**
+     * @return array<class-string, bool>
+     */
+    public function supportedContracts(): array
+    {
+        return [
+            SupportsGuidelines::class => $this instanceof SupportsGuidelines,
+            SupportsSkills::class => $this instanceof SupportsSkills,
+            SupportsMcp::class => $this instanceof SupportsMcp,
+        ];
+    }
+
+    private function binaryExists(string $binary): bool
+    {
+        $escaped = escapeshellarg($binary);
+        $command = PHP_OS_FAMILY === 'Windows'
+            ? "where {$escaped} >NUL 2>&1"
+            : "command -v {$escaped} >/dev/null 2>&1";
+
+        $output = [];
+        $exitCode = 1;
+        exec($command, $output, $exitCode);
+
+        return $exitCode === 0;
+    }
+
+    private function pathExists(string $path): bool
+    {
+        return file_exists($path) || is_dir($path);
+    }
+
+    private function expandHome(string $path): string
+    {
+        if (!str_starts_with($path, '~/')) {
+            return $path;
+        }
+
+        $home = getenv('HOME');
+
+        return is_string($home) && $home !== '' ? $home . substr($path, 1) : $path;
     }
 }
