@@ -59,7 +59,12 @@ final class RepeaterFieldSchemaExtender implements FieldSchemaExtender
             return [];
         }
 
-        $templates = $field->wire()->templates;
+        $wire = $field->wire();
+        if (!$wire) {
+            return [];
+        }
+
+        $templates = $wire->templates;
         $template = $templates ? $templates->get($templateId) : null;
 
         if (!$template || !$template->id || !$template->fieldgroup) {
@@ -90,7 +95,12 @@ final class RepeaterFieldSchemaExtender implements FieldSchemaExtender
             return [];
         }
 
-        $fieldsApi = $field->wire()->fields;
+        $wire = $field->wire();
+        if (!$wire) {
+            return [];
+        }
+
+        $fieldsApi = $wire->fields;
         if (!$fieldsApi) {
             return [];
         }
@@ -119,10 +129,8 @@ final class RepeaterFieldSchemaExtender implements FieldSchemaExtender
             return [];
         }
 
-        $fieldsApi = $field->wire()->fields;
-        if (!$fieldsApi) {
-            return [];
-        }
+        $wire = $field->wire();
+        $fieldsApi = $wire?->fields;
 
         $schemas = [];
         foreach ($raw as $name => $config) {
@@ -130,15 +138,44 @@ final class RepeaterFieldSchemaExtender implements FieldSchemaExtender
                 continue;
             }
 
-            $subfield = $fieldsApi->get($name);
-            if (!$subfield || !$subfield->id || $subfield->name === '') {
+            $subfield = $fieldsApi?->get($name);
+            if ($subfield && $subfield->id && $subfield->name !== '') {
+                $schemas[$subfield->name] = $this->toSchema($subfield);
                 continue;
             }
 
-            $schemas[$subfield->name] = $this->toSchema($subfield);
+            // Config fallback: ProcessWire fields API not available or
+            // field not yet installed; synthesize schema from payload.
+            $fallback = $this->toFallbackSchema($name, is_array($config) ? $config : []);
+            if ($fallback !== null) {
+                $schemas[$fallback['label'] ? $name : $name] = $fallback;
+            }
         }
 
         return $schemas;
+    }
+
+    /**
+     * Synthesize a field schema when ProcessWire fields API is unavailable
+     * (e.g. CLI bootstraps without full ProcessWire kernel).
+     *
+     * @param array<string,mixed> $config
+     * @return array{id:int,type:string,label:string}|null
+     */
+    private function toFallbackSchema(string $name, array $config): ?array
+    {
+        if ($name === '') {
+            return null;
+        }
+
+        $type = isset($config['type']) ? (string) $config['type'] : '';
+        $label = isset($config['label']) ? (string) $config['label'] : $name;
+
+        return [
+            'id' => 0,
+            'type' => $type,
+            'label' => $label,
+        ];
     }
 
     /**

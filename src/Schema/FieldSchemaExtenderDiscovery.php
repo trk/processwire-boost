@@ -74,9 +74,18 @@ final class FieldSchemaExtenderDiscovery
                     continue;
                 }
 
-                $manifest = $moduleDir->getPathname() . '/.agents/schema/field-extenders.php';
-                if (is_file($manifest)) {
-                    $paths[] = $manifest;
+                $base = $moduleDir->getPathname();
+                $candidates = [
+                    $base . '/boost/schema/field-extenders.php',
+                    $base . '/.agents/schema/field-extenders.php',
+                    $base . '/schema/field-extenders.php',
+                ];
+
+                foreach ($candidates as $manifest) {
+                    if (is_file($manifest)) {
+                        $paths[] = $manifest;
+                        break;
+                    }
                 }
             }
         }
