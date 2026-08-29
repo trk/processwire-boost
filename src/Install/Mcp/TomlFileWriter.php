@@ -100,6 +100,19 @@ final class TomlFileWriter
         }
         return implode("\n", $lines);
     }
+    public function remove(string $key): bool
+    {
+        if (!file_exists($this->filePath)) {
+            return true;
+        }
+        $content = @file_get_contents($this->filePath) ?: '';
+        if (!$this->serverExists($content, $key)) {
+            return true;
+        }
+        $content = $this->removeExistingServer($content, $key);
+        return file_put_contents($this->filePath, ltrim($content)) !== false;
+    }
+
     private function formatValue(mixed $value): string
     {
         if (is_string($value)) {

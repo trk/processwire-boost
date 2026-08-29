@@ -8,9 +8,7 @@ final class FileWriter
 {
     private string $configKey = 'mcpServers';
     private array $serversToAdd = [];
-    public function __construct(private readonly string $filePath, private readonly array $baseConfig = [])
-    {
-    }
+    public function __construct(private readonly string $filePath, private readonly array $baseConfig = []) {}
     public function configKey(string $key): self
     {
         $this->configKey = $key;
@@ -39,6 +37,10 @@ final class FileWriter
         $content = @file_get_contents($this->filePath) ?: '';
         $decoded = json_decode($content, true);
         if (!is_array($decoded)) {
+            @trigger_error(sprintf(
+                'ProcessWire Boost: skipping MCP JSON merge for "%s"; existing file is not valid JSON.',
+                $this->filePath
+            ), E_USER_WARNING);
             return false;
         }
         $this->addServersToConfig($decoded);
@@ -61,17 +63,62 @@ final class FileWriter
     private function addServersToConfig(array &$config): void
     {
         $keys = explode('.', $this->configKey);
-        $ref =& $config;
+        $ref = &$config;
         foreach ($keys as $i => $k) {
             if (!isset($ref[$k]) || !is_array($ref[$k])) {
                 $ref[$k] = [];
             }
-            $ref =& $ref[$k];
+            $ref = &$ref[$k];
         }
         foreach ($this->serversToAdd as $key => $serverConfig) {
             $ref[$key] = $serverConfig;
         }
     }
+    /**
+     * @param list<string> $keys
+     */
+    public function removeServerConfigs(array $keys): self
+    {
+        foreach ($keys as $key) {
+            unset($this->serversToAdd[$key]);
+        }
+        $this->serversToRemove = $keys;
+        return $this;
+    }
+
+    public function remove(string $key): bool
+    {
+        $this->serversToRemove = [$key];
+        if (!file_exists($this->filePath)) {
+            return true;
+        }
+        $content = @file_get_contents($this->filePath) ?: '';
+        $decoded = json_decode($content, true);
+        if (!is_array($decoded)) {
+            return false;
+        }
+        $this->removeServersFromConfig($decoded);
+        return $this->writeJsonConfig($decoded);
+    }
+
+    private function removeServersFromConfig(array &$config): void
+    {
+        $keys = explode('.', $this->configKey);
+        $ref = &$config;
+        foreach ($keys as $k) {
+            if (!isset($ref[$k]) || !is_array($ref[$k])) {
+                return;
+            }
+            $ref = &$ref[$k];
+        }
+        foreach ($this->serversToRemove as $key) {
+            unset($ref[$key]);
+        }
+    }
+
+    /** @var list<string> */
+    private array $serversToRemove = [];
+
     private function writeJsonConfig(array $config): bool
     {
         $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);

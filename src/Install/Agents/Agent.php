@@ -188,6 +188,22 @@ abstract class Agent
         return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env, $cwd))->save();
     }
 
+    public function uninstallMcp(string $key): bool
+    {
+        $path = $this->mcpConfigPath();
+        if (!$path || !file_exists($path)) {
+            return true;
+        }
+
+        if (str_ends_with($path, '.toml')) {
+            $w = new TomlFileWriter($path, $this->defaultMcpConfig());
+            return $w->configKey($this->mcpConfigKey())->remove($key);
+        }
+
+        $w = new FileWriter($path, $this->defaultMcpConfig());
+        return $w->configKey($this->mcpConfigKey())->remove($key);
+    }
+
     public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
     {
         $skillDir = $targetDir . '/' . $skillName;

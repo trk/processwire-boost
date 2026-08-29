@@ -25,4 +25,9 @@ final class McpWriter
             throw new RuntimeException(sprintf('Failed to install MCP configuration for %s.', $this->agent::class));
         }
     }
+
+    public function remove(string $key = 'processwire'): void
+    {
+        $this->agent->uninstallMcp($key);
+    }
 }
