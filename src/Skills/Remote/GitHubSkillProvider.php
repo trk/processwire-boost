@@ -23,8 +23,8 @@ class GitHubSkillProvider
 
         $basePath = $this->repository->path;
 
-        $skillMarkers = array_filter($tree['tree'], fn(array $item): bool => 
-            $item['type'] === 'blob' && in_array(basename((string) $item['path']), ['SKILL.md', 'SKILL.blade.php'], true)
+        $skillMarkers = array_filter($tree['tree'], fn(array $item): bool =>
+            $item['type'] === 'blob' && basename((string) $item['path']) === 'SKILL.md'
         );
 
         if ($basePath !== '') {
@@ -49,15 +49,8 @@ class GitHubSkillProvider
 
     public function downloadSkill(RemoteSkill $skill, string $targetPath): bool
     {
-        $tree = $this->fetchRepositoryTree();
-
-        if ($tree === null) {
-            return false;
-        }
-
-        $skillFiles = $this->extractSkillFilesFromTree($tree['tree'], $skill->path);
-
-        if (empty($skillFiles)) {
+        $files = $this->fetchSkillFiles($skill);
+        if ($files === []) {
             return false;
         }
 
@@ -65,22 +58,60 @@ class GitHubSkillProvider
             return false;
         }
 
-        $files = array_filter($skillFiles, fn(array $item): bool => $item['type'] === 'blob');
-        $directories = array_filter($skillFiles, fn(array $item): bool => $item['type'] === 'tree');
-
-        foreach ($directories as $dir) {
-            $relativePath = $this->getRelativePath($dir['path'], $skill->path);
-            if (!$this->isSafeRelativePath($relativePath)) {
-                return false;
-            }
+        foreach ($files as $relativePath => $content) {
             $localPath = $targetPath . '/' . $relativePath;
 
-            if (!$this->ensureDirectoryExists($localPath)) {
+            if (!$this->ensureDirectoryExists(dirname($localPath))) {
+                return false;
+            }
+
+            if (file_put_contents($localPath, $content) === false) {
                 return false;
             }
         }
 
-        return $this->downloadFiles($files, $targetPath, $skill->path);
+        return true;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function fetchSkillFiles(RemoteSkill $skill): array
+    {
+        $tree = $this->fetchRepositoryTree();
+
+        if ($tree === null) {
+            return [];
+        }
+
+        $skillFiles = $this->extractSkillFilesFromTree($tree['tree'], $skill->path);
+
+        if ($skillFiles === []) {
+            return [];
+        }
+
+        $files = [];
+
+        foreach ($skillFiles as $item) {
+            if (($item['type'] ?? null) !== 'blob') {
+                continue;
+            }
+
+            $relativePath = $this->getRelativePath((string) $item['path'], $skill->path);
+            if (!$this->isSafeRelativePath($relativePath)) {
+                return [];
+            }
+
+            $url = $this->buildRawFileUrl((string) $item['path']);
+            $content = @file_get_contents($url);
+            if ($content === false) {
+                return [];
+            }
+
+            $files[$relativePath] = $content;
+        }
+
+        return $files;
     }
 
     protected function fetchRepositoryTree(): ?array
@@ -127,33 +158,6 @@ class GitHubSkillProvider
     {
         $prefix = $skillPath . '/';
         return array_filter($tree, fn(array $item): bool => str_starts_with((string) $item['path'], $prefix));
-    }
-
-    protected function downloadFiles(array $files, string $targetPath, string $basePath): bool
-    {
-        foreach ($files as $item) {
-            $url = $this->buildRawFileUrl($item['path']);
-            $relativePath = $this->getRelativePath($item['path'], $basePath);
-            if (!$this->isSafeRelativePath($relativePath)) {
-                return false;
-            }
-            $localPath = $targetPath . '/' . $relativePath;
-
-            if (!$this->ensureDirectoryExists(dirname($localPath))) {
-                return false;
-            }
-
-            $content = @file_get_contents($url);
-            if ($content === false) {
-                return false;
-            }
-
-            if (file_put_contents($localPath, $content) === false) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     protected function isSafeRelativePath(string $path): bool
