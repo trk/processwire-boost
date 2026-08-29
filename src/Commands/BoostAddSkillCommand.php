@@ -17,6 +17,7 @@ use Totoglu\Console\Boost\Skills\Remote\GitHubSkillProvider;
 use Totoglu\Console\Boost\Skills\Remote\RemoteSkill;
 use Totoglu\Console\Boost\Skills\Remote\SkillAuditor;
 use function Laravel\Prompts\confirm;
+use function Laravel\Prompts\info;
 use function Laravel\Prompts\multiselect;
 use function Laravel\Prompts\note;
 use function Laravel\Prompts\outro;
@@ -167,7 +168,9 @@ final class BoostAddSkillCommand extends Command
         }
 
         if (!empty($skillOptions)) {
-            return array_filter($skills, fn(RemoteSkill $skill): bool => 
+            return array_filter(
+                $skills,
+                fn(RemoteSkill $skill): bool =>
                 in_array($skill->name, $skillOptions, true)
             );
         }
@@ -181,7 +184,9 @@ final class BoostAddSkillCommand extends Command
             required: true
         );
 
-        return array_filter($skills, fn(RemoteSkill $skill): bool => 
+        return array_filter(
+            $skills,
+            fn(RemoteSkill $skill): bool =>
             in_array($skill->name, $selected, true)
         );
     }
@@ -231,7 +236,7 @@ final class BoostAddSkillCommand extends Command
     {
         $existing = array_filter(
             $skills,
-            fn (RemoteSkill $skill): bool => is_dir($projectRoot . '/.agents/skills/' . $this->sanitizeSkillName($skill->name))
+            fn(RemoteSkill $skill): bool => is_dir($projectRoot . '/.agents/skills/' . $this->sanitizeSkillName($skill->name))
         );
 
         if ($existing === []) {
@@ -244,7 +249,7 @@ final class BoostAddSkillCommand extends Command
 
         if (!$this->currentInput->isInteractive()) {
             $this->skippedSkills = array_values(array_map(
-                static fn (RemoteSkill $skill): string => $skill->name,
+                static fn(RemoteSkill $skill): string => $skill->name,
                 $existing
             ));
             return array_diff_key($skills, $existing);
@@ -260,7 +265,7 @@ final class BoostAddSkillCommand extends Command
         }
 
         $this->skippedSkills = array_values(array_map(
-            static fn (RemoteSkill $skill): string => $skill->name,
+            static fn(RemoteSkill $skill): string => $skill->name,
             $existing
         ));
 
@@ -282,7 +287,7 @@ final class BoostAddSkillCommand extends Command
         }
 
         $auditResults = spin(
-            callback: fn (): array => (new SkillAuditor())->audit($provider, $skills),
+            callback: fn(): array => (new SkillAuditor())->audit($provider, $skills),
             message: 'Running heuristic security audit...'
         );
 
@@ -361,7 +366,7 @@ final class BoostAddSkillCommand extends Command
             return false;
         }
 
-        $items = array_diff(scandir($path), ['.', '..']);
+        $items = array_diff(scandir($path) ?: [], ['.', '..']);
         foreach ($items as $item) {
             $itemPath = $path . '/' . $item;
             is_dir($itemPath) ? $this->removeDirectory($itemPath) : @unlink($itemPath);

@@ -348,7 +348,7 @@ final class BoostBuildDocsCommand extends Command
         return $info;
     }
 
-    private function generateIndexes(DocTree $node, string $baseDir)
+    private function generateIndexes(DocTree $node, string $baseDir): void
     {
         if ($node->path) {
             $outDir = $baseDir . '/' . $node->path;

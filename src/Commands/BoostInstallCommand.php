@@ -10,8 +10,11 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Totoglu\Console\Boost\BoostManager;
 use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
+use Totoglu\Console\Boost\Contracts\SupportsMcp;
+use Totoglu\Console\Boost\Contracts\SupportsSkills;
 use Totoglu\Console\Boost\Install\Agents\Agent;
 use Totoglu\Console\Boost\Install\AgentsDetector;
+use Totoglu\Console\Boost\Install\McpWriter;
 use function Laravel\Prompts\multiselect;
 use function Laravel\Prompts\intro;
 use function Laravel\Prompts\note;
@@ -54,7 +57,7 @@ final class BoostInstallCommand extends Command
         $configPath = $projectRoot . '/.agents/boost.json';
 
         $config = [
-            'version' => '0.1.1',
+            'version' => '0.2.1',
             'guidelines' => false,
             'skills' => false,
             'mcp' => false,
@@ -136,7 +139,7 @@ final class BoostInstallCommand extends Command
 
             $defaultAgents = array_values(array_filter(
                 $defaultAgents,
-                static fn (string $agentName): bool => array_key_exists($agentName, $agentOptions)
+                static fn(string $agentName): bool => array_key_exists($agentName, $agentOptions)
             ));
 
             $promptOptions = [];
@@ -151,7 +154,7 @@ final class BoostInstallCommand extends Command
                 required: false
             );
         }
-        
+
         $output->writeln("\n  <fg=yellow>Processing changes...</>\n");
 
         $toInstall = [];
@@ -186,7 +189,7 @@ final class BoostInstallCommand extends Command
 
         if ($shouldSync) {
             info('Syncing Boost configuration...');
-            $agents = $this->resolveAgents($selectedAgents);
+            $agents = $manager->resolveConfiguredAgents($selectedAgents);
             $manager->sync($selectedFeatures, $selectedModules, $agents);
             $output->writeln("  <fg=green>✓ Sync complete</>\n");
         }
@@ -199,7 +202,30 @@ final class BoostInstallCommand extends Command
             if ($agent instanceof SupportsGuidelines && $agent->guidelinesPath() !== 'AGENTS.md') {
                 $agentFile = $projectRoot . '/' . $agent->guidelinesPath();
                 if (file_exists($agentFile)) {
-                    unlink($agentFile);
+                    @unlink($agentFile);
+                }
+            }
+            if ($agent instanceof SupportsSkills) {
+                $skillsPath = $agent->skillsPath();
+                if ($skillsPath !== '' && $skillsPath !== '.agents/skills') {
+                    $skillsFullPath = $projectRoot . '/' . $skillsPath;
+                    if (is_dir($skillsFullPath)) {
+                        $this->removeDirectoryContents($skillsFullPath);
+                    }
+                }
+            }
+            if ($agent instanceof SupportsMcp) {
+                try {
+                    (new McpWriter($agent, $projectRoot))->remove();
+                } catch (\Throwable) {
+                    // Non-fatal: individual agent files may have permission issues
+                }
+                $mcpConfig = $agent->mcpConfigPath();
+                if (is_string($mcpConfig) && $mcpConfig !== '') {
+                    $mcpFull = $projectRoot . '/' . $mcpConfig;
+                    // Only remove whole MCP file if it's empty or exclusive to Boost;
+                    // safer to leave and let McpWriter strip our server entry.
+                    unset($mcpFull);
                 }
             }
             $output->writeln("  <fg=red>✗ Removed {$agent->displayName()} ({$agent->guidelinesPath()})</>");
@@ -211,7 +237,7 @@ final class BoostInstallCommand extends Command
         }
 
         $newConfig = [
-            'version' => '0.1.1',
+            'version' => '0.2.1',
             'guidelines' => in_array('guidelines', $selectedFeatures),
             'skills' => in_array('skills', $selectedFeatures),
             'mcp' => in_array('mcp', $selectedFeatures),
@@ -237,9 +263,25 @@ final class BoostInstallCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function resolveAgents(array $agentNames): array
+    /**
+     * @param BoostManager $manager Already instantiated manager for the current project root
+     * @param list<string> $agentNames
+     * @return list<Agent>
+     */
+    private function resolveAgents(BoostManager $manager, array $agentNames): array
     {
-        return (new BoostManager(getcwd() ?: '.'))->resolveConfiguredAgents($agentNames);
+        return $manager->resolveConfiguredAgents($agentNames);
+    }
+
+    private function removeDirectoryContents(string $path): void
+    {
+        if (!is_dir($path)) {
+            return;
+        }
+        foreach (array_diff(scandir($path) ?: [], ['.', '..']) as $item) {
+            $full = $path . '/' . $item;
+            is_dir($full) ? $this->removeDirectoryContents($full) : @unlink($full);
+        }
     }
 
     private function displaySummary(OutputInterface $output, array $selectedFeatures, array $selectedAgents, array $selectedModules): void
@@ -249,12 +291,13 @@ final class BoostInstallCommand extends Command
         $output->writeln("  └─────────────────────────────────────────────────────────────┘\n");
 
         $projectRoot = getcwd() ?: '.';
+        $summaryManager = new BoostManager($projectRoot);
         $guidelineCount = (is_file($projectRoot . '/AGENTS.md') ? 1 : 0)
             + count(array_filter(array_map(
-                static fn (Agent $agent): ?string => $agent->guidelinesPath() !== 'AGENTS.md' ? $agent->guidelinesPath() : null,
-                $this->resolveAgents($selectedAgents)
+                static fn(Agent $agent): ?string => $agent->guidelinesPath() !== 'AGENTS.md' ? $agent->guidelinesPath() : null,
+                $this->resolveAgents($summaryManager, $selectedAgents)
             )));
-        $skillCount = count(glob($projectRoot . '/.agents/skills/*/SKILL.md')) ?: 0;
+        $skillCount = count(glob($projectRoot . '/.agents/skills/*/SKILL.md') ?: []);
 
         $featureLabels = [];
         foreach ($selectedFeatures as $key) {
@@ -280,8 +323,8 @@ final class BoostInstallCommand extends Command
 
         if (!empty($selectedAgents)) {
             $agents = array_map(
-                static fn (Agent $agent): string => $agent->displayName(),
-                $this->resolveAgents($selectedAgents)
+                static fn(Agent $agent): string => $agent->displayName(),
+                $this->resolveAgents($summaryManager, $selectedAgents)
             );
 
             $output->writeln("\n  🤖 <fg=yellow>AI Agents:</> " . implode(', ', $agents));
@@ -297,7 +340,7 @@ final class BoostInstallCommand extends Command
     private function normalizeConfiguredAgentNames(BoostManager $manager, array $configuredAgents): array
     {
         return array_values(array_map(
-            static fn (Agent $agent): string => $agent->name(),
+            static fn(Agent $agent): string => $agent->name(),
             $manager->resolveConfiguredAgents($configuredAgents)
         ));
     }
