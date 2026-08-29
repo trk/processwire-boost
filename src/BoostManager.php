@@ -7,6 +7,7 @@ namespace Totoglu\Console\Boost;
 use ProcessWire\Field;
 use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
 use Totoglu\Console\Boost\Contracts\SupportsMcp;
+use Totoglu\Console\Boost\Contracts\SupportsSkills;
 use Totoglu\Console\Boost\Install\Agents\Amp;
 use Totoglu\Console\Boost\Install\Agents\Agent;
 use Totoglu\Console\Boost\Install\Agents\Antigravity;
@@ -45,8 +46,8 @@ final class BoostManager
 
     /**
      * Get all modules that have boost/ directory
-     * 
-     * @return array<string, array{path: string, has_guidelines: bool, has_skills: bool}>
+     *
+     * @return array<string, array{path: string, guidelines_path: ?string, skills_path: ?string, has_guidelines: bool, has_skills: bool}>
      */
     public function getDiscoverableModules(): array
     {
@@ -174,13 +175,24 @@ final class BoostManager
     }
 
     /**
-     * Resolve resource directory for a module — standard path: {module}/.agents/{type}
+     * Resolve resource directory for a module with priority chain:
+     *   {module}/boost/{type} > {module}/.agents/{type} > {module}/{type}
      */
     private function resolveResourceDir(string $modulePath, string $resourceType): ?string
     {
-        $path = $modulePath . '/.agents/' . $resourceType;
+        $candidates = [
+            $modulePath . '/boost/' . $resourceType,
+            $modulePath . '/.agents/' . $resourceType,
+            $modulePath . '/' . $resourceType,
+        ];
 
-        return is_dir($path) ? $path : null;
+        foreach ($candidates as $path) {
+            if (is_dir($path)) {
+                return $path;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -200,14 +212,15 @@ final class BoostManager
         $this->generateMap($this->targetDir . '/map.json');
 
         if (in_array('guidelines', $features, true)) {
-            $guidelineAgents = array_values(array_filter($agents, static fn (Agent $agent): bool => $agent instanceof SupportsGuidelines));
+            $guidelineAgents = array_values(array_filter($agents, static fn(Agent $agent): bool => $agent instanceof SupportsGuidelines));
             (new GuidelineWriter($this->projectRoot, $this->targetDir, $this->getDiscoverableModules()))
                 ->write($guidelineAgents, $modules);
         }
 
         if (in_array('skills', $features, true)) {
+            $skillAgents = array_values(array_filter($agents, static fn(Agent $agent): bool => $agent instanceof SupportsSkills));
             (new SkillWriter($this->targetDir, $this->getDiscoverableModules()))
-                ->sync($modules);
+                ->sync($modules, $skillAgents);
         }
 
         if (in_array('mcp', $features, true)) {
@@ -232,18 +245,20 @@ final class BoostManager
         ];
 
         foreach (\ProcessWire\wire('templates') as $template) {
+            $fieldgroup = $template->fieldgroup;
             $map['templates'][$template->name] = [
                 'id' => $template->id,
-                'fields' => array_map(fn($f) => $f->name, iterator_to_array($template->fields)),
+                'fields' => array_map(fn($f) => $f->name, $fieldgroup ? iterator_to_array($fieldgroup) : []),
             ];
         }
 
         $extenders = $this->resolveFieldSchemaExtenders();
 
         foreach (\ProcessWire\wire('fields') as $field) {
+            $fieldType = $field->type;
             $base = [
                 'id' => $field->id,
-                'type' => $field->type->className(),
+                'type' => $fieldType?->className() ?? 'Unknown',
                 'label' => $field->label,
             ];
 
@@ -265,6 +280,9 @@ final class BoostManager
 
         foreach (\ProcessWire\wire('modules') as $module) {
             $info = \ProcessWire\wire('modules')->getModuleInfo($module);
+            if (!is_array($info)) {
+                $info = [];
+            }
             $map['modules'][$module->className()] = [
                 'title' => $info['title'] ?? '',
                 'version' => $info['version'] ?? '',
@@ -307,6 +325,7 @@ final class BoostManager
         $extra = [];
 
         foreach ($extenders as $extender) {
+            $sanitized = [];
             try {
                 if (!$extender->supports($field)) {
                     continue;
@@ -399,7 +418,7 @@ final class BoostManager
             case 'guidelines':
                 $guidelineAgents = array_values(array_filter(
                     $agents ?? array_values($this->instantiateAgents()),
-                    static fn (Agent $agent): bool => $agent instanceof SupportsGuidelines
+                    static fn(Agent $agent): bool => $agent instanceof SupportsGuidelines
                 ));
 
                 (new GuidelineWriter($this->projectRoot, $this->targetDir, $this->getDiscoverableModules()))
@@ -408,6 +427,15 @@ final class BoostManager
             case 'skills':
                 (new SkillWriter($this->targetDir, $this->getDiscoverableModules()))
                     ->removeCoreSkills();
+                break;
+            case 'mcp':
+                $mcpAgents = array_values(array_filter(
+                    $agents ?? array_values($this->instantiateAgents()),
+                    static fn(Agent $agent): bool => $agent instanceof SupportsMcp
+                ));
+                foreach ($mcpAgents as $agent) {
+                    (new McpWriter($agent, $this->projectRoot))->remove();
+                }
                 break;
         }
     }
@@ -419,7 +447,7 @@ final class BoostManager
 
     private function registerBuiltInAgents(): void
     {
-        $this->agents = [
+        $builtIn = [
             'amp' => Amp::class,
             'antigravity' => Antigravity::class,
             'claude_code' => ClaudeCode::class,
@@ -436,6 +464,12 @@ final class BoostManager
             'trae' => Trae::class,
             'zed' => Zed::class,
         ];
+
+        foreach ($builtIn as $key => $className) {
+            if (!array_key_exists($key, $this->agents)) {
+                $this->agents[$key] = $className;
+            }
+        }
     }
 
     /**
@@ -449,7 +483,7 @@ final class BoostManager
 
         $contracts = [
             'guidelines' => SupportsGuidelines::class,
-            'skills' => \Totoglu\Console\Boost\Contracts\SupportsSkills::class,
+            'skills' => SupportsSkills::class,
             'mcp' => SupportsMcp::class,
         ];
 

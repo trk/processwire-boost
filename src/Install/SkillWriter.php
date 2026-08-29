@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost\Install;
 
+use Totoglu\Console\Boost\Install\Agents\Agent;
+
 final class SkillWriter
 {
     /**
@@ -12,20 +14,22 @@ final class SkillWriter
     public function __construct(
         private readonly string $targetDir,
         private readonly array $discoverableModules
-    ) {
-    }
+    ) {}
 
     /**
      * @param list<string> $modules
+     * @param list<Agent> $agents
      */
-    public function sync(array $modules): void
+    public function sync(array $modules, array $agents = []): void
     {
         $target = $this->targetDir . '/skills';
         if (!is_dir($target)) {
             mkdir($target, 0755, true);
         }
 
-        foreach ($this->collectDesiredSkillSources($modules) as $skillName => $sourcePath) {
+        $skillSources = $this->collectDesiredSkillSources($modules);
+
+        foreach ($skillSources as $skillName => $sourcePath) {
             $targetPath = $target . '/' . $skillName;
 
             if (is_dir($targetPath)) {
@@ -35,6 +39,12 @@ final class SkillWriter
             }
 
             $this->copyDirectory($sourcePath, $targetPath);
+        }
+
+        foreach ($agents as $agent) {
+            foreach ($skillSources as $skillName => $sourcePath) {
+                $agent->exportSkill($skillName, $sourcePath, dirname($this->targetDir));
+            }
         }
     }
 
