@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost\Install\Agents;
 
+use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
+use Totoglu\Console\Boost\Contracts\SupportsMcp;
+use Totoglu\Console\Boost\Contracts\SupportsSkills;
 use Totoglu\Console\Boost\Install\Enums\McpPathStrategy;
 
-final class Trae extends Agent
+final class Trae extends Agent implements SupportsGuidelines, SupportsMcp, SupportsSkills
 {
     public function name(): string
     {
@@ -21,6 +24,16 @@ final class Trae extends Agent
     public function mcpConfigPath(): ?string
     {
         return '.trae/mcp.json';
+    }
+
+    public function systemDetectionPaths(): array
+    {
+        return ['/Applications/Trae.app', '~/.trae'];
+    }
+
+    public function projectDetectionPaths(): array
+    {
+        return ['.trae', '.trae/mcp.json'];
     }
 
     public function guidelinesPath(): string

@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost\Install\Agents;
 
-final class OpenCode extends Agent
+use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
+use Totoglu\Console\Boost\Contracts\SupportsMcp;
+use Totoglu\Console\Boost\Contracts\SupportsSkills;
+
+final class OpenCode extends Agent implements SupportsGuidelines, SupportsMcp, SupportsSkills
 {
     public function name(): string
     {
@@ -21,6 +25,21 @@ final class OpenCode extends Agent
         return 'opencode.json';
     }
 
+    public function systemDetectionPaths(): array
+    {
+        return ['~/.config/opencode', '~/.opencode'];
+    }
+
+    public function systemDetectionBinaries(): array
+    {
+        return ['opencode'];
+    }
+
+    public function projectDetectionPaths(): array
+    {
+        return ['opencode.json'];
+    }
+
     public function mcpConfigKey(): string
     {
         return 'mcp';
@@ -31,7 +50,7 @@ final class OpenCode extends Agent
         return ['$schema' => 'https://opencode.ai/config.json'];
     }
 
-    public function mcpServerConfig(string $command, array $args = [], array $env = []): array
+    public function mcpServerConfig(string $command, array $args = [], array $env = [], string $cwd = ''): array
     {
         return [
             'type' => 'local',

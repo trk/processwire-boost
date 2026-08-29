@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost\Install\Agents;
 
-final class Copilot extends Agent
+use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
+use Totoglu\Console\Boost\Contracts\SupportsMcp;
+use Totoglu\Console\Boost\Contracts\SupportsSkills;
+
+final class Copilot extends Agent implements SupportsGuidelines, SupportsMcp, SupportsSkills
 {
     public function name(): string
     {
@@ -19,6 +23,24 @@ final class Copilot extends Agent
     public function mcpConfigPath(): ?string
     {
         return '.vscode/mcp.json';
+    }
+
+    public function systemDetectionPaths(): array
+    {
+        return [
+            '/Applications/Visual Studio Code.app',
+            '~/.config/Code',
+        ];
+    }
+
+    public function systemDetectionBinaries(): array
+    {
+        return ['code'];
+    }
+
+    public function projectDetectionPaths(): array
+    {
+        return ['.vscode', '.github/copilot-instructions.md'];
     }
 
     public function mcpConfigKey(): string

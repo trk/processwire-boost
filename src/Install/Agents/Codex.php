@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost\Install\Agents;
 
-final class Codex extends Agent
+use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
+use Totoglu\Console\Boost\Contracts\SupportsMcp;
+
+final class Codex extends Agent implements SupportsGuidelines, SupportsMcp
 {
     public function name(): string
     {
@@ -19,6 +22,21 @@ final class Codex extends Agent
     public function mcpConfigPath(): ?string
     {
         return '.codex/config.toml';
+    }
+
+    public function systemDetectionPaths(): array
+    {
+        return ['~/.codex'];
+    }
+
+    public function systemDetectionBinaries(): array
+    {
+        return ['codex'];
+    }
+
+    public function projectDetectionPaths(): array
+    {
+        return ['.codex', '.codex/config.toml'];
     }
 
     public function mcpConfigKey(): string

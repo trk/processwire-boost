@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost\Install\Agents;
 
+use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
+use Totoglu\Console\Boost\Contracts\SupportsMcp;
+use Totoglu\Console\Boost\Contracts\SupportsSkills;
 use Totoglu\Console\Boost\Install\Enums\McpPathStrategy;
 
-final class Junie extends Agent
+final class Junie extends Agent implements SupportsGuidelines, SupportsMcp, SupportsSkills
 {
     public function name(): string
     {
@@ -21,6 +24,21 @@ final class Junie extends Agent
     public function mcpConfigPath(): ?string
     {
         return '.junie/mcp/mcp.json';
+    }
+
+    public function systemDetectionPaths(): array
+    {
+        return ['~/.junie'];
+    }
+
+    public function systemDetectionBinaries(): array
+    {
+        return ['junie'];
+    }
+
+    public function projectDetectionPaths(): array
+    {
+        return ['.junie', '.junie/mcp/mcp.json'];
     }
 
     public function guidelinesPath(): string

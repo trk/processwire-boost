@@ -8,45 +8,30 @@ use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
 use Totoglu\Console\Boost\Contracts\SupportsMcp;
 use Totoglu\Console\Boost\Contracts\SupportsSkills;
 
-final class ClaudeCode extends Agent implements SupportsGuidelines, SupportsMcp, SupportsSkills
+final class Antigravity extends Agent implements SupportsGuidelines, SupportsMcp, SupportsSkills
 {
     public function name(): string
     {
-        return 'claude_code';
+        return 'antigravity';
     }
 
     public function displayName(): string
     {
-        return 'Claude Code';
+        return 'Antigravity';
     }
 
     public function mcpConfigPath(): ?string
     {
-        return '.mcp.json';
-    }
-
-    public function systemDetectionPaths(): array
-    {
-        return ['~/.claude'];
+        return '.agents/mcp_config.json';
     }
 
     public function systemDetectionBinaries(): array
     {
-        return ['claude'];
+        return ['antigravity'];
     }
 
     public function projectDetectionPaths(): array
     {
-        return ['CLAUDE.md', '.mcp.json', '.claude'];
-    }
-
-    public function guidelinesPath(): string
-    {
-        return 'CLAUDE.md';
-    }
-
-    public function skillsPath(): string
-    {
-        return '.claude/skills';
+        return ['.agents', '.agents/mcp_config.json'];
     }
 }
