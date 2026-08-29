@@ -5,7 +5,27 @@ declare(strict_types=1);
 namespace Totoglu\Console\Boost;
 
 use ProcessWire\Field;
+use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
+use Totoglu\Console\Boost\Contracts\SupportsMcp;
+use Totoglu\Console\Boost\Install\Agents\Amp;
 use Totoglu\Console\Boost\Install\Agents\Agent;
+use Totoglu\Console\Boost\Install\Agents\Antigravity;
+use Totoglu\Console\Boost\Install\Agents\ClaudeCode;
+use Totoglu\Console\Boost\Install\Agents\Codex;
+use Totoglu\Console\Boost\Install\Agents\Copilot;
+use Totoglu\Console\Boost\Install\Agents\Cursor;
+use Totoglu\Console\Boost\Install\Agents\Factory;
+use Totoglu\Console\Boost\Install\Agents\Gemini;
+use Totoglu\Console\Boost\Install\Agents\GrokBuild;
+use Totoglu\Console\Boost\Install\Agents\Junie;
+use Totoglu\Console\Boost\Install\Agents\Kiro;
+use Totoglu\Console\Boost\Install\Agents\OpenCode;
+use Totoglu\Console\Boost\Install\Agents\Pi;
+use Totoglu\Console\Boost\Install\Agents\Trae;
+use Totoglu\Console\Boost\Install\Agents\Zed;
+use Totoglu\Console\Boost\Install\GuidelineWriter;
+use Totoglu\Console\Boost\Install\McpWriter;
+use Totoglu\Console\Boost\Install\SkillWriter;
 use Totoglu\Console\Boost\Schema\FieldSchemaExtender;
 use Totoglu\Console\Boost\Schema\FieldSchemaExtenderDiscovery;
 
@@ -13,10 +33,14 @@ final class BoostManager
 {
     private string $targetDir;
 
+    /** @var array<string, class-string<Agent>> */
+    private array $agents = [];
+
     public function __construct(
         private readonly string $projectRoot
     ) {
         $this->targetDir = $this->projectRoot . '/.agents';
+        $this->registerBuiltInAgents();
     }
 
     /**
@@ -75,6 +99,81 @@ final class BoostManager
     }
 
     /**
+     * @param class-string<Agent> $className
+     */
+    public function registerAgent(string $key, string $className): void
+    {
+        if (array_key_exists($key, $this->agents)) {
+            throw new \InvalidArgumentException("Agent '{$key}' is already registered.");
+        }
+
+        $this->agents[$key] = $className;
+    }
+
+    /**
+     * @return array<string, class-string<Agent>>
+     */
+    public function getAgents(): array
+    {
+        $agents = $this->agents;
+        ksort($agents);
+
+        return $agents;
+    }
+
+    /**
+     * @return array<string, Agent>
+     */
+    public function instantiateAgents(): array
+    {
+        $instances = [];
+
+        foreach ($this->getAgents() as $key => $className) {
+            $instances[$key] = new $className();
+        }
+
+        return $instances;
+    }
+
+    /**
+     * @param list<string> $features
+     * @return array<string, Agent>
+     */
+    public function agentOptions(array $features = []): array
+    {
+        $options = [];
+
+        foreach ($this->instantiateAgents() as $agent) {
+            if (!$this->supportsSelectedFeatures($agent, $features)) {
+                continue;
+            }
+
+            $options[$agent->name()] = $agent;
+        }
+
+        ksort($options);
+
+        return $options;
+    }
+
+    /**
+     * @param list<string> $agentNames
+     * @return list<Agent>
+     */
+    public function resolveConfiguredAgents(array $agentNames): array
+    {
+        $resolved = [];
+
+        foreach ($this->instantiateAgents() as $agent) {
+            if (in_array($agent->name(), $agentNames, true) || in_array($agent->displayName(), $agentNames, true)) {
+                $resolved[] = $agent;
+            }
+        }
+
+        return $resolved;
+    }
+
+    /**
      * Resolve resource directory for a module — standard path: {module}/.agents/{type}
      */
     private function resolveResourceDir(string $modulePath, string $resourceType): ?string
@@ -87,9 +186,9 @@ final class BoostManager
     /**
      * Perform the installation based on choices
      * 
-     * @param string[] $features Selected features (Guidelines, Skills, MCP)
-     * @param string[] $modules Selected modules to aggregate from
-     * @param Agent[] $agents Selected agent instances
+     * @param list<string> $features
+     * @param list<string> $modules
+     * @param list<Agent> $agents
      */
     public function install(array $features, array $modules, array $agents): void
     {
@@ -100,21 +199,26 @@ final class BoostManager
         // 1. Mandatory Map generation
         $this->generateMap($this->targetDir . '/map.json');
 
-        // 2. Clear current context (only clear what will be repopulated)
-        if (in_array('AI Guidelines', $features)) {
-            // Guidelines are now compiled directly into AGENTS.md. Remove legacy directory.
-            if (is_dir($this->targetDir . '/guidelines')) {
-                $this->delTree($this->targetDir . '/guidelines');
+        if (in_array('guidelines', $features, true)) {
+            $guidelineAgents = array_values(array_filter($agents, static fn (Agent $agent): bool => $agent instanceof SupportsGuidelines));
+            (new GuidelineWriter($this->projectRoot, $this->targetDir, $this->getDiscoverableModules()))
+                ->write($guidelineAgents, $modules);
+        }
+
+        if (in_array('skills', $features, true)) {
+            (new SkillWriter($this->targetDir, $this->getDiscoverableModules()))
+                ->sync($modules);
+        }
+
+        if (in_array('mcp', $features, true)) {
+            foreach ($agents as $agent) {
+                if (!$agent instanceof SupportsMcp) {
+                    continue;
+                }
+
+                (new McpWriter($agent, $this->projectRoot))->write();
             }
         }
-
-        // 3. Sync Boost-managed skills without touching unknown user skills.
-        if (in_array('Agent Skills', $features)) {
-            $this->syncSkills($modules);
-        }
-
-        // 4. Generate Agent specific files
-        $this->generateAgentFiles($agents, $features, $modules);
     }
 
     private function generateMap(string $path): void
@@ -283,338 +387,27 @@ final class BoostManager
     }
 
     /**
-     * Sync only skill directories that exist in Boost-owned source locations.
-     *
-     * Existing unknown skill directories in .agents/skills are intentionally left untouched.
-     * If a target directory name also exists in the desired Boost source map, Boost treats it
-     * as managed and overwrites it from source.
-     *
-     * @param string[] $modules Selected module names whose Boost skills should be synced
+     * @param list<Agent>|null $agents
      */
-    private function syncSkills(array $modules): void
-    {
-        $target = $this->targetDir . '/skills';
-        if (!is_dir($target)) {
-            mkdir($target, 0755, true);
-        }
-
-        foreach ($this->collectDesiredSkillSources($modules) as $skillName => $sourcePath) {
-            $targetPath = $target . '/' . $skillName;
-            if (is_dir($targetPath)) {
-                $this->delTree($targetPath);
-            } elseif (is_file($targetPath)) {
-                unlink($targetPath);
-            }
-
-            $this->copyDirectory($sourcePath, $targetPath);
-        }
-    }
-
-    /**
-     * @param string[] $modules Selected module names whose Boost skills should be included
-     * @return array<string, string> Skill directory name mapped to source path
-     */
-    private function collectDesiredSkillSources(array $modules): array
-    {
-        $sources = $this->collectSkillSourcesFromDirectory(__DIR__ . '/../resources/boost/skills');
-        $availableModules = $this->getDiscoverableModules();
-
-        foreach ($modules as $moduleName) {
-            if (!isset($availableModules[$moduleName])) {
-                continue;
-            }
-
-            $skillsPath = $availableModules[$moduleName]['skills_path'] ?? null;
-            if (!is_string($skillsPath)) {
-                continue;
-            }
-
-            $sources = array_merge($sources, $this->collectSkillSourcesFromDirectory($skillsPath));
-        }
-
-        return $sources;
-    }
-
-    /**
-     * @return array<string, string> Skill directory name mapped to source path
-     */
-    private function collectSkillSourcesFromDirectory(string $sourceDir): array
-    {
-        if (!is_dir($sourceDir)) {
-            return [];
-        }
-
-        $sources = [];
-        foreach (new \DirectoryIterator($sourceDir) as $file) {
-            if ($file->isDot() || !$file->isDir()) {
-                continue;
-            }
-
-            $skillPath = $file->getPathname();
-            if (!is_file($skillPath . '/SKILL.md')) {
-                continue;
-            }
-
-            $sources[$file->getFilename()] = $skillPath;
-        }
-
-        return $sources;
-    }
-
-    /**
-     * @param Agent[] $agents
-     */
-    private function generateAgentFiles(array $agents, array $features, array $modules): void
-    {
-        $instructionParts = [];
-
-        $foundation = $this->renderFoundationRule();
-        if ($foundation) {
-            $instructionParts[] = "=== foundation rules ===\n\n" . $foundation;
-        }
-
-        // Dynamically load all core guidelines
-        $guidelinesDirectories = [
-            __DIR__ . '/../resources/boost/guidelines'
-        ];
-
-        $processedFiles = ['foundation.md']; // foundation is already processed above
-
-        foreach ($guidelinesDirectories as $gDir) {
-            if (is_dir($gDir)) {
-                $files = scandir($gDir);
-                foreach ($files as $file) {
-                    if ($file === '.' || $file === '..' || in_array($file, $processedFiles)) continue;
-                    if (strtolower(pathinfo($file, PATHINFO_EXTENSION)) !== 'md') continue;
-
-                    $filePath = $gDir . '/' . $file;
-                    if (is_file($filePath)) {
-                        $ruleName = str_replace(['-', '_'], ' ', pathinfo($file, PATHINFO_FILENAME));
-                        $instructionParts[] = "=== {$ruleName} rules ===\n\n" . file_get_contents($filePath);
-                        $processedFiles[] = $file;
-                    }
-                }
-            }
-        }
-
-        // Aggregate module specific instructions
-        if (!empty($modules)) {
-            $availableModules = $this->getDiscoverableModules();
-            $moduleDirectories = [];
-
-            foreach ($modules as $mName) {
-                if (!isset($availableModules[$mName])) continue;
-
-                $moduleInfo = $availableModules[$mName];
-                $mContent = "";
-
-                // Read from .agents/guidelines/ directory
-                if ($moduleInfo['guidelines_path'] && is_dir($moduleInfo['guidelines_path'])) {
-                    foreach (scandir($moduleInfo['guidelines_path']) as $f) {
-                        if ($f === '.' || $f === '..') continue;
-                        if (strtolower(pathinfo($f, PATHINFO_EXTENSION)) !== 'md') continue;
-                        $mContent .= file_get_contents($moduleInfo['guidelines_path'] . '/' . $f) . "\n\n";
-                    }
-                }
-
-                // If guidlines exist, they are appended in full as before
-                if ($mContent) {
-                    $instructionParts[] = "=== module rule: {$mName} ===\n\n" . trim($mContent);
-                }
-
-                // Fallback / Main Agent configuration: read AGENTS.md at module root and INDEX it
-                $agentsTxtPath = $moduleInfo['path'] . '/AGENTS.md';
-                if (is_file($agentsTxtPath)) {
-                    $agentContent = file_get_contents($agentsTxtPath);
-                    $description = "Context and guidelines for {$mName}.";
-                    
-                    if (preg_match('/^---\s*\ndescription:\s*(.*?)\n---/s', $agentContent, $matches)) {
-                        $description = trim($matches[1]);
-                    } elseif (preg_match('/description:\s*(.*)/', $agentContent, $matches)) {
-                        $description = trim($matches[1]);
-                    }
-
-                    $relPath = str_replace($this->projectRoot . '/', '', $agentsTxtPath);
-                    $moduleDirectories[] = "- **{$mName}**: {$description}\n  > Please use `view_file` on `{$relPath}` to read the full context when working on this module.";
-                }
-            }
-
-            if (!empty($moduleDirectories)) {
-                $dirText = "=== Module Context Index ===\n\nThe following modules provide extensive architectural guidelines. **DO NOT GUESS** their API. Use the `view_file` tool to read the corresponding path when your task explicitly involves them:\n\n" . implode("\n\n", $moduleDirectories);
-                $instructionParts[] = $dirText;
-            }
-        }
-
-        $fullInstructions = implode("\n\n", $instructionParts);
-        $boostBlock = "<processwire-boost-guidelines>\n\n{$fullInstructions}\n\n</processwire-boost-guidelines>";
-
-        // Generate unified AGENTS.md (always created as universal fallback)
-        $agentsPath = $this->projectRoot . '/AGENTS.md';
-        $this->writeBoostBlock($agentsPath, $boostBlock, "# Universal AI Agent Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n");
-
-        // Track which guidelines files have been written to avoid duplicates
-        $writtenGuidelines = ['AGENTS.md'];
-
-        // Generate agent-specific guidelines and deploy skills
-        foreach ($agents as $agent) {
-            $guidelinesFile = $agent->guidelinesPath();
-
-            // Write stub guidelines that point to AGENTS.md
-            if (!in_array($guidelinesFile, $writtenGuidelines, true)) {
-                $guidelinesFullPath = $this->projectRoot . '/' . $guidelinesFile;
-                $stub = "# {$agent->displayName()} Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n";
-                $stub .= "> [!IMPORTANT]\n";
-                $stub .= "> Please strictly follow and read the primary `AGENTS.md` file located in the root directory for all system instructions, architecture rules, and processwire-boost guidelines.\n";
-                
-                file_put_contents($guidelinesFullPath, $stub);
-                $writtenGuidelines[] = $guidelinesFile;
-            }
-
-            // Deploy skills to agent-specific directory
-            // Disabled in ProcessWire Boost 1.x: We now rely exclusively on the central .agents/skills directory.
-            // Redundant skill copies to agent-specific folders (e.g. .claude/skills) are no longer generated.
-        }
-    }
-
-
-    /**
-     * Write boost guidelines into a file using a merge strategy.
-     * 
-     * - If file exists and contains <processwire-boost-guidelines> tags:
-     *   only replace content between tags, preserving everything else.
-     * - If file exists but has no tags: append tags after last line.
-     * - If file does not exist: create with default header + tags.
-     */
-    private function writeBoostBlock(string $filePath, string $boostBlock, string $defaultHeader): void
-    {
-        if (file_exists($filePath)) {
-            $existing = file_get_contents($filePath);
-
-            if (str_contains($existing, '<processwire-boost-guidelines>') && str_contains($existing, '</processwire-boost-guidelines>')) {
-                // Replace only the boost block, preserve everything else
-                $pattern = '/<processwire-boost-guidelines>.*?<\/processwire-boost-guidelines>/s';
-                $updated = preg_replace($pattern, $boostBlock, $existing, 1);
-                file_put_contents($filePath, $updated);
-            } else {
-                // File exists but no boost tags — append after last line
-                $existing = rtrim($existing) . "\n\n" . $boostBlock . "\n";
-                file_put_contents($filePath, $existing);
-            }
-        } else {
-            // File does not exist — create from scratch
-            $content = $defaultHeader . $boostBlock . "\n";
-            file_put_contents($filePath, $content);
-        }
-    }
-
-
-    private function renderFoundationRule(): ?string
-    {
-        $candidates = [
-            __DIR__ . '/../resources/boost/guidelines/foundation.md',
-        ];
-
-        $templatePath = null;
-        foreach ($candidates as $candidate) {
-            if (file_exists($candidate)) {
-                $templatePath = $candidate;
-                break;
-            }
-        }
-
-        if ($templatePath === null) {
-            return null;
-        }
-
-        $content = file_get_contents($templatePath);
-
-        // Dynamic substitutions
-        $replacements = [
-            '{{ PHP_VERSION }}' => PHP_VERSION,
-            '{{ PW_VERSION }}' => \ProcessWire\wire('config')->version,
-        ];
-
-        // Roster generation
-        $roster = "- php - " . PHP_VERSION . "\n";
-        $roster .= "- processwire/core - v" . \ProcessWire\wire('config')->version . "\n\n";
-        $roster .= "> [!TIP]\n";
-        $roster .= "> This system contains many other installed modules. You MUST use the `pw_module_list` MCP tool to discover installed ProcessWire modules before assuming existence of dependencies.\n";
-
-        $replacements['{{ ROSTER }}'] = $roster;
-
-        // Skills Menu
-        $skillsMenu = "";
-        $skillsDir = $this->targetDir . '/skills';
-        if (is_dir($skillsDir)) {
-            foreach (new \DirectoryIterator($skillsDir) as $file) {
-                if ($file->isDot() || !$file->isDir()) continue;
-                $skillFile = $file->getPathname() . '/SKILL.md';
-                if (file_exists($skillFile)) {
-                    $skillContent = file_get_contents($skillFile);
-                    // Simple regex to grab description from frontmatter or first paragraph
-                    if (preg_match('/description:\s*(.*)/', $skillContent, $matches)) {
-                        $skillsMenu .= "- `{$file->getFilename()}` — {$matches[1]}\n";
-                    }
-                }
-            }
-        }
-        $replacements['{{ SKILLS_MENU }}'] = $skillsMenu;
-
-        $content = str_replace(array_keys($replacements), array_values($replacements), $content);
-
-        return $content;
-    }
-
-    private function copyDirectory(string $source, string $target): void
-    {
-        if (!is_dir($target)) {
-            mkdir($target, 0755, true);
-        }
-
-        $files = scandir($source);
-        foreach ($files as $file) {
-            if ($file === '.' || $file === '..') continue;
-
-            $srcFile = $source . '/' . $file;
-            $dstFile = $target . '/' . $file;
-
-            if (is_dir($srcFile)) {
-                $this->copyDirectory($srcFile, $dstFile);
-            } else {
-                copy($srcFile, $dstFile);
-            }
-        }
-    }
-
-    private function delTree(string $dir): bool
-    {
-        $files = array_diff(scandir($dir), ['.', '..']);
-        foreach ($files as $file) {
-            $path = "{$dir}/{$file}";
-            is_dir($path) ? $this->delTree($path) : unlink($path);
-        }
-        return rmdir($dir);
-    }
-
-    public function uninstallFeature(string $feature): void
+    public function uninstallFeature(string $feature, ?array $agents = null): void
     {
         if (!is_dir($this->targetDir)) {
             return;
         }
 
         switch ($feature) {
-            case 'AI Guidelines':
-                if (is_dir($this->targetDir . '/guidelines')) {
-                    $this->delTree($this->targetDir . '/guidelines');
-                }
+            case 'guidelines':
+                $guidelineAgents = array_values(array_filter(
+                    $agents ?? array_values($this->instantiateAgents()),
+                    static fn (Agent $agent): bool => $agent instanceof SupportsGuidelines
+                ));
+
+                (new GuidelineWriter($this->projectRoot, $this->targetDir, $this->getDiscoverableModules()))
+                    ->remove($guidelineAgents);
                 break;
-            case 'Agent Skills':
-                foreach (array_keys($this->collectDesiredSkillSources([])) as $skillName) {
-                    $skillPath = $this->targetDir . '/skills/' . $skillName;
-                    if (is_dir($skillPath)) {
-                        $this->delTree($skillPath);
-                    }
-                }
+            case 'skills':
+                (new SkillWriter($this->targetDir, $this->getDiscoverableModules()))
+                    ->removeCoreSkills();
                 break;
         }
     }
@@ -622,5 +415,50 @@ final class BoostManager
     public function sync(array $features, array $modules, array $agents): void
     {
         $this->install($features, $modules, $agents);
+    }
+
+    private function registerBuiltInAgents(): void
+    {
+        $this->agents = [
+            'amp' => Amp::class,
+            'antigravity' => Antigravity::class,
+            'claude_code' => ClaudeCode::class,
+            'codex' => Codex::class,
+            'copilot' => Copilot::class,
+            'cursor' => Cursor::class,
+            'factory' => Factory::class,
+            'gemini' => Gemini::class,
+            'grok_build' => GrokBuild::class,
+            'junie' => Junie::class,
+            'kiro' => Kiro::class,
+            'opencode' => OpenCode::class,
+            'pi' => Pi::class,
+            'trae' => Trae::class,
+            'zed' => Zed::class,
+        ];
+    }
+
+    /**
+     * @param list<string> $features
+     */
+    private function supportsSelectedFeatures(Agent $agent, array $features): bool
+    {
+        if ($features === []) {
+            return true;
+        }
+
+        $contracts = [
+            'guidelines' => SupportsGuidelines::class,
+            'skills' => \Totoglu\Console\Boost\Contracts\SupportsSkills::class,
+            'mcp' => SupportsMcp::class,
+        ];
+
+        foreach ($features as $feature) {
+            if (isset($contracts[$feature]) && $agent instanceof $contracts[$feature]) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
