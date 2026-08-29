@@ -114,29 +114,28 @@ php vendor/bin/wire boost:install \
 
 ```
 project-root/
-├── AGENTS.md                    # Universal guidelines (Cursor, Codex, Amp, etc.)
+├── AGENTS.md                    # Universal guidelines block for AGENTS-based agents
 ├── CLAUDE.md                    # Claude Code specific guidelines
 ├── GEMINI.md                    # Gemini CLI specific guidelines
+├── .cursorrules                 # Cursor specific guideline stub
+├── .github/
+│   └── copilot-instructions.md  # GitHub Copilot specific guideline stub
 ├── .mcp.json                    # Claude Code MCP config
 ├── .cursor/
-│   ├── mcp.json                 # Cursor MCP config
-│   └── skills/                  # Cursor skill playbooks
-│       ├── pw-pages/SKILL.md
-│       ├── pw-module-development/SKILL.md
-│       └── ...
-├── .claude/skills/              # Claude Code skill playbooks
+│   └── mcp.json                 # Cursor MCP config
 ├── .junie/
-│   ├── mcp/mcp.json             # Junie MCP config (absolute paths)
-│   └── skills/
+│   └── mcp/mcp.json             # Junie MCP config (absolute paths)
 ├── .trae/
-│   ├── mcp.json                 # Trae MCP config (${workspaceFolder} paths)
-│   └── rules/                   # Trae skill playbooks (YAML frontmatter)
-├── .vscode/mcp.json             # GitHub Copilot MCP config
-├── .github/skills/              # GitHub Copilot skill playbooks
+│   └── mcp.json                 # Trae MCP config (${workspaceFolder} paths)
+├── .vscode/
+│   └── mcp.json                 # GitHub Copilot MCP config
 └── .agents/
     ├── boost.json               # Installation state
-    ├── map.json                  # Schema snapshot (templates, fields, roles)
-    └── skills/                  # Central skill staging area
+    ├── map.json                 # Schema snapshot (templates, fields, roles)
+    └── skills/                  # Canonical skill staging area
+        ├── pw-pages/SKILL.md
+        ├── pw-module-development/SKILL.md
+        └── ...
 ```
 
 ### 3. Verify
@@ -145,8 +144,8 @@ project-root/
 # Check installation state
 cat .agents/boost.json
 
-# Verify skills were deployed
-ls .cursor/skills/
+# Verify central skill sync
+ls .agents/skills/
 
 # Test MCP server
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | php vendor/bin/wire boost:mcp
@@ -245,13 +244,13 @@ When an agent encounters a task like "create a migration to add a blog template"
 
 Without this skill, the agent would guess at the API and likely produce unsafe or incorrect migration code.
 
-#### Agent-Specific Formats
+#### Skill Sync Model
 
-| Agent          | Skill Format                                                                   |
-| -------------- | ------------------------------------------------------------------------------ |
-| **OpenCode**   | YAML frontmatter (`name`, `description`, `license`, `compatibility`) prepended |
-| **Trae**       | YAML frontmatter wrapping, deployed to `.trae/rules/`                          |
-| **All others** | Plain Markdown `SKILL.md` in `{skillName}/SKILL.md` structure                  |
+ProcessWire Boost 0.1.x keeps skills canonical in `.agents/skills/{skillName}/SKILL.md`.
+
+- Agent-specific skill copies are not generated during install/update.
+- `exportSkill()` overrides remain available for future agent-specific export flows.
+- This keeps updates deterministic and avoids redundant skill trees across IDE folders.
 
 ---
 
@@ -327,7 +326,7 @@ This is the most powerful context layer — it enables agents to inspect live da
 
 Boost auto-generates MCP configuration in each agent's native format during `boost:install`:
 
-**JSON — Standard Context (Claude Code, Cursor, Copilot, Amp, Junie):**
+**JSON — Standard Context (Claude Code, Cursor, Copilot, Amp, Junie, Kiro):**
 
 ```json
 {
@@ -335,10 +334,6 @@ Boost auto-generates MCP configuration in each agent's native format during `boo
     "processwire": {
       "command": "php",
       "args": ["vendor/bin/wire", "boost:mcp"],
-      "env": {
-        "PW_MCP_ALLOW_EXECUTE": "1",
-        "PW_MCP_ALLOW_RESTORE": "1"
-      },
       "cwd": "/absolute/path/to/project"
     }
   }
@@ -353,10 +348,6 @@ Boost auto-generates MCP configuration in each agent's native format during `boo
     "processwire": {
       "command": "php",
       "args": ["vendor/bin/wire", "boost:mcp"],
-      "env": {
-        "PW_MCP_ALLOW_EXECUTE": "1",
-        "PW_MCP_ALLOW_RESTORE": "1"
-      },
       "cwd": "${workspaceFolder}"
     }
   }
@@ -370,10 +361,6 @@ Boost auto-generates MCP configuration in each agent's native format during `boo
 command = "php"
 args = ["vendor/bin/wire", "boost:mcp"]
 cwd = "/absolute/path/to/project"
-
-[mcp_servers.processwire.env]
-PW_MCP_ALLOW_EXECUTE = "1"
-PW_MCP_ALLOW_RESTORE = "1"
 ```
 
 **OpenCode** (nested command array):
@@ -386,10 +373,6 @@ PW_MCP_ALLOW_RESTORE = "1"
       "type": "local",
       "enabled": true,
       "command": ["php", "vendor/bin/wire", "boost:mcp"],
-      "env": {
-        "PW_MCP_ALLOW_EXECUTE": "1",
-        "PW_MCP_ALLOW_RESTORE": "1"
-      },
       "cwd": "/absolute/path/to/project"
     }
   }
@@ -412,19 +395,27 @@ Boost uses a polymorphic `Agent` class hierarchy. Each agent declares how it wan
 
 ### Supported Agents
 
-| Agent              | Guidelines  | Skills           | MCP Config              | Path Mode         |
-| ------------------ | ----------- | ---------------- | ----------------------- | ----------------- |
-| **Amp**            | `AGENTS.md` | `.agents/skills` | `.amp/settings.json`    | `Relative`        |
-| **Claude Code**    | `CLAUDE.md` | `.claude/skills` | `.mcp.json`             | `Relative`        |
-| **Codex**          | `AGENTS.md` | `.agents/skills` | `.codex/config.toml`    | `Relative`        |
-| **Cursor**         | `AGENTS.md` | `.cursor/skills` | `.cursor/mcp.json`      | `Relative`        |
-| **Gemini CLI**     | `GEMINI.md` | `.agents/skills` | `.gemini/settings.json` | `Absolute`        |
-| **GitHub Copilot** | `AGENTS.md` | `.github/skills` | `.vscode/mcp.json`      | `Relative`        |
-| **Junie**          | `AGENTS.md` | `.junie/skills`  | `.junie/mcp/mcp.json`   | `Absolute`        |
-| **OpenCode**       | `AGENTS.md` | `.agents/skills` | `opencode.json`         | `Relative`        |
-| **Trae**           | `AGENTS.md` | `.trae/rules`    | `.trae/mcp.json`        | `WorkspaceFolder` |
+| Agent              | Guidelines Path                    | Skills Model         | MCP Config              | Path Mode         |
+| ------------------ | ---------------------------------- | -------------------- | ----------------------- | ----------------- |
+| **Amp**            | `AGENTS.md`                        | `.agents/skills`     | `.amp/settings.json`    | `Relative`        |
+| **Antigravity**    | `AGENTS.md`                        | `.agents/skills`     | `.agents/mcp_config.json` | `Relative`      |
+| **Claude Code**    | `CLAUDE.md`                        | `.agents/skills`     | `.mcp.json`             | `Relative`        |
+| **Codex**          | `AGENTS.md`                        | `.agents/skills`     | `.codex/config.toml`    | `Relative`        |
+| **Cursor**         | `.cursorrules`                     | `.agents/skills`     | `.cursor/mcp.json`      | `Relative`        |
+| **Factory Droid**  | `AGENTS.md`                        | `.agents/skills`     | `.factory/mcp.json`     | `Relative`        |
+| **Gemini CLI**     | `GEMINI.md`                        | `.agents/skills`     | `.gemini/settings.json` | `Absolute`        |
+| **GitHub Copilot** | `.github/copilot-instructions.md`  | `.agents/skills`     | `.vscode/mcp.json`      | `Relative`        |
+| **Grok Build**     | `AGENTS.md`                        | `.agents/skills`     | `.grok/config.toml`     | `Relative`        |
+| **Junie**          | `AGENTS.md`                        | `.agents/skills`     | `.junie/mcp/mcp.json`   | `Absolute`        |
+| **Kiro**           | `AGENTS.md`                        | `.agents/skills`     | `.kiro/settings/mcp.json` | `Relative`      |
+| **OpenCode**       | `AGENTS.md`                        | `.agents/skills`     | `opencode.json`         | `Relative`        |
+| **Pi**             | `AGENTS.md`                        | `.agents/skills`     | `—`                     | `Relative`        |
+| **Trae**           | `AGENTS.md`                        | `.agents/skills`     | `.trae/mcp.json`        | `WorkspaceFolder` |
+| **Zed**            | `AGENTS.md`                        | `.agents/skills`     | `.zed/settings.json`    | `Relative`        |
 
 > **Auto Path Resolution:** Each agent declares its `mcpPathStrategy()` via the `McpPathStrategy` enum. No manual configuration needed — paths are resolved automatically.
+>
+> **Detection & Filtering:** The installer auto-detects existing agent footprints and only offers agents compatible with the selected feature set.
 
 ### Adding a Custom Agent
 
@@ -468,7 +459,7 @@ site/modules/YourModule/
 
 1. Boost scans `site/modules/` and `wire/modules/` for `.agents/` directories
 2. Guidelines from `.agents/guidelines/*.md` are compiled into the agent instruction file
-3. Skills from `.agents/skills/*/SKILL.md` are deployed alongside core skills
+3. Skills from `.agents/skills/*/SKILL.md` are synchronized into the central Boost skill store
 4. Fallback: if no `.agents/guidelines/` exists, `AGENTS.md` in the module root is used
 
 > **Tip:** After installing a new module that provides Boost skills, run `php vendor/bin/wire boost:update` to sync the new guidelines and skills into your workspace.
@@ -518,17 +509,36 @@ wire boost:install --guidelines --skills -a "Cursor,Claude Code" -m "Htmx"
 
 Re-sync ProcessWire Boost guidelines & skills from saved configuration.
 
+- Can discover newly available Boost-aware modules and persist them into `.agents/boost.json`
+- Can skip central skill sync when only guidelines or MCP config need refreshing
+
 **Usage:**
 
 ```bash
-wire boost:update
+wire boost:update [options]
 ```
+
+**Options:**
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--discover` | `false` | In non-interactive runs, auto-add newly discovered modules to saved config |
+| `--no-discover` | `false` | Skip discovery of newly available modules |
+| `--ignore-skills` | `false` | Skip updating `.agents/skills` during the update run |
 
 **Examples:**
 
 ```bash
 # Update resources from .agents/boost.json
 wire boost:update
+
+# Skip skill re-sync
+wire boost:update --ignore-skills
+
+# Update without prompting for newly discovered modules
+wire boost:update --no-discover
+
+# Non-interactive discovery: persist newly discovered modules automatically
+wire boost:update --discover
 ```
 
 ### `boost:mcp`
@@ -569,6 +579,10 @@ wire boost:build:docs
 
 Add skills from a remote GitHub repository.
 
+- Remote repositories must expose skills as `SKILL.md`.
+- A local heuristic audit runs before installation unless `--skip-audit` is passed.
+- Successful installs trigger `boost:update` automatically unless `--skip-update` is passed.
+
 **Usage:**
 
 ```bash
@@ -587,6 +601,8 @@ wire boost:add-skill [options] [repo]
 | `--all` | `-a` | `false` | Install all skills |
 | `--skill` | `-s` | `null` | Specific skills to install (can be used multiple times) |
 | `--force` | `-f` | `false` | Overwrite existing skills |
+| `--skip-audit` |  | `false` | Skip heuristic audit before installing remote skills |
+| `--skip-update` |  | `false` | Skip automatic `boost:update` after installing skills |
 
 **Examples:**
 
@@ -599,6 +615,12 @@ wire boost:add-skill owner/repo --list
 
 # Install specific skills
 wire boost:add-skill owner/repo -s "skill-1" -s "skill-2"
+
+# Install skills without re-syncing Boost resources
+wire boost:add-skill owner/repo --skip-update
+
+# Install skills without heuristic audit
+wire boost:add-skill owner/repo --skip-audit
 ```
 
 ---
@@ -616,7 +638,7 @@ The installer stores its state in `.agents/boost.json`:
   "skills": true,
   "mcp": true,
   "modules": ["Htmx", "FieldtypeAiAssistant"],
-  "agents": ["Cursor", "Claude Code", "Gemini CLI"],
+  "agents": ["cursor", "claude_code", "gemini"],
   "generated_at": "2026-04-08 12:00:00"
 }
 ```
@@ -630,9 +652,8 @@ This file enables incremental updates — rerunning `boost:install` preserves yo
 ### Skills Not Appearing
 
 ```bash
-# Verify deployment
-ls -la .cursor/skills/pw-pages/SKILL.md
-ls -la .claude/skills/pw-pages/SKILL.md
+# Verify central sync
+ls -la .agents/skills/pw-pages/SKILL.md
 
 # Reinstall
 php vendor/bin/wire boost:install --skills --agents="Cursor"
