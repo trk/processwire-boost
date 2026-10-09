@@ -43,7 +43,7 @@ final class Trae extends Agent implements SupportsGuidelines, SupportsMcp, Suppo
 
     public function skillsPath(): string
     {
-        return '.trae/rules';
+        return '.trae/skills';
     }
 
     /**
@@ -60,8 +60,25 @@ final class Trae extends Agent implements SupportsGuidelines, SupportsMcp, Suppo
             mkdir($targetDir, 0755, true);
         }
 
-        $raw = (string) file_get_contents($skillPath);
-        $lines = preg_split('/\R/', $raw);
+        $skillDir = $targetDir . '/' . $skillName;
+        if (!is_dir($skillDir)) {
+            mkdir($skillDir, 0755, true);
+        }
+
+        if (is_dir($skillPath)) {
+            $this->copyDirectory($skillPath, $skillDir);
+        }
+
+        $skillMdPath = is_file($skillPath . '/SKILL.md') ? $skillPath . '/SKILL.md' : $skillPath;
+        $raw = is_file($skillMdPath) ? (string) file_get_contents($skillMdPath) : '';
+        $targetPath = $skillDir . '/SKILL.md';
+
+        if (str_starts_with(trim($raw), '---')) {
+            file_put_contents($targetPath, $raw);
+            return $targetPath;
+        }
+
+        $lines = preg_split('/\R/', $raw) ?: [];
         $title = '';
         $desc = '';
         foreach ($lines as $i => $line) {
@@ -73,12 +90,6 @@ final class Trae extends Agent implements SupportsGuidelines, SupportsMcp, Suppo
             }
         }
 
-        $skillDir = $targetDir . '/' . $skillName;
-        if (!is_dir($skillDir)) {
-            mkdir($skillDir, 0755, true);
-        }
-
-        $targetPath = $skillDir . '/SKILL.md';
         $frontmatter = "---\nname: \"{$skillName}\"\ndescription: \"" . addcslashes($desc !== '' ? $desc : $title, '"') . "\"\n---\n\n";
         $body = $raw;
         if (!str_starts_with(ltrim($body), '#')) {

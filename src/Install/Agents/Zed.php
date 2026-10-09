@@ -44,4 +44,9 @@ final class Zed extends Agent implements SupportsGuidelines, SupportsMcp, Suppor
     {
         return ['.zed', '.zed/settings.json'];
     }
+
+    public function skillsPath(): string
+    {
+        return '.zed/skills';
+    }
 }

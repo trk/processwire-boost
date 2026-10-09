@@ -9,6 +9,9 @@ date_added: "2026-04-08"
 # ProcessWire Custom Page Classes Skill Playbook
 
 **CRITICAL RULE:** Custom Page classes must reside in `/site/classes/` and always declare `namespace ProcessWire;`.
+Consult the core Page documentation before extending:
+- Core CLI: `php index.php docs get-text Page` and `php index.php docs methods-text Page`
+- Core Markdown: `wire/core/Page/API.md` and `wire/core/Pages/API.md`
 
 By default, every page in ProcessWire is an instance of the `Page` class. Custom page classes allow you to extend the base `Page` class into specialized, strongly-typed classes based on the page's template (e.g., a `blog-post` template uses `BlogPostPage`).
 

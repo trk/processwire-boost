@@ -1,28 +1,34 @@
 ---
 name: pw-module-filevalidator
-description: "Use when deploying discrete file validation architectures inside ProcessWire assessing security and normalization workflows via FileValidator."
+description: "Use when creating, structuring, or debugging FileValidator modules in ProcessWire for upload and asset validation."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
 ---
 
-# Asset & Upload Validation Processing (wire-module-filevalidator)
+# ProcessWire FileValidator Module Architecture
 
-ProcessWire 3.x explicitly enables security filtering extending entirely separate validation architectures bound to file upload protocols called **FileValidators**. When any admin or form uploads an asset into `InputfieldFile` / `InputfieldImage` classes, a series of linked validation classes sequentially processes the raw files rejecting improper MIME types, checking dimensional scales, validating extension properties, and forcefully mitigating payload injection vulnerabilities directly at the source.
+ProcessWire natively discovers modules whose class name begins with `FileValidator` that extend `ProcessWire\FileValidatorModule`. The core automatically invokes them when files are uploaded to `InputfieldFile` / `InputfieldImage` or validated programmatically via `$sanitizer->validateFile($filename)`.
 
-## Pre-Computation / Anti-Rationalization Check
+## Documentation Reference (Source of Truth)
 
-Audit the configuration variables verifying system validation logic mapping structurally against these constraints:
+Before writing or modifying any FileValidator module, inspect the core API:
+- **Core CLI:** `php index.php docs get-text FileValidatorModule`
+- **Core Markdown:** `wire/core/Module/FileValidatorModule/API.md`
+- **Core Base Class:** `wire/core/FileValidatorModule.php`
+- **Core Examples:** `wire/modules/FileValidator/FileValidatorImage.php`, `wire/modules/FileValidator/FileValidatorZip.php`
 
-- **Isolate Logic Focus:** A FileValidator should not concern itself mapping where the file lands eventually nor mapping URL access patterns; it strictly exists to perform structural file checking logic upon `public function isValid()`.
-- **Destructive Evaluation:** Is your validator capable of modifying the file safely inside the system pipeline? Some validators sanitize directly on-the-fly (SVG sanitizers stripping script tags mapping logic dynamically).
-- **Exceptions Mapping:** When an upload violates a critical security condition, do you throw explicit internal `WireException` classes securely informing the admin layer of specific failure points efficiently?
+## Architecture Requirements
 
-## Execution Phases
+1. **Naming:** Class name must begin with `FileValidator` (e.g. `FileValidatorCSV`, `FileValidatorPDF`).
+2. **Inheritance:** Class must extend `ProcessWire\FileValidatorModule`.
+3. **Module Info:** Must define the `validates` array containing lowercase file extensions (e.g. `['csv']`, `['pdf']`, or `'/.*/'` for all extensions).
+4. **Primary Method:** Must implement `isValidFile(string $filename): bool`.
+   - Return `true` if the file passes validation.
+   - Return `false` if the file fails validation.
+   - Record user-facing failure reasons with `$this->error($this->_('Your message'))`.
 
-### Phase 1: Structuring Independent Security Filters
-
-A core validator maps immediately into the functional layer intercepting the process payload via the native `FileValidator` structure (often extending standard `WireData` mapping Module requirements explicitly).
+## Implementation Pattern (PHP 8.4+)
 
 ```php
 <?php
@@ -32,110 +38,105 @@ declare(strict_types=1);
 namespace ProcessWire;
 
 /**
- * File Validator protecting internal resources mapping explicit CSV properties structurally against specific syntax integrity failures.
+ * FileValidatorCSV validates uploaded CSV files for formula injection risks.
  */
-class FileValidatorCSV extends WireData implements Module
+class FileValidatorCSV extends FileValidatorModule
 {
-    public static function getModuleInfo(): array
-    {
-        return [
-            'title' => 'FileValidator: CSV Security Scanner',
-            'version' => 101,
-            'summary' => 'Scans CSV files during upload executing validations guarding against potential embedded payload commands blocking explicitly malicious executions natively.',
-            'requires' => [
-                'ProcessWire>=3.0.0',
-                'PHP>=8.4.0'
-            ]
-        ];
-    }
+	public static function getModuleInfo(): array
+	{
+		return [
+			'title' => 'FileValidator: CSV Security Scanner',
+			'version' => 100,
+			'summary' => 'Scans uploaded CSV files for formula injection characters.',
+			'validates' => ['csv'],
+			'singular' => false,
+			'autoload' => false,
+			'requires' => [
+				'ProcessWire>=3.0.0',
+				'PHP>=8.4.0',
+			],
+		];
+	}
 
-    /**
-     * Automated Hook Deployment intercepting universally configuring active upload parameters logically.
-     */
-    public function init(): void
-    {
-        $this->addHookAfter('InputfieldFile::fileAdded', $this, 'hookValidateCSV');
-    }
+	/**
+	 * Validate a file on disk.
+	 *
+	 * @param string $filename Full path to the file on disk
+	 * @return bool True if valid, false if invalid
+	 */
+	protected function isValidFile($filename): bool
+	{
+		if (!is_file($filename) || !is_readable($filename)) {
+			$this->error($this->_('File not found or not readable.'));
+			return false;
+		}
 
-    /**
-     * Processes execution assessing physical file states blocking vulnerabilities successfully.
-     *
-     * @param HookEvent $event Resolving active event dispatch arrays.
-     */
-    protected function hookValidateCSV(HookEvent $event): void
-    {
-        $pagefile = $event->arguments(0);
+		$handle = fopen($filename, 'rb');
+		if (!$handle) {
+			$this->error($this->_('Unable to open file for validation.'));
+			return false;
+		}
 
-        // Escape immediately ignoring configurations unrelated to target extensions
-        if (strtolower($pagefile->ext()) !== 'csv') {
-            return;
-        }
+		// Check first lines for spreadsheet formula injection vectors
+		$lineCount = 0;
+		while (($line = fgets($handle, 4096)) !== false && $lineCount < 50) {
+			$trimmed = ltrim($line);
+			if ($trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true)) {
+				fclose($handle);
+				$this->error($this->_('CSV contains disallowed formula prefix characters at beginning of row.'));
+				return false;
+			}
+			$lineCount++;
+		}
+		fclose($handle);
 
-        $filename = $pagefile->filename();
-
-        // Execute operational file checks independently generating validations
-        if (!$this->isValid($filename)) {
-            // Unlink explicitly deleting compromised items ensuring zero persistence inherently
-            @unlink($filename);
-
-            // Abort upload processes mapping explicit failures natively
-            $event->replace = true;
-            $event->return = false;
-
-            // Log issues mapping specific vulnerabilities targeting isolated investigations
-            $this->wire()->log->error("Blocked compromised CSV payload upload operation targeting file: " . $pagefile->name());
-
-            throw new WireException($this->_('Upload Rejected: The CSV file violates specific internal macro constraints. Payload operation aborted safely.'));
-        }
-    }
-
-    /**
-     * Executes discrete specific macro validation matrices mapping functional checks automatically.
-     *
-     * @param string $filename Native temporary path mapping active upload evaluation context securely.
-     * @return bool
-     */
-    public function isValid(string $filename): bool
-    {
-        if (!file_exists($filename)) {
-            return false;
-        }
-
-        $content = file_get_contents($filename);
-
-        // Inspecting commonly abused spreadsheet formula vectors preventing code executions natively
-        if (preg_match('/^[\=\+\-\@]/m', $content)) {
-            return false;
-        }
-
-        return true;
-    }
+		return true;
+	}
 }
 ```
 
-### Phase 2: Interacting natively with Core Components
+## Context Awareness (Page, Field, Pagefile)
 
-Certain explicit capabilities provided internally by ProcessWire bypass basic Hooks explicitly configuring direct assignments dynamically resolving module evaluations against distinct UI frameworks securely evaluating explicit configurations natively relying internally upon explicitly provided array validations directly.
+When ProcessWire validates a file belonging to a page field context, it automatically sets context properties accessible through public getters:
+- `$page = $this->getPage();` (Page or NullPage)
+- `$field = $this->getField();` (Field or null)
+- `$pagefile = $this->getPagefile();` (Pagefile, Pageimage, or null)
 
-Modifying behaviors exclusively inside defined modules limits broad global scope interruptions dynamically configuring specific elements safely. Avoid attaching universally triggering Hooks against `InputfieldFile` indiscriminately unless specifically demanded; apply evaluations isolated actively depending upon distinct requirements directly mapping localized executions securely.
+Use these getters when validation rules depend on the page template or field settings:
 
-## Essential Tools & Ecosystem
+```php
+protected function isValidFile($filename): bool
+{
+	$field = $this->getField();
+	if ($field && $field->name === 'secure_reports') {
+		// Field-specific validation logic
+	}
+	return true;
+}
+```
 
-- Active processing parsing `$pagefile->filename()` elements definitively testing against localized disk persistence environments.
-- Deployment parameters manipulating explicitly handled `WireException` mapping exact errors resolving clearly onto localized active form notifications natively.
+## Programmatic Invocation
 
-## Copy-Paste Prompts
+```php
+// Validate via Sanitizer (invokes all matching FileValidators automatically)
+$isValid = $sanitizer->validateFile('/path/to/upload.csv');
+if (!$isValid) {
+	foreach ($sanitizer->errors() as $error) {
+		$wire->log->error("Upload error: {$error}");
+	}
+}
 
-(Pass these direct prompts to the agent to initiate workflows instantly)
+// Or run validator directly
+/** @var FileValidatorCSV $validator */
+$validator = $wire->modules->get('FileValidatorCSV');
+if (!$validator->isValid('/path/to/upload.csv')) {
+	$message = $validator->errors('last string');
+}
+```
 
-**[Deploy Operational Sanitizing Logic Scanner]**
+## Anti-Patterns to Avoid
 
-> "Build an encapsulated module designated `FileValidatorPDFAttributes` actively configuring functional `InputfieldFile::fileAdded` processes enforcing hook interceptions securely isolating specific `.pdf` upload events. Instantiate local PHP structures analyzing incoming file headers mapping exact specific explicit mime types functionally validating file execution parameters safely relying strictly isolating explicit deviations naturally blocking events relying uniquely upon `WireException`."
-
-## Context Awareness (ProcessWire API Docs)
-
-**CRITICAL RULE FOR ALL AI AGENTS:**
-When you need to understand, use, or hook into a ProcessWire core class or module, you **MUST NEVER** guess or hallucinate the API methods.
-
-- You **MUST** consult the local AI-optimized Markdown API documentation starting at `.agents/docs/index.md`.
-- Navigate through the index, find the relevant class document (e.g. `.agents/docs/core/Page.md`), and use your file reading tools to read its methods, parameters, and hookable (🪝) events before writing any code.
+- ❌ **Do not** manually hook `InputfieldFile::fileAdded` to validate file types. Extend `FileValidatorModule` instead so ProcessWire core handles execution, error collection, and transaction aborts natively.
+- ❌ **Do not** guess file extensions in code if `validates` array can filter them declaratively in `getModuleInfo()`.
+- ❌ **Do not** unlink the file manually inside `isValidFile()`. ProcessWire's upload handler handles cleanup when validation returns `false`.
+- ❌ **Do not** echo errors directly. Always call `$this->error($this->_('Translated error message'))`.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Totoglu\Console\Boost\Install;
 
 use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
+use function ProcessWire\wire;
 
 final class GuidelineWriter
 {
@@ -15,8 +16,7 @@ final class GuidelineWriter
         private readonly string $projectRoot,
         private readonly string $targetDir,
         private readonly array $discoverableModules
-    ) {
-    }
+    ) {}
 
     /**
      * @param list<SupportsGuidelines> $agents
@@ -59,21 +59,15 @@ final class GuidelineWriter
             }
 
             $guidelinesFullPath = $this->projectRoot . '/' . $guidelinesFile;
-            $directory = dirname($guidelinesFullPath);
-            if (!is_dir($directory)) {
-                mkdir($directory, 0755, true);
-            }
+            $agentBoostBlock = $agent->transformGuidelines($boostBlock);
 
-            $stub = "# {$agent->displayName()} Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n";
-            $stub .= "> [!IMPORTANT]\n";
-            $stub .= "> Please strictly follow and read the primary `AGENTS.md` file located in the root directory for all system instructions, architecture rules, and processwire-boost guidelines.\n";
-
-            $content = $agent->transformGuidelines($stub);
+            $name = method_exists($agent, 'displayName') ? $agent->displayName() : 'AI Agent';
+            $defaultHeader = "# {$name} Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n";
             if ($agent->frontmatter()) {
-                $content = "---\ndescription: {$agent->displayName()} Instructions\n---\n\n" . $content;
+                $defaultHeader = "---\ndescription: {$name} Instructions\n---\n\n" . $defaultHeader;
             }
 
-            file_put_contents($guidelinesFullPath, $content);
+            $this->writeBoostBlock($guidelinesFullPath, $agentBoostBlock, $defaultHeader);
             $writtenGuidelines[] = $guidelinesFile;
         }
     }
@@ -83,31 +77,29 @@ final class GuidelineWriter
      */
     public function remove(array $agents): void
     {
-        $agentsPath = $this->projectRoot . '/AGENTS.md';
-        if (is_file($agentsPath)) {
-            $content = (string) file_get_contents($agentsPath);
-            $updated = preg_replace('/\n*<processwire-boost-guidelines>.*?<\/processwire-boost-guidelines>\n*/s', "\n", $content);
-            $updated = is_string($updated) ? trim($updated) : trim($content);
-
-            if ($updated === '') {
-                unlink($agentsPath);
-            } else {
-                file_put_contents($agentsPath, $updated . "\n");
+        $targets = ['AGENTS.md'];
+        foreach ($agents as $agent) {
+            $path = $agent->guidelinesPath();
+            if (!in_array($path, $targets, true)) {
+                $targets[] = $path;
             }
         }
 
-        $removed = [];
-        foreach ($agents as $agent) {
-            $path = $agent->guidelinesPath();
-            if ($path === 'AGENTS.md' || in_array($path, $removed, true)) {
+        foreach ($targets as $path) {
+            $fullPath = $this->projectRoot . '/' . $path;
+            if (!is_file($fullPath)) {
                 continue;
             }
 
-            $fullPath = $this->projectRoot . '/' . $path;
-            if (is_file($fullPath)) {
+            $content = (string) file_get_contents($fullPath);
+            $updated = preg_replace('/\n*<processwire-boost-guidelines>.*?<\/processwire-boost-guidelines>\n*/s', "\n", $content);
+            $updated = is_string($updated) ? trim($updated) : trim($content);
+
+            if ($updated === '' || preg_match('/^(?:---\s*\ndescription:[^\n]+\n---\s*\n+)?# [^\n]+ Instructions\n\nGenerated for ProcessWire AI Ecosystem\.\s*$/', $updated)) {
                 unlink($fullPath);
+            } else {
+                file_put_contents($fullPath, $updated . "\n");
             }
-            $removed[] = $path;
         }
     }
 
@@ -215,13 +207,27 @@ final class GuidelineWriter
         }
 
         $content = (string) file_get_contents($templatePath);
+
+        $pwVersion = '3.x';
+        if (function_exists('\ProcessWire\wire')) {
+            $config = \ProcessWire\wire('config');
+            if ($config && isset($config->version)) {
+                $pwVersion = (string) $config->version;
+            }
+        } elseif (function_exists('wire')) {
+            $config = wire('config');
+            if ($config && isset($config->version)) {
+                $pwVersion = (string) $config->version;
+            }
+        }
+
         $replacements = [
             '{{ PHP_VERSION }}' => PHP_VERSION,
-            '{{ PW_VERSION }}' => (string) \ProcessWire\wire('config')->version,
+            '{{ PW_VERSION }}' => $pwVersion,
         ];
 
         $roster = "- php - " . PHP_VERSION . "\n";
-        $roster .= "- processwire/core - v" . \ProcessWire\wire('config')->version . "\n\n";
+        $roster .= "- processwire/core - v" . $pwVersion . "\n\n";
         $roster .= "> [!TIP]\n";
         $roster .= "> This system contains many other installed modules. You MUST use the `pw_module_list` MCP tool to discover installed ProcessWire modules before assuming existence of dependencies.\n";
         $replacements['{{ ROSTER }}'] = $roster;
@@ -241,7 +247,8 @@ final class GuidelineWriter
 
                 $skillContent = (string) file_get_contents($skillFile);
                 if (preg_match('/description:\s*(.*)/', $skillContent, $matches)) {
-                    $skillsMenu .= "- `{$file->getFilename()}` — {$matches[1]}\n";
+                    $description = trim(trim($matches[1]), "\"'");
+                    $skillsMenu .= "- `{$file->getFilename()}` — {$description}\n";
                 }
             }
         }

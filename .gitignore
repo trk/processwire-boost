@@ -3,4 +3,6 @@
 .vscode/
 vendor/
 .phpunit.result.cache
+.phpunit.cache/
 coverage/
+composer.lock

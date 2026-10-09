@@ -6,6 +6,8 @@ namespace Totoglu\Console\Boost\Contracts;
 
 interface SupportsGuidelines
 {
+    public function displayName(): string;
+
     public function guidelinesPath(): string;
 
     public function frontmatter(): bool;

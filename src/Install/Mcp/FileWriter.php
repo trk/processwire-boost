@@ -51,70 +51,77 @@ final class FileWriter
         if (!file_exists($this->filePath)) return true;
         return filesize($this->filePath) < 3;
     }
-    private function createNewFile(): bool
-    {
-        $config = $this->baseConfig;
-        if (!isset($config[$this->configKey]) || !is_array($config[$this->configKey])) {
-            $config[$this->configKey] = [];
-        }
-        $this->addServersToConfig($config);
-        return $this->writeJsonConfig($config);
-    }
-    private function addServersToConfig(array &$config): void
-    {
-        $keys = explode('.', $this->configKey);
-        $ref = &$config;
-        foreach ($keys as $i => $k) {
-            if (!isset($ref[$k]) || !is_array($ref[$k])) {
-                $ref[$k] = [];
-            }
-            $ref = &$ref[$k];
-        }
-        foreach ($this->serversToAdd as $key => $serverConfig) {
-            $ref[$key] = $serverConfig;
-        }
-    }
-    /**
-     * @param list<string> $keys
-     */
-    public function removeServerConfigs(array $keys): self
-    {
-        foreach ($keys as $key) {
-            unset($this->serversToAdd[$key]);
-        }
-        $this->serversToRemove = $keys;
-        return $this;
-    }
+	private function createNewFile(): bool
+	{
+		$config = $this->baseConfig;
+		$this->addServersToConfig($config);
+		return $this->writeJsonConfig($config);
+	}
 
-    public function remove(string $key): bool
-    {
-        $this->serversToRemove = [$key];
-        if (!file_exists($this->filePath)) {
-            return true;
-        }
-        $content = @file_get_contents($this->filePath) ?: '';
-        $decoded = json_decode($content, true);
-        if (!is_array($decoded)) {
-            return false;
-        }
-        $this->removeServersFromConfig($decoded);
-        return $this->writeJsonConfig($decoded);
-    }
+	private function addServersToConfig(array &$config): void
+	{
+		if (!isset($config[$this->configKey]) || !is_array($config[$this->configKey])) {
+			$config[$this->configKey] = [];
+		}
 
-    private function removeServersFromConfig(array &$config): void
-    {
-        $keys = explode('.', $this->configKey);
-        $ref = &$config;
-        foreach ($keys as $k) {
-            if (!isset($ref[$k]) || !is_array($ref[$k])) {
-                return;
-            }
-            $ref = &$ref[$k];
-        }
-        foreach ($this->serversToRemove as $key) {
-            unset($ref[$key]);
-        }
-    }
+		foreach ($this->serversToAdd as $key => $serverConfig) {
+			$config[$this->configKey][$key] = $serverConfig;
+		}
+	}
+
+	/**
+	 * @param list<string> $keys
+	 */
+	public function removeServerConfigs(array $keys): self
+	{
+		foreach ($keys as $key) {
+			unset($this->serversToAdd[$key]);
+		}
+		$this->serversToRemove = $keys;
+		return $this;
+	}
+
+	public function remove(string $key): bool
+	{
+		$this->serversToRemove = [$key];
+		if (!file_exists($this->filePath)) {
+			return true;
+		}
+		$content = @file_get_contents($this->filePath) ?: '';
+		$decoded = json_decode($content, true);
+		if (!is_array($decoded)) {
+			return false;
+		}
+		$this->removeServersFromConfig($decoded);
+		return $this->writeJsonConfig($decoded);
+	}
+
+	private function removeServersFromConfig(array &$config): void
+	{
+		if (isset($config[$this->configKey]) && is_array($config[$this->configKey])) {
+			foreach ($this->serversToRemove as $key) {
+				unset($config[$this->configKey][$key]);
+			}
+		}
+
+		if (str_contains($this->configKey, '.')) {
+			$keys = explode('.', $this->configKey);
+			$ref = &$config;
+			$found = true;
+			foreach ($keys as $k) {
+				if (!isset($ref[$k]) || !is_array($ref[$k])) {
+					$found = false;
+					break;
+				}
+				$ref = &$ref[$k];
+			}
+			if ($found) {
+				foreach ($this->serversToRemove as $key) {
+					unset($ref[$key]);
+				}
+			}
+		}
+	}
 
     /** @var list<string> */
     private array $serversToRemove = [];

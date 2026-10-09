@@ -43,10 +43,26 @@ final class Copilot extends Agent implements SupportsGuidelines, SupportsMcp, Su
         return ['.vscode', '.github/copilot-instructions.md'];
     }
 
-    public function mcpConfigKey(): string
-    {
-        return 'servers';
-    }
+	public function mcpConfigKey(): string
+	{
+		return 'servers';
+	}
+
+	public function mcpServerConfig(string $command, array $args = [], array $env = [], string $cwd = ''): array
+	{
+		$payload = [
+			'type' => 'stdio',
+			'command' => $command,
+			'args' => $args,
+			'env' => $env,
+		];
+
+		if ($cwd !== '') {
+			$payload['cwd'] = $cwd;
+		}
+
+		return $payload;
+	}
 
     public function guidelinesPath(): string
     {

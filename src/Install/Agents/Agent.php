@@ -172,37 +172,53 @@ abstract class Agent
         return $payload;
     }
 
-    public function installMcp(string $key, string $command, array $args = [], array $env = [], string $cwd = ''): bool
-    {
-        $path = $this->mcpConfigPath();
-        if (!$path) {
-            return false;
-        }
+	public function resolveMcpPath(string $cwd = ''): ?string
+	{
+		$path = $this->mcpConfigPath();
+		if ($path === null || $path === '') {
+			return null;
+		}
 
-        if (str_ends_with($path, '.toml')) {
-            $w = new TomlFileWriter($path, $this->defaultMcpConfig());
-            return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env, $cwd))->save();
-        }
+		$path = $this->expandHome($path);
 
-        $w = new FileWriter($path, $this->defaultMcpConfig());
-        return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env, $cwd))->save();
-    }
+		if (!str_starts_with($path, '/') && $cwd !== '') {
+			return rtrim($cwd, '/') . '/' . ltrim($path, '/');
+		}
 
-    public function uninstallMcp(string $key): bool
-    {
-        $path = $this->mcpConfigPath();
-        if (!$path || !file_exists($path)) {
-            return true;
-        }
+		return $path;
+	}
 
-        if (str_ends_with($path, '.toml')) {
-            $w = new TomlFileWriter($path, $this->defaultMcpConfig());
-            return $w->configKey($this->mcpConfigKey())->remove($key);
-        }
+	public function installMcp(string $key, string $command, array $args = [], array $env = [], string $cwd = ''): bool
+	{
+		$path = $this->resolveMcpPath($cwd);
+		if (!$path) {
+			return false;
+		}
 
-        $w = new FileWriter($path, $this->defaultMcpConfig());
-        return $w->configKey($this->mcpConfigKey())->remove($key);
-    }
+		if (str_ends_with($path, '.toml')) {
+			$w = new TomlFileWriter($path, $this->defaultMcpConfig());
+			return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env, $cwd))->save();
+		}
+
+		$w = new FileWriter($path, $this->defaultMcpConfig());
+		return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env, $cwd))->save();
+	}
+
+	public function uninstallMcp(string $key, string $cwd = ''): bool
+	{
+		$path = $this->resolveMcpPath($cwd);
+		if (!$path || !file_exists($path)) {
+			return true;
+		}
+
+		if (str_ends_with($path, '.toml')) {
+			$w = new TomlFileWriter($path, $this->defaultMcpConfig());
+			return $w->configKey($this->mcpConfigKey())->remove($key);
+		}
+
+		$w = new FileWriter($path, $this->defaultMcpConfig());
+		return $w->configKey($this->mcpConfigKey())->remove($key);
+	}
 
     public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
     {
@@ -211,10 +227,36 @@ abstract class Agent
             mkdir($skillDir, 0755, true);
         }
 
-        $targetPath = $skillDir . '/SKILL.md';
-        copy($skillPath, $targetPath);
+        if (is_dir($skillPath)) {
+            $this->copyDirectory($skillPath, $skillDir);
+        } elseif (is_file($skillPath)) {
+            copy($skillPath, $skillDir . '/SKILL.md');
+        }
 
-        return $targetPath;
+        return $skillDir . '/SKILL.md';
+    }
+
+    protected function copyDirectory(string $source, string $target): void
+    {
+        if (!is_dir($target)) {
+            mkdir($target, 0755, true);
+        }
+
+        foreach (scandir($source) ?: [] as $file) {
+            if ($file === '.' || $file === '..') {
+                continue;
+            }
+
+            $srcFile = $source . '/' . $file;
+            $dstFile = $target . '/' . $file;
+
+            if (is_dir($srcFile)) {
+                $this->copyDirectory($srcFile, $dstFile);
+                continue;
+            }
+
+            copy($srcFile, $dstFile);
+        }
     }
 
     /**

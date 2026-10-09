@@ -426,7 +426,7 @@ final class BoostManager
                 break;
             case 'skills':
                 (new SkillWriter($this->targetDir, $this->getDiscoverableModules()))
-                    ->removeCoreSkills();
+                    ->removeCoreSkills($agents);
                 break;
             case 'mcp':
                 $mcpAgents = array_values(array_filter(

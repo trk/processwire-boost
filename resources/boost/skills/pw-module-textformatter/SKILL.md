@@ -6,23 +6,30 @@ source: processwire-boost
 date_added: "2026-04-08"
 ---
 
-# Textformatter Modulator Architecture (wire-module-textformatter)
+# ProcessWire Textformatter Module Architecture
 
-The ProcessWire `Textformatter` module type exclusively intercepts raw data pulled natively from a Field (commonly generalized string-based types like `FieldtypeTextarea`) securely re-formatting it dynamically exactly preceding output rendering. It does not manipulate the actual database storage block; instead, it formats the active memory instance immediately before displaying the result on the frontend or backend admin area.
+A `Textformatter` module intercepts raw string data pulled from a Field (such as `FieldtypeTextarea` or `FieldtypeText`) and formats it dynamically in memory immediately before output rendering (when `$page->of()` is true). It does not alter stored database records.
 
-## Pre-Computation / Anti-Rationalization Check
+## Documentation Reference (Source of Truth)
 
-Before committing `Textformatter` structures, critically evaluate:
+Before writing or modifying any Textformatter module, inspect the core files:
+- **Core CLI:** `php index.php docs get-text TextformatterMarkdownExtra`
+- **Core Base Class:** `wire/core/Module/Textformatter/Textformatter.php`
+- **Core Examples:**
+  - `wire/modules/Textformatter/TextformatterEntities.module`
+  - `wire/modules/Textformatter/TextformatterStripTags.module`
+  - `wire/modules/Textformatter/TextformatterMarkdownExtra/TextformatterMarkdownExtra.module`
 
-- **Inheritance Base:** Does the class explicitly extend `ProcessWire\Textformatter`? If not, the system will not recognize it as a valid formatter selectable within field configuration interfaces.
-- **Reference Variable Mutation:** Did you construct the primary formatting method signature correctly passing `$value` definitively by reference (`&$value`)? Textformatters manipulate variables sequentially; they do not explicitly return transformed strings back to the pipeline.
-- **Performance Consideration:** These formatters trigger extensively, sometimes processing hundreds of array nodes simultaneously iteratively mapping nested output. Are your regex blocks optimized? Have you deployed caching if executing network-bound evaluations?
+## Architecture Requirements
 
-## Execution Phases
+1. **Inheritance:** Class must extend `ProcessWire\Textformatter`.
+2. **Passing By Reference:** Value arguments (`&$str`, `&$value`) are modified directly **by reference**. Do not return a string; the method signature returns `void`.
+3. **Primary Methods:**
+   - `format(&$str)`: Formats generic string without page/field context (e.g. when called via `$sanitizer->format()`).
+   - `formatValue(Page $page, Field $field, &$value)`: Formats within a page field render cycle. By default, core calls `$this->format($value)`.
+4. **Configurable (Optional):** Implement `ProcessWire\ConfigurableModule` if options should be editable from the admin interface.
 
-### Phase 1: Foundational Formatter Construction
-
-A Textformatter mandates overriding the base system architecture manipulating runtime output securely via `formatValue`.
+## Implementation Pattern (PHP 8.4+)
 
 ```php
 <?php
@@ -31,121 +38,83 @@ declare(strict_types=1);
 
 namespace ProcessWire;
 
-class TextformatterHighlightTag extends Textformatter
-{
-    public static function getModuleInfo(): array
-    {
-        return [
-            'title' => 'Textformatter: Highlight Tag Processor',
-            'version' => 100,
-            'summary' => 'Dynamically highlights specific keywords wrapped locally in explicit `[[tag]]` declarations immediately prior to HTML rendering.',
-            'requires' => [
-                'ProcessWire>=3.0.0',
-                'PHP>=8.4.0'
-            ]
-        ];
-    }
-
-    /**
-     * Primary parsing method mandated universally across all formatters.
-     *
-     * @param Page $page Page entity harboring the functional field explicitly being parsed.
-     * @param Field $field Field mapping currently evaluating formatting directives.
-     * @param string|mixed $value Current active string. Must be targeted BY REFERENCE (&$value).
-     */
-    public function formatValue(Page $page, Field $field, &$value): void
-    {
-        // Validation check handling array structures or native empty returns immediately
-        if (!is_string($value) || empty($value)) {
-            return;
-        }
-
-        // Perform explicit substitutions natively
-        // Converting instances of [[keyword]] resolving physically mapping toward <mark>keyword</mark>
-        $value = preg_replace('/\[\[(.*?)\]\]/s', '<mark class="highlighted">\\1</mark>', $value);
-
-        // Return null internally; the process purely mutates the reference argument natively.
-    }
-}
-```
-
-### Phase 2: Dual Context Handling (Single Strings vs Active Page Integrations)
-
-ProcessWire frequently utilizes Textformatters outside field contexts natively rendering raw internal string manipulations via the `$sanitizer` pipeline. Implementing robust fall-backs ensuring non-page variables parse correctly validates structural consistency.
-
-```php
-    /**
-     * Optional utility expanding pipeline formatting resolving generic string arrays bypassing strict Page binding.
-     *
-     * @param string|mixed $value The referenced string modified natively.
-     */
-    public function formatString(&$value): void
-    {
-        if (!is_string($value) || empty($value)) {
-            return;
-        }
-
-        // Shared business logic mapping identical replacements mapped previously
-        $value = preg_replace('/\[\[(.*?)\]\]/s', '<mark class="highlighted">\\1</mark>', $value);
-    }
-```
-
-### Phase 3: Configurable Textformatters
-
-You can implement configurable textformatters allowing site administrators specific choices (i.e. modifying regex rules dynamically via UI contexts).
-
-```php
-namespace ProcessWire;
-
 class TextformatterHighlightTag extends Textformatter implements ConfigurableModule
 {
-    // Establishing native PHP 8.4 typed structural declarations matching form settings automatically
-    public string $cssClass = 'highlighted';
+	public string $cssClass = 'highlighted';
 
-    // Build admin elements deploying standard input arrays
-    public static function getModuleConfigInputfields(array $data): InputfieldWrapper
-    {
-        $wrapper = new InputfieldWrapper();
+	public static function getModuleInfo(): array
+	{
+		return [
+			'title' => 'Textformatter: Highlight Tag',
+			'version' => 100,
+			'summary' => 'Replaces [[keyword]] tags with HTML <mark> tags prior to rendering.',
+			'requires' => [
+				'ProcessWire>=3.0.0',
+				'PHP>=8.4.0',
+			],
+		];
+	}
 
-        /** @var InputfieldText $f */
-        $f = wire()->modules->get('InputfieldText');
-        $f->attr('name', 'cssClass');
-        $f->label = 'Default CSS Highlight Class';
-        $f->attr('value', $data['cssClass'] ?? 'highlighted');
-        $wrapper->add($f);
+	/**
+	 * Format given text string by reference.
+	 *
+	 * @param string $str
+	 */
+	public function format(&$str): void
+	{
+		if (!is_string($str) || $str === '') {
+			return;
+		}
 
-        return $wrapper;
-    }
+		$class = $this->wire()->sanitizer->entities($this->cssClass);
+		$str = preg_replace('/\[\[(.*?)\]\]/s', "<mark class=\"{$class}\">\\1</mark>", $str);
+	}
 
-    public function formatValue(Page $page, Field $field, &$value): void
-    {
-        if (!is_string($value) || empty($value)) {
-            return;
-        }
+	/**
+	 * Format value in context of Page and Field.
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param string|mixed $value
+	 */
+	public function formatValue(Page $page, Field $field, &$value): void
+	{
+		$this->format($value);
+	}
 
-        $class = $this->wire()->sanitizer->entities($this->cssClass);
-        $value = preg_replace('/\[\[(.*?)\]\]/s', "<mark class=\"{$class}\">\\1</mark>", $value);
-    }
+	/**
+	 * Module configuration inputs for admin interface.
+	 *
+	 * @param InputfieldWrapper $inputfields
+	 */
+	public function getModuleConfigInputfields(InputfieldWrapper $inputfields): void
+	{
+		/** @var InputfieldText $f */
+		$f = $this->wire()->modules->get('InputfieldText');
+		$f->name = 'cssClass';
+		$f->label = $this->_('Default CSS Highlight Class');
+		$f->val($this->cssClass);
+		$inputfields->add($f);
+	}
 }
 ```
 
-## Essential Tools & Ecosystem
+## Programmatic Invocation
 
-- ProcessWire `Textformatter` basic class mappings.
-- Relying explicitly upon native string replacements, DOMDocument DOM rendering evaluations, or the internal library `html_entity_decode` mechanics depending on parsing complexity logic boundaries.
+```php
+// Formatting a page field directly:
+echo $page->body; // Runs assigned textformatters automatically if $page->of(true)
 
-## Copy-Paste Prompts
+// Running formatter programmatically on arbitrary string:
+/** @var TextformatterHighlightTag $formatter */
+$formatter = $wire->modules->get('TextformatterHighlightTag');
+$text = "Hello [[world]]";
+$formatter->format($text);
+echo $text; // "Hello <mark class="highlighted">world</mark>"
+```
 
-(Pass these direct prompts to the agent to initiate workflows instantly)
+## Anti-Patterns to Avoid
 
-**[Construct Textformatter Module - Markdown Processor Extension]**
-
-> "Build a class `TextformatterAlertBlocks` targeting explicit Textformatter modular structures. Reconfigure the `formatValue` mapping parsing elements bounded securely within native markdown quotes traversing `> [!ALERT]` formatting into physical UIkit explicitly mapping HTML class properties matching `<div class='uk-alert uk-alert-danger'>`. Ensure execution modifies variable assignments safely universally strictly relying upon reference declarations `&$value`."
-
-## Context Awareness (ProcessWire API Docs)
-
-**CRITICAL RULE FOR ALL AI AGENTS:**
-When you need to understand, use, or hook into a ProcessWire core class or module, you **MUST NEVER** guess or hallucinate the API methods.
-
-- You **MUST** consult the local AI-optimized Markdown API documentation starting at `.agents/docs/index.md`.
-- Navigate through the index, find the relevant class document (e.g. `.agents/docs/core/Page.md`), and use your file reading tools to read its methods, parameters, and hookable (🪝) events before writing any code.
+- ❌ **Do not** return a string from `format()` or `formatValue()`. Always modify the reference parameter directly (`&$value`).
+- ❌ **Do not** execute heavy SQL queries or HTTP requests inside `formatValue()`. Textformatters run every time a page field is rendered; slow operations will destroy page load speed.
+- ❌ **Do not** modify the database inside a Textformatter. If persistent transformation on save is required, use a Fieldtype's `sleepValue()` or a `Pages::saveReady` hook.

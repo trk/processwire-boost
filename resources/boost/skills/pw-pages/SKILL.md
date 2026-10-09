@@ -8,7 +8,11 @@ date_added: "2026-04-08"
 
 # ProcessWire Pages & Selectors Playbook
 
-**CRITICAL RULE:** Before using selectors in API calls, always verify the available API methods by consulting `.agents/docs/index.md`. Never hallucinate API methods.
+**CRITICAL RULE:** Before using selectors or page manipulation methods in API calls, always verify API methods using the documentation ladder:
+1. Core CLI: `php index.php docs get-text Pages` or `php index.php docs methods-text Pages`
+2. Core Markdown: `wire/core/Pages/API.md`, `wire/core/Page/API.md`, `wire/core/PageArray/API.md`, `wire/core/Selectors/API.md`
+3. ProcessWire MCP Server: `pw_query` and `pw_schema_read`
+Never hallucinate API methods.
 
 Selectors are the foundational querying language in ProcessWire. They are simple strings of text used in `$pages->find()`, `$pages->get()`, `$page->children()`, `$page->siblings()`, and even for filtering arrays and fields.
 
@@ -118,18 +122,46 @@ A sub-selector runs a query on the related field dynamically.
 $pages->find("template=product, company=[locations>5, locations.title%=Finland]");
 ```
 
-## 5. Security & Access Control
+## 5. Page Retrieval Methods Matrix
 
-By default, database-querying selectors (`find()`, `children()`) **exclude** hidden, unpublished, or access-restricted pages. `$pages->get()` is the exception (assumes `include=all`).
+| Method | Returns | Access/Status Filtering | Use Case |
+|---|---|---|---|
+| `$pages->find("...")` | `PageArray` | Excludes hidden, unpublished, and restricted | Standard multi-page query |
+| `$pages->findOne("...")` | `Page` or `NullPage` | Same as `find()` (excludes hidden, unpublished) | Locate first matching visible page |
+| `$pages->get("...")` | `Page` or `NullPage` | **No exclusions** (includes hidden, unpublished) | Locate specific page by ID, path, or selector |
+| `$pages->findMany("...")` | `PageArray` iterator | Excludes hidden, unpublished, and restricted | Memory-safe chunked iteration for large sets |
+| `$pages->has("...")` | `int` (page ID) or `0` | No exclusions | Fast existence check without loading object |
+| `$pages->count("...")` | `int` | Excludes hidden, unpublished, and restricted | Count matching rows without loading objects |
+
+```php
+// Memory-safe chunked iteration:
+foreach ($pages->findMany("template=product") as $product) {
+    // Automatically loaded and unmanaged in memory chunks
+}
+
+// Check existence:
+if ($pages->has("template=user, email=info@example.com")) {
+    // Page exists
+}
+
+// PageArray::each formatting:
+echo $pages->find("template=news, sort=-created, limit=5")
+    ->each("<li><a href='{url}'>{title}</a></li>");
+```
+
+## 6. Security & Access Control
+
+By default, database-querying selectors (`find()`, `findOne()`, `children()`) **exclude** hidden, unpublished, or access-restricted pages. `$pages->get()` is the exception (includes hidden/unpublished/restricted pages).
 
 You can override these exclusions:
 
 - `include=hidden` : Allows `hidden` pages.
 - `include=unpublished` : Allows both `hidden` and `unpublished`.
+- `include=trash` : Includes pages located in the trash.
 - `include=all` : Overrides all restrictions (hidden, unpublished, access control).
 - `check_access=0` : Disables role-based access checks for the query, but still excludes unpublished pages.
 
-## 6. Sanitizing User Input
+## 7. Sanitizing User Input
 
 Always sanitize user input before passing it into a selector.
 
@@ -139,16 +171,17 @@ $year = (int) $input->get->year;
 
 // Arbitrary string values:
 $k = $sanitizer->selectorValue($input->get->keyword);
-$results = $pages->find("title|body~=$k");
+$results = $pages->find("title|body~=$k, limit=50");
 ```
 
 ---
 
-## 7. Creating Pages
+## 8. Creating Pages
 
 Always use `Page` instances to insert new content.
 
 ```php
+// Option A: Standard Page instance
 $p = new \ProcessWire\Page();
 $p->template = "article";
 $p->parent = $pages->get("/articles/"); // MUST have a parent
@@ -156,13 +189,20 @@ $p->name = $sanitizer->pageName("My New Article!"); // URL slug
 $p->title = "My New Article!";
 $p->save();
 
-// Alternatively, use the shortcut:
+// Option B: Array syntax ($pages->new)
+$p = $pages->new([
+    'template' => 'article',
+    'parent' => '/articles/',
+    'title' => 'My New Article!',
+]);
+
+// Option C: Shortcut ($pages->add)
 $p = $pages->add("article", "/articles/", "my-new-article", [
     'title' => 'My New Article!'
 ]);
 ```
 
-## 8. Editing & Updating Pages
+## 9. Editing & Updating Pages
 
 You must call `->of(false)` to turn off output formatting before saving a page that has already been loaded from the database, otherwise textformatters might corrupt data.
 
@@ -172,9 +212,12 @@ $p->of(false); // TURN OFF OUTPUT FORMATTING
 $p->title = "Updated Title";
 $p->my_custom_field = "New Value";
 $p->save();
+
+// Combined atomic set and save:
+$p->setAndSave('title', 'Updated Title');
 ```
 
-## 9. Deleting & Trashing Pages
+## 10. Deleting & Trashing Pages
 
 Use `$pages->trash()` to move a page to the trash securely. Only use `$pages->delete()` when absolutely necessary as it skips the trash.
 
@@ -185,10 +228,11 @@ if ($p->id && $p->trashable()) {
 }
 ```
 
-## 10. Performance Tips
+## 11. Performance Tips
 
 - **Always use `limit=`** on `$pages->find()` for large datasets
 - Use `$pages->count($selector)` instead of `$pages->find($selector)->count()` — avoids loading all pages into memory
-- Prefer indexed fields first (`id`, `name`, `template`) in selectors
-- Call `$pages->uncacheAll()` after processing large batches
+- Use `$pages->findMany($selector)` when iterating across hundreds or thousands of pages
+- Prefer indexed fields first (`id`, `name`, `template`, `parent_id`) in selectors
+- Call `$pages->uncacheAll()` after manual batch processing
 - Use `$page->of(false)` before modifying output-formatted pages

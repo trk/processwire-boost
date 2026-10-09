@@ -139,20 +139,42 @@ $results = $modules->get('MyModuleClass')->find("status=active");
 \`\`\`
 ```
 
-#### Fieldtype IDE Companion Class
+#### Fieldtype IDE Companion Class (`[Type]Field.php`)
 
-For Fieldtype modules, document properties by creating a companion `[Type]Field.php` class with PHPDoc annotations. This is how IDEs understand the Field settings.
+For Fieldtype modules, document properties by creating a companion `[Type]Field.php` class (e.g. `MyCustomField.php` for `FieldtypeMyCustom`) with PHPDoc annotations. The Fieldtype class implements `getFieldClass()` returning `'MyCustomField'`. This enables IDE autocompletion for field settings.
 
 ```php
-<?php namespace ProcessWire;
+<?php
+
+declare(strict_types=1);
+
+namespace ProcessWire;
+
 /**
  * Companion class for IDE autocompletion 
  * 
  * @property int $maxLength Maximum string length
  * @property string $defaultText Default fallback text
  */
-class FieldtypeMyCustomField extends Field {}
+class MyCustomField extends Field 
+{
+}
 ```
+
+#### Core CLI Documentation (`php index.php docs`)
+
+ProcessWire core reads `API.md` files natively via the command line:
+- `php index.php docs list` — List all classes with API documentation.
+- `php index.php docs vars` — Map API variables to classes.
+- `php index.php docs get <class>` — Retrieve full documentation.
+- `php index.php docs methods <class>` — List public methods.
+
+When documenting core-level classes with docblocks, use upstream `#pw-` tags:
+- `#pw-summary <text>`: Short one-line summary
+- `#pw-body = <text>`: Detailed explanation
+- `#pw-group-<name>`: Method grouping
+- `#pw-hooker`: Marks method as hookable
+- `#pw-internal`: Omits method from public developer docs
 
 #### CLI Command Documentation
 

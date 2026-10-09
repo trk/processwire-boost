@@ -37,7 +37,12 @@ final class OpenCode extends Agent implements SupportsGuidelines, SupportsMcp, S
 
     public function projectDetectionPaths(): array
     {
-        return ['opencode.json'];
+        return ['opencode.json', '.opencode'];
+    }
+
+    public function skillsPath(): string
+    {
+        return '.opencode/skills';
     }
 
     public function mcpConfigKey(): string
@@ -50,15 +55,21 @@ final class OpenCode extends Agent implements SupportsGuidelines, SupportsMcp, S
         return ['$schema' => 'https://opencode.ai/config.json'];
     }
 
-    public function mcpServerConfig(string $command, array $args = [], array $env = [], string $cwd = ''): array
-    {
-        return [
-            'type' => 'local',
-            'enabled' => true,
-            'command' => array_merge([$command], $args),
-            'environment' => $env,
-        ];
-    }
+	public function mcpServerConfig(string $command, array $args = [], array $env = [], string $cwd = ''): array
+	{
+		$payload = [
+			'type' => 'local',
+			'enabled' => true,
+			'command' => array_merge([$command], $args),
+			'environment' => $env,
+		];
+
+		if ($cwd !== '') {
+			$payload['cwd'] = $cwd;
+		}
+
+		return $payload;
+	}
 
     public function guidelinesPath(): string
     {
@@ -73,10 +84,25 @@ final class OpenCode extends Agent implements SupportsGuidelines, SupportsMcp, S
             mkdir($skillDir, 0755, true);
         }
 
+        if (is_dir($skillPath)) {
+            $this->copyDirectory($skillPath, $skillDir);
+        }
+
+        $skillMdPath = is_file($skillPath . '/SKILL.md') ? $skillPath . '/SKILL.md' : $skillPath;
+        $content = is_file($skillMdPath) ? (string) file_get_contents($skillMdPath) : '';
         $targetPath = $skillDir . '/SKILL.md';
-        $content = file_get_contents($skillPath);
+
+        if (str_starts_with(trim($content), '---')) {
+            if (!str_contains($content, 'compatibility: opencode')) {
+                $content = preg_replace('/^---\R/', "---\ncompatibility: opencode\n", $content, 1) ?? $content;
+            }
+            file_put_contents($targetPath, $content);
+            return $targetPath;
+        }
+
         $description = $this->extractDescription($content);
         $frontmatter = $this->buildFrontmatter($skillDirName, $description);
+
         file_put_contents($targetPath, $frontmatter . "\n" . $content);
 
         return $targetPath;

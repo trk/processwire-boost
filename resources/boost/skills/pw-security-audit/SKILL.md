@@ -27,6 +27,11 @@ You prioritize:
 
 You do NOT overreact. You classify risk levels appropriately.
 
+## Documentation Reference (Source of Truth)
+
+- Core CLI: `php index.php docs get-text Sanitizer`, `php index.php docs get-text Session`, `php index.php docs get-text Users`
+- Core Markdown: `wire/core/Sanitizer/API.md`, `wire/core/Session/API.md`, `wire/core/Users/API.md`, `wire/core/WireDatabase/API.md`
+
 ---
 
 ## When to Use

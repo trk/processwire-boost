@@ -32,6 +32,10 @@ final class SkillWriter
         foreach ($skillSources as $skillName => $sourcePath) {
             $targetPath = $target . '/' . $skillName;
 
+            if ($sourcePath === $targetPath) {
+                continue;
+            }
+
             if (is_dir($targetPath)) {
                 $this->deleteTree($targetPath);
             } elseif (is_file($targetPath)) {
@@ -41,19 +45,50 @@ final class SkillWriter
             $this->copyDirectory($sourcePath, $targetPath);
         }
 
+        $projectRoot = dirname($this->targetDir);
+
         foreach ($agents as $agent) {
+            $agentSkillsPath = $agent->skillsPath();
+
+            // When an agent uses the canonical Boost skills directory (.agents/skills),
+            // it is already populated by the step above.
+            if ($agentSkillsPath === '' || $agentSkillsPath === '.agents/skills') {
+                continue;
+            }
+
+            $agentTargetDir = $projectRoot . '/' . ltrim($agentSkillsPath, '/');
+            if (!is_dir($agentTargetDir)) {
+                mkdir($agentTargetDir, 0755, true);
+            }
+
             foreach ($skillSources as $skillName => $sourcePath) {
-                $agent->exportSkill($skillName, $sourcePath, dirname($this->targetDir));
+                $agent->exportSkill($skillName, $sourcePath, $agentTargetDir);
             }
         }
     }
 
-    public function removeCoreSkills(): void
+    /**
+     * @param list<Agent>|null $agents
+     */
+    public function removeCoreSkills(?array $agents = null): void
     {
         foreach (array_keys($this->collectDesiredSkillSources([])) as $skillName) {
             $skillPath = $this->targetDir . '/skills/' . $skillName;
             if (is_dir($skillPath)) {
                 $this->deleteTree($skillPath);
+            }
+        }
+
+        if ($agents !== null) {
+            $projectRoot = dirname($this->targetDir);
+            foreach ($agents as $agent) {
+                $skillsPath = $agent->skillsPath();
+                if ($skillsPath !== '' && $skillsPath !== '.agents/skills') {
+                    $skillsFullPath = $projectRoot . '/' . ltrim($skillsPath, '/');
+                    if (is_dir($skillsFullPath)) {
+                        $this->deleteTree($skillsFullPath);
+                    }
+                }
             }
         }
     }
@@ -77,6 +112,11 @@ final class SkillWriter
             }
 
             $sources = array_merge($sources, $this->collectSkillSourcesFromDirectory($skillsPath));
+        }
+
+        $targetSkillsDir = $this->targetDir . '/skills';
+        if (is_dir($targetSkillsDir)) {
+            $sources = array_merge($this->collectSkillSourcesFromDirectory($targetSkillsDir), $sources);
         }
 
         return $sources;

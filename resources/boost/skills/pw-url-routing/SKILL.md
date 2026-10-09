@@ -20,8 +20,11 @@ Use this skill when you need to:
 ---
 
 > [!IMPORTANT]
-> **CRITICAL DOCUMENTATION RULE**: Before writing any ProcessWire code or using its API, you MUST consult the local API documentation located at `.agents/docs/index.md`. You MUST NOT hallucinate API methods.
-> ALL code, documentation, and file contents MUST strictly be written in English. Ensure inner code strings are always in English and wrapped in ProcessWire translation functions (`$this->_('English String')` or `__('English String', __FILE__)`) so they can localized if needed.
+> **CRITICAL DOCUMENTATION RULE**: Before writing any ProcessWire code or using its API, consult the local documentation ladder:
+> - Core CLI: `php index.php docs get-text WireHooks` and `php index.php docs get-text Pages`
+> - Core Markdown: `wire/core/WireHooks/API.md` and `wire/core/Pages/API.md`
+> - MCP tools: `pw_query` and `pw_schema_read`
+> Never hallucinate API methods. ALL code and strings MUST strictly be written in English and wrapped in translation functions (`$this->_('...')` or `__('...', __FILE__)`).
 
 ## Fundamentals
 
@@ -52,7 +55,7 @@ You can return a `Page` object to map a custom URL directly to an existing page.
 
 ```php
 $wire->addHook('/special-offer', function($event) {
-    return $event->pages->get('/about/contact/');
+    return $event->wire()->pages->get('/about/contact/');
 });
 ```
 
@@ -95,7 +98,7 @@ Remembering portions of the matched URL without named arguments uses `$event->ar
 ```php
 $wire->addHook('(/.*)/json', function($event) {
     $path = $event->arguments(1);
-    $page = $event->pages->findOne($path);
+    $page = $event->wire()->pages->findOne($path);
 
     if (!$page->id || !$page->viewable()) {
         return false;

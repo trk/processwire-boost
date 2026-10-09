@@ -16,6 +16,16 @@ When performing administrative actions, prefer running these terminal commands o
 - **Testing:** `test`, `make:test`
 - **System/Scaffold:** `make:module`, `make:task`, `schedule:run`, `down`, `up`, `tinker`
 
+## Core Documentation Discovery (`php index.php docs`)
+
+ProcessWire core natively provides command-line documentation inspection without writing custom code (use `-text` for plain text output):
+- `php index.php docs list-text` — List all classes with API.md documentation.
+- `php index.php docs get-text <class>` — Retrieve complete API.md documentation for a class (e.g. `Pages`, `Page`, `Sanitizer`, `Process`, `Fieldtype`).
+- `php index.php docs methods-text <class>` — List all public methods of a class (`*` prefix = hookable).
+- `php index.php docs method <class> <method>` — Detailed signature and description of a method (JSON).
+- `php index.php docs vars-text` — List all API variables and their classes.
+- Direct core files: read `wire/core/<Class>/API.md` or `wire/modules/<Group>/<Module>/API.md`.
+
 ## ProcessWire MCP Server (JSON-RPC)
 
 If the environment exposes processwire tools as JSON-RPC MCP calls, utilize them to read states non-destructively:

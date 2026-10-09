@@ -29,8 +29,15 @@ Each Fieldtype module should have a corresponding `[Type]Field.php` file (e.g. `
 - Fieldtype implements `getFieldClass()` returning the class name
 - The Fieldtype module loads it (commonly via `require_once` at the bottom of the module file)
 
-### Database access
-- Always access as `$this->wire()->database` (property), not `$this->wire()->database()` (method call).
+### Database & API Variable Access
+- **API Access in Classes:** Inside classes extending `Wire` or `WireData` (Modules, Process classes, Page classes), ALWAYS use `$this->wire()->apiVar` (e.g., `$this->wire()->pages`). Never use `$this->pages` or `$this->modules` directly, as this relies on slow `__get()` magic methods and can conflict with class properties.
+- **Local Scoping in Loops:** When calling the same API variable repeatedly in methods or loops, cache it locally at the top of the method:
+  ```php
+  $pages = $this->wire()->pages;
+  $sanitizer = $this->wire()->sanitizer;
+  ```
+- **Database Access:** Always access as `$this->wire()->database` (property), not `$this->wire()->database()` (method call). In ProcessWire this is a `WireDatabasePDO` wrapper (PDO-like API).
+- **Indentation:** Use **tabs, not spaces** across all ProcessWire modules and classes.
 
 ## Module Types
 

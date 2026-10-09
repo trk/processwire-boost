@@ -10,7 +10,7 @@ interface SupportsMcp
 
     public function getWirePath(string $projectRoot): string;
 
-    public function installMcp(string $key, string $command, array $args = [], array $env = [], string $cwd = ''): bool;
+	public function installMcp(string $key, string $command, array $args = [], array $env = [], string $cwd = ''): bool;
 
-    public function uninstallMcp(string $key): bool;
+	public function uninstallMcp(string $key, string $cwd = ''): bool;
 }

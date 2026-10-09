@@ -81,7 +81,7 @@ final class MyCommand extends Command
 Used for interactive input, NOT for Laravel framework features:
 
 ```php
-use function Laravel\Prompts	ext;
+use function Laravel\Prompts\text;
 use function Laravel\Prompts\select;
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\spin;

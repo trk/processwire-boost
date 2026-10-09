@@ -26,8 +26,8 @@ final class McpWriter
         }
     }
 
-    public function remove(string $key = 'processwire'): void
-    {
-        $this->agent->uninstallMcp($key);
-    }
+	public function remove(string $key = 'processwire'): void
+	{
+		$this->agent->uninstallMcp($key, $this->projectRoot);
+	}
 }
