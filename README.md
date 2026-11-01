@@ -1,6 +1,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/PHP-8.3+-8892BF?style=flat-square&logo=php" alt="PHP 8.3+">
   <img src="https://img.shields.io/badge/ProcessWire-3.x-ea6a1a?style=flat-square" alt="ProcessWire 3.x">
+  <img src="https://img.shields.io/badge/Version-0.3.0-blue?style=flat-square" alt="Version 0.3.0">
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License">
 </p>
 
@@ -28,7 +29,7 @@ This is **not** a CLI tool collection — Boost is a knowledge layer. It sits be
   - [MCP Server (Live Access)](#mcp-server-live-access)
 - [Agent System](#agent-system)
 - [Module Integration](#module-integration)
-- [Commands](#commands)
+- [CLI Commands](#cli-commands)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
@@ -70,7 +71,7 @@ Here is a brief outline of how an AI works under the hood at runtime with these 
 2. **Agent reads Guidelines** (e.g., `AGENTS.md`) for base framework rules & conventions.
 3. **Agent activates relevant Skill** (like `pw-migrations`) providing the specific, step-by-step workflow required.
 4. **Agent reads Schema Map** (`map.json`) to learn the existing project templates, roles, and fields.
-5. **Agent queries MCP Server** (`pw_schema_read` etc.) for live configurations or logs natively inside the processwire environment.
+5. **Agent queries MCP Server** (`pw_schema_read` etc.) for live configurations or logs natively inside the ProcessWire environment.
 6. **Agent generates the code**, reliably completing the task with full system awareness.
 
 ---
@@ -81,7 +82,7 @@ Here is a brief outline of how an AI works under the hood at runtime with these 
 | ----------------------------------------------------------------- | ---------------------------- |
 | PHP                                                               | `>= 8.3`                     |
 | ProcessWire                                                       | `3.x`                        |
-| [processwire-console](https://github.com/trk/processwire-console) | `dev-main` (peer dependency) |
+| [processwire-console](https://github.com/trk/processwire-console) | `>= 0.2` (peer dependency)   |
 
 ---
 
@@ -119,14 +120,20 @@ project-root/
 ├── GEMINI.md                    # Gemini CLI specific guidelines
 ├── .cursorrules                 # Cursor specific guideline stub
 ├── .github/
-│   └── copilot-instructions.md  # GitHub Copilot specific guideline stub
+│   ├── copilot-instructions.md  # GitHub Copilot specific guideline stub
+│   └── skills/                  # GitHub Copilot exported skills
 ├── .mcp.json                    # Claude Code MCP config
+├── .claude/
+│   └── skills/                  # Claude Code exported skills
 ├── .cursor/
-│   └── mcp.json                 # Cursor MCP config
+│   ├── mcp.json                 # Cursor MCP config
+│   └── skills/                  # Cursor exported skills
 ├── .junie/
-│   └── mcp/mcp.json             # Junie MCP config (absolute paths)
+│   ├── mcp/mcp.json             # Junie MCP config (absolute paths)
+│   └── skills/                  # Junie exported skills
 ├── .trae/
-│   └── mcp.json                 # Trae MCP config (${workspaceFolder} paths)
+│   ├── mcp.json                 # Trae MCP config (${workspaceFolder} paths)
+│   └── skills/                  # Trae exported skills
 ├── .vscode/
 │   └── mcp.json                 # GitHub Copilot MCP config
 └── .agents/
@@ -176,8 +183,8 @@ Every time the agent processes a prompt, it reads these rules. This is where con
 #### Source Priority
 
 1. **Core** — `resources/boost/guidelines/*.md` (7 files)
-2. **Module** — `{module}/.agents/guidelines/*.md` (third-party modules)
-3. **Fallback** — `{module}/AGENTS.md` (if no guidelines directory exists)
+2. **Module** — `{module}/boost/guidelines/*.md` or `{module}/.agents/guidelines/*.md` (third-party modules)
+3. **Module Context Index** — `{module}/AGENTS.md` (indexed for on-demand inspection when present in the module root)
 
 #### Merge Strategy
 
@@ -246,11 +253,11 @@ Without this skill, the agent would guess at the API and likely produce unsafe o
 
 #### Skill Sync Model
 
-ProcessWire Boost 0.1.x keeps skills canonical in `.agents/skills/{skillName}/SKILL.md`.
+ProcessWire Boost `v0.3.0` stages canonical skills in `.agents/skills/{skillName}/SKILL.md` and exports per-agent skill directories when an agent declares a dedicated `skillsPath()`:
 
-- Agent-specific skill copies are not generated during install/update.
-- `exportSkill()` overrides remain available for future agent-specific export flows.
-- This keeps updates deterministic and avoids redundant skill trees across IDE folders.
+- Canonical skills are always written to `.agents/skills/{skillName}/SKILL.md` first so the foundation guideline `{{ SKILLS_MENU }}` is populated on fresh installs.
+- Agents with dedicated skill folders (e.g. `.cursor/skills`, `.claude/skills`, `.trae/skills`, `.opencode/skills`) receive exported skill directories via `exportSkill()`.
+- Agents like `Trae` and `OpenCode` apply custom frontmatter and compatibility metadata during export.
 
 ---
 
@@ -285,8 +292,8 @@ Boost supports optional field schema extenders so non-core or complex fieldtypes
 Discovery paths:
 
 - `site/boost/schema/field-extenders.php`
-- `site/modules/*/.agents/schema/field-extenders.php`
-- `wire/modules/*/.agents/schema/field-extenders.php`
+- `site/modules/*/boost/schema/field-extenders.php` or `site/modules/*/.agents/schema/field-extenders.php`
+- `wire/modules/*/boost/schema/field-extenders.php` or `wire/modules/*/.agents/schema/field-extenders.php`
 
 Each manifest should return an array of extender class names (or instances) implementing `Totoglu\Console\Boost\Schema\FieldSchemaExtender`. Extenders run in discovery order; if multiple extenders return the same key, the later value wins.
 
@@ -296,8 +303,8 @@ Each manifest should return an array of extender class names (or instances) impl
 use Totoglu\Console\Boost\Schema\FieldSchemaExtender;
 
 return [
-    \Site\Boost\Schema\RepeaterMatrixSchemaExtender::class,
-    // or new \Site\Boost\Schema\FieldsetPageSchemaExtender(),
+	\Site\Boost\Schema\RepeaterMatrixSchemaExtender::class,
+	// or new \Site\Boost\Schema\FieldsetPageSchemaExtender(),
 ];
 ```
 
@@ -307,9 +314,9 @@ Extender failures are non-fatal: Boost keeps generating the base schema and logs
 
 ### MCP Server (Live Access)
 
-The MCP server provides **real-time access** to the running ProcessWire system via JSON-RPC over stdio.
+The MCP server provides **real-time access** to the running ProcessWire system via JSON-RPC 2.0 over stdio (`initialize`, `ping`, `tools/list`, `tools/call`).
 
-This is the most powerful context layer — it enables agents to inspect live data, run selectors against real pages, read logs, and manage modules without leaving the conversation.
+Every tool exposes a full JSON Schema (`inputSchema`) with typed `properties` and `required` parameter lists so MCP clients and LLMs can validate arguments accurately.
 
 #### Available Tools (28)
 
@@ -317,7 +324,7 @@ This is the most powerful context layer — it enables agents to inspect live da
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
 | **Schema**  | `pw_schema_read`, `pw_schema_field_create`, `pw_schema_template_create`                                                                                                                            | Read + ⚠️ Write   |
 | **Query**   | `pw_query`, `pw_execute`                                                                                                                                                                           | Read + ⚠️ Guarded |
-| **Modules** | `pw_module_list`, `pw_module_info`, `pw_module_install`, `pw_module_uninstall`, `pw_module_enable`, `pw_module_disable`, `pw_module_refresh`, `pw_module_upgrade`                                  | Read + ⚠️ Write   |
+| **Modules** | `pw_module_list`, `pw_module_info`, `pw_module_install`, `pw_module_uninstall`, `pw_module_refresh`, `pw_module_upgrade`                                                                           | Read + ⚠️ Write   |
 | **Access**  | `pw_access_user_list`, `pw_access_user_create`, `pw_access_user_update`, `pw_access_user_delete`, `pw_access_role_create`, `pw_access_role_grant`, `pw_access_role_revoke`, `pw_permission_delete` | Read + ⚠️ Write   |
 | **System**  | `pw_system_get_logs`, `pw_system_logs_tail_last`, `pw_system_logs_clear`, `pw_system_cache_clear`, `pw_system_cache_wire_clear`                                                                    | Read + ⚠️ Write   |
 | **Backup**  | `pw_system_backup`, `pw_system_backup_list`, `pw_system_backup_purge`, `pw_system_restore`                                                                                                         | ⚠️ Write          |
@@ -326,7 +333,7 @@ This is the most powerful context layer — it enables agents to inspect live da
 
 Boost auto-generates MCP configuration in each agent's native format during `boost:install`:
 
-**JSON — Standard Context (Claude Code, Cursor, Copilot, Amp, Junie, Kiro):**
+**JSON — Standard Context (Claude Code, Cursor, Antigravity, Factory, Kiro):**
 
 ```json
 {
@@ -340,21 +347,21 @@ Boost auto-generates MCP configuration in each agent's native format during `boo
 }
 ```
 
-**JSON — ${workspaceFolder}** (Trae):
+**JSON — `${workspaceFolder}`** (Trae):
 
 ```json
 {
   "mcpServers": {
     "processwire": {
       "command": "php",
-      "args": ["vendor/bin/wire", "boost:mcp"],
+      "args": ["${workspaceFolder}/vendor/bin/wire", "boost:mcp"],
       "cwd": "${workspaceFolder}"
     }
   }
 }
 ```
 
-**TOML** (Codex):
+**TOML** (Codex, Grok Build):
 
 ```toml
 [mcp_servers.processwire]
@@ -395,27 +402,27 @@ Boost uses a polymorphic `Agent` class hierarchy. Each agent declares how it wan
 
 ### Supported Agents
 
-| Agent              | Guidelines Path                    | Skills Model         | MCP Config              | Path Mode         |
-| ------------------ | ---------------------------------- | -------------------- | ----------------------- | ----------------- |
-| **Amp**            | `AGENTS.md`                        | `.agents/skills`     | `.amp/settings.json`    | `Relative`        |
-| **Antigravity**    | `AGENTS.md`                        | `.agents/skills`     | `.agents/mcp_config.json` | `Relative`      |
-| **Claude Code**    | `CLAUDE.md`                        | `.agents/skills`     | `.mcp.json`             | `Relative`        |
-| **Codex**          | `AGENTS.md`                        | `.agents/skills`     | `.codex/config.toml`    | `Relative`        |
-| **Cursor**         | `.cursorrules`                     | `.agents/skills`     | `.cursor/mcp.json`      | `Relative`        |
-| **Factory Droid**  | `AGENTS.md`                        | `.agents/skills`     | `.factory/mcp.json`     | `Relative`        |
-| **Gemini CLI**     | `GEMINI.md`                        | `.agents/skills`     | `.gemini/settings.json` | `Absolute`        |
-| **GitHub Copilot** | `.github/copilot-instructions.md`  | `.agents/skills`     | `.vscode/mcp.json`      | `Relative`        |
-| **Grok Build**     | `AGENTS.md`                        | `.agents/skills`     | `.grok/config.toml`     | `Relative`        |
-| **Junie**          | `AGENTS.md`                        | `.agents/skills`     | `.junie/mcp/mcp.json`   | `Absolute`        |
-| **Kiro**           | `AGENTS.md`                        | `.agents/skills`     | `.kiro/settings/mcp.json` | `Relative`      |
-| **OpenCode**       | `AGENTS.md`                        | `.agents/skills`     | `opencode.json`         | `Relative`        |
-| **Pi**             | `AGENTS.md`                        | `.agents/skills`     | `—`                     | `Relative`        |
-| **Trae**           | `AGENTS.md`                        | `.agents/skills`     | `.trae/mcp.json`        | `WorkspaceFolder` |
-| **Zed**            | `AGENTS.md`                        | `.agents/skills`     | `.zed/settings.json`    | `Relative`        |
+| Agent              | Guidelines Path                   | Skills Path        | MCP Config                | Path Mode         |
+| ------------------ | --------------------------------- | ------------------ | ------------------------- | ----------------- |
+| **Amp**            | `AGENTS.md`                       | `—`                | `.amp/settings.json`      | `Relative`        |
+| **Antigravity**    | `AGENTS.md`                       | `.agents/skills`   | `.agents/mcp_config.json` | `Relative`        |
+| **Claude Code**    | `CLAUDE.md`                       | `.claude/skills`   | `.mcp.json`               | `Relative`        |
+| **Codex**          | `AGENTS.md`                       | `—`                | `.codex/config.toml`      | `Relative`        |
+| **Cursor**         | `.cursorrules`                    | `.cursor/skills`   | `.cursor/mcp.json`        | `Relative`        |
+| **Factory Droid**  | `AGENTS.md`                       | `.factory/skills`  | `.factory/mcp.json`       | `Relative`        |
+| **Gemini CLI**     | `GEMINI.md`                       | `—`                | `.gemini/settings.json`   | `Absolute`        |
+| **GitHub Copilot** | `.github/copilot-instructions.md` | `.github/skills`   | `.vscode/mcp.json`        | `Relative`        |
+| **Grok Build**     | `AGENTS.md`                       | `.grok/skills`     | `.grok/config.toml`       | `Relative`        |
+| **Junie**          | `AGENTS.md`                       | `.junie/skills`    | `.junie/mcp/mcp.json`     | `Absolute`        |
+| **Kiro**           | `AGENTS.md`                       | `.kiro/skills`     | `.kiro/settings/mcp.json` | `Relative`        |
+| **OpenCode**       | `AGENTS.md`                       | `.opencode/skills` | `opencode.json`           | `Relative`        |
+| **Pi**             | `AGENTS.md`                       | `.pi/skills`       | `—`                       | `Relative`        |
+| **Trae**           | `AGENTS.md`                       | `.trae/skills`     | `.trae/mcp.json`          | `WorkspaceFolder` |
+| **Zed**            | `AGENTS.md`                       | `.zed/skills`      | `.zed/settings.json`      | `Relative`        |
 
 > **Auto Path Resolution:** Each agent declares its `mcpPathStrategy()` via the `McpPathStrategy` enum. No manual configuration needed — paths are resolved automatically.
 >
-> **Detection & Filtering:** The installer auto-detects existing agent footprints and only offers agents compatible with the selected feature set.
+> **Detection & Filtering:** `BoostManager` auto-detects existing project and system agent footprints and only offers agents compatible with the selected feature set.
 
 ### Adding a Custom Agent
 
@@ -430,10 +437,25 @@ use Totoglu\Console\Boost\Install\Agents\Agent;
 
 final class MyAgent extends Agent
 {
-    public function name(): string { return 'my_agent'; }
-    public function displayName(): string { return 'My Agent'; }
-    public function mcpConfigPath(): ?string { return '.my-agent/mcp.json'; }
-    public function guidelinesPath(): string { return 'AGENTS.md'; }
+	public function name(): string
+	{
+		return 'my_agent';
+	}
+
+	public function displayName(): string
+	{
+		return 'My Agent';
+	}
+
+	public function mcpConfigPath(): ?string
+	{
+		return '.my-agent/mcp.json';
+	}
+
+	public function guidelinesPath(): string
+	{
+		return 'AGENTS.md';
+	}
 }
 ```
 
@@ -447,7 +469,8 @@ Third-party ProcessWire modules can expose their own guidelines and skills to Bo
 
 ```
 site/modules/YourModule/
-└── .agents/
+├── AGENTS.md                  # Optional root module context index
+└── .agents/                   # or boost/ (boost/ takes priority over .agents/)
     ├── guidelines/
     │   └── your-module-rules.md
     └── skills/
@@ -457,10 +480,10 @@ site/modules/YourModule/
 
 ### Discovery
 
-1. Boost scans `site/modules/` and `wire/modules/` for `.agents/` directories
-2. Guidelines from `.agents/guidelines/*.md` are compiled into the agent instruction file
-3. Skills from `.agents/skills/*/SKILL.md` are synchronized into the central Boost skill store
-4. Fallback: if no `.agents/guidelines/` exists, `AGENTS.md` in the module root is used
+1. Boost scans `site/modules/` and `wire/modules/` for `boost/` and `.agents/` resource directories, or a root `AGENTS.md` file
+2. Guidelines from `boost/guidelines/*.md` (or `.agents/guidelines/*.md`) are compiled into the agent instruction file
+3. Skills from `boost/skills/*/SKILL.md` (or `.agents/skills/*/SKILL.md`) are synchronized into `.agents/skills` and exported to configured agent skill directories
+4. Modules with a root `AGENTS.md` file are indexed in the `Module Context Index` section of compiled guidelines
 
 > **Tip:** After installing a new module that provides Boost skills, run `php vendor/bin/wire boost:update` to sync the new guidelines and skills into your workspace.
 
@@ -558,23 +581,6 @@ wire boost:mcp
 wire boost:mcp
 ```
 
-### `boost:build:docs`
-
-Generate ProcessWire Core API reference documentation from source files.
-
-**Usage:**
-
-```bash
-wire boost:build:docs
-```
-
-**Examples:**
-
-```bash
-# Build documentation into .agents/docs
-wire boost:build:docs
-```
-
 ### `boost:add-skill`
 
 Add skills from a remote GitHub repository.
@@ -633,7 +639,7 @@ The installer stores its state in `.agents/boost.json`:
 
 ```json
 {
-  "version": "0.1.1",
+  "version": "0.3.0",
   "guidelines": true,
   "skills": true,
   "mcp": true,
