@@ -1,6 +1,6 @@
 ---
 name: pw-scheduling
-description: "Use when creating, scheduling, or managing time-based tasks in ProcessWire via the CronExpression wrapper."
+description: "Use when creating, configuring, or running scheduled cron tasks in ProcessWire via Totoglu\\Console\\Scheduling\\Task and Event."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-09"
@@ -8,65 +8,90 @@ date_added: "2026-04-09"
 
 # ProcessWire Task Scheduling
 
-This system implements a Laravel-inspired Task Scheduler for ProcessWire via the `processwire-console` package using `dragonmantank/cron-expression`.
+Define recurring cron tasks in PHP classes discovered from `site/schedule/` and `site/modules/*/schedule/`, and execute all due tasks from a single server crontab entry (`php vendor/bin/wire schedule:run`).
 
 ## When to Use
-- You need to perform periodic cleanup, syncing, or queue dispatching without adding messy raw entries to the server's crontab.
-- Instead of adding multiple cronjobs, you just add `wire schedule:run` to cron once and control specific schedules within PHP classes.
+- Scheduling periodic maintenance, cache pruning, feed imports, or dispatching background queue jobs on a cron schedule.
+- Replacing multiple raw server crontab entries with version-controlled PHP task classes.
 
-## Core Content
+## Directory & Naming Conventions
 
-### Schedule Directory & Naming Guidelines
-- **Locations**: Scheduled tasks MUST be placed inside `site/schedule/*Task.php` (global) or `site/modules/[ModuleName]/schedule/*Task.php` (module-scoped).
-- **Naming**: Class names MUST end with `Task` (e.g., `CleanupLogsTask`) and match their filenames.
-- **Inheritance**: The class MUST extend `Totoglu\Console\Scheduling\Task`.
+- **Locations:**
+  - Global tasks: `site/schedule/*Task.php` (default namespace `Site\Schedule`)
+  - Module tasks: `site/modules/<ModuleName>/schedule/*Task.php` (default namespace `ProcessWire`)
+- **Naming:** Class and file names must end with `Task` (e.g., `ClearCachesTask` in `ClearCachesTask.php`).
+- **Base Class:** Extend `Totoglu\Console\Scheduling\Task` and implement both `schedule(Event $schedule): void` and `handle(): void`. The `ProcessWire` instance is injected at `$this->wire`.
 
-### Creating a Task Endpoint
-A task specifies what happens (`handle()`) and when it happens (`schedule()`).
+## Scaffolding & Implementing a Task
+
+```bash
+# Global task in site/schedule/ClearCachesTask.php
+php vendor/bin/wire make:task ClearCachesTask
+
+# Module-scoped task in site/modules/Analytics/schedule/SyncMetricsTask.php
+php vendor/bin/wire make:task SyncMetricsTask --module=Analytics
+```
+
+Implementation pattern:
 
 ```php
 <?php
+
 declare(strict_types=1);
 
 namespace Site\Schedule;
 
-use Totoglu\Console\Scheduling\Task;
+use Totoglu\Console\Queue\Queue;
 use Totoglu\Console\Scheduling\Event;
+use Totoglu\Console\Scheduling\Task;
 
-class ClearCachesTask extends Task
+final class ClearCachesTask extends Task
 {
-    public function schedule(Event $schedule): void
-    {
-        // Define frequency
-        $schedule->dailyAt('04:00'); 
-    }
+	public function schedule(Event $schedule): void
+	{
+		$schedule->dailyAt('04:00');
+	}
 
-    public function handle(): void
-    {
-        $this->wire->cache->deleteAll();
-        \Laravel\Prompts\info("Caches cleared by scheduler.");
-    }
+	public function handle(): void
+	{
+		$this->wire->cache->maintenance();
+		Queue::push('PruneExpiredSessionsQueue');
+	}
 }
 ```
 
-### Supported Frequencies via `Event` Wrapper
-- `->everyMinute()`
-- `->everyFiveMinutes()`
-- `->hourly()`
-- `->daily()`
-- `->dailyAt('13:00')`
-- `->weekly()`
-- `->monthly()`
-- `->cron('* * * * *')` (custom raw expressions)
+## Available Schedule Frequencies (`Totoglu\Console\Scheduling\Event`)
 
-### Managing Tasks (CLI)
-- `wire make:task {Name}` - Autogenerates a class within `site/schedule/`.
-- `wire schedule:run` - Runs all tasks that are currently due. (This is what you put in the server's `crontab` as `* * * * * cd /path-to-project && php vendor/bin/wire schedule:run`).
+| Method | Cron Expression | Meaning |
+|---|---|---|
+| `$schedule->everyMinute()` | `* * * * *` | Every minute |
+| `$schedule->everyFiveMinutes()` | `*/5 * * * *` | Every 5 minutes |
+| `$schedule->hourly()` | `0 * * * *` | Top of every hour |
+| `$schedule->daily()` | `0 0 * * *` | Daily at `00:00` |
+| `$schedule->dailyAt('13:30')` | `30 13 * * *` | Daily at specified `HH:MM` |
+| `$schedule->weekly()` | `0 0 * * 0` | Sundays at `00:00` |
+| `$schedule->monthly()` | `0 0 1 * *` | 1st day of each month at `00:00` |
+| `$schedule->cron('15 */6 * * *')` | Custom 5-field cron | Arbitrary cron expression |
 
-## Anti-Patterns
-- ❌ **Heavy Logic in Scheduler:** Do not put 1000-row loops inside `handle()`. Instead, `handle()` should dispatch a Queue job (`Queue::push('SyncUsersQueue', [])`).
-- ❌ **Missing the word Task:** `UpdateProfiles.php` is invalid. It must be `UpdateProfilesTask.php`.
+## Running the Scheduler
+
+Configure a single system crontab entry to invoke `schedule:run` every minute:
+
+```cron
+* * * * * cd /path/to/project && php vendor/bin/wire schedule:run >> /dev/null 2>&1
+```
+
+Manual / JSON verification:
+
+```bash
+php vendor/bin/wire schedule:run --json
+```
+
+## Anti-Patterns & Loophole Closing
+
+- ❌ **Heavy synchronous workloads inside `handle()`:** Because `schedule:run` executes due tasks sequentially in a single process, long-running loops in `handle()` can delay subsequent tasks. Dispatch heavy work to a queue job via `Queue::push()` inside `handle()`.
+- ❌ **Omitting the `Task` suffix:** Files not ending in `Task.php` are ignored by task discovery.
 
 ## Related Skills
-- [pw-expert](./pw-expert)
-- [pw-queue](./pw-queue)
+- `pw-queue`
+- `pw-expert`

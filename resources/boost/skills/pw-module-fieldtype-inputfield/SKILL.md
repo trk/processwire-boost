@@ -8,7 +8,7 @@ date_added: "2026-04-08"
 
 # ProcessWire Fieldtype and Inputfield Architecture
 
-In ProcessWire, custom data types are decoupled into two distinct modules:
+In ProcessWire, custom data types are decoupled into two distinct modules (scaffold via `php vendor/bin/wire make:module <BaseName> --type=fieldtype`):
 1. **Fieldtype (Database & Persistence Layer):** Extends `Fieldtype`. Manages MariaDB/MySQL table schema (`getDatabaseSchema`), transforms raw DB rows into runtime values (`wakeupValue`), prepares values for database persistence (`sleepValue`), sanitizes values on assignment (`sanitizeValue`), and provides the blank value (`getBlankValue`).
 2. **Inputfield (User Interface & Input Handling Layer):** Extends `Inputfield`. Renders the HTML form controls for the backend admin and frontend (`render`), and intercepts HTTP POST/GET inputs (`processInput`).
 

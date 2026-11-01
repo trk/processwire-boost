@@ -302,16 +302,20 @@ public function init(): void
 {
 	parent::init();
 	$wire = $this->wire();
-	$isThis = fn() => $wire->process instanceof self;
+	$isThis = fn(): bool => $wire->process instanceof self;
 
-	$wire->addHookBefore('AdminThemeFramework::getHeadline', function(HookEvent $event) use ($isThis) {
-		if (!$isThis()) return;
+	$wire->addHookBefore('AdminThemeFramework::getHeadline', function(HookEvent $event) use ($isThis): void {
+		if (!$isThis()) {
+			return;
+		}
 		$event->replace = true;
 		$event->return = '';
 	});
 
-	$wire->addHookBefore('AdminThemeUikit::renderBreadcrumbs', function(HookEvent $event) use ($isThis) {
-		if (!$isThis()) return;
+	$wire->addHookBefore('AdminThemeUikit::renderBreadcrumbs', function(HookEvent $event) use ($isThis): void {
+		if (!$isThis()) {
+			return;
+		}
 		$event->replace = true;
 		$event->return = '';
 	});
@@ -326,18 +330,19 @@ When building dynamic SPA-like Process modules:
 1. **Separate Full Page vs Partial Endpoint:**
    - Full page (`___execute`): Renders complete layout within admin chrome.
    - Partial endpoint (`___executePartial`): Returns RAW HTML only (no admin masthead/breadcrumbs):
-   ```php
-   public function ___executePartial(): string
-   {
-       /** @var Htmx $htmx */
-       $htmx = $this->wire()->modules->get('Htmx');
-       $html = $htmx->renderComponent(MyComponent::class, [...]);
 
-       header('Content-Type: text/html; charset=utf-8');
-       echo $html;
-       exit; // Prevents AdminTheme from wrapping partial in admin chrome
-   }
-   ```
+```php
+public function ___executePartial(): string
+{
+	/** @var Htmx $htmx */
+	$htmx = $this->wire()->modules->get('Htmx');
+	$html = $htmx->renderComponent(MyComponent::class, []);
+
+	header('Content-Type: text/html; charset=utf-8');
+	echo $html;
+	exit; // Prevents AdminTheme from wrapping partial in admin chrome
+}
+```
 2. **Avoid Component Tampering:** Do not swap outer shells containing state-aware components if their signed state tokens do not match. Swap inner contents or load views via separate `hx-get`.
 
 ---

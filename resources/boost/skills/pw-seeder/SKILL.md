@@ -1,6 +1,6 @@
 ---
 name: pw-seeder
-description: "Use when creating, dispatching, or interacting with Database Seeding in ProcessWire (processwire-console file-based seeders)."
+description: "Use when creating, orchestrating, or running database seeders and Faker data population in ProcessWire via processwire-console."
 risk: moderate
 source: processwire-boost
 date_added: "2026-04-09"
@@ -8,61 +8,122 @@ date_added: "2026-04-09"
 
 # ProcessWire Database Seeding
 
-This project implements a Laravel-style database seeding system for ProcessWire via the `processwire-console` package. It includes built-in auto-discovery of seeder classes and integration with `FakerPHP`.
+Populate development, staging, or initial application data using `Totoglu\Console\Database\Seeder` classes discovered from `site/seeders/` and `site/modules/*/seeders/`.
 
 ## When to Use
-- You need to populate the database with dummy or initial data during development or after migrations.
-- You are asked to create a "Seeder" for a specific module or template structure.
+- Populating initial pages, roles, users, or taxonomy terms after running migrations.
+- Generating realistic fixture data with `FakerPHP` (`$this->faker`).
+- Orchestrating multiple seeders in sequence via `$this->call()`.
 
-## Core Content
+## Directory & Naming Conventions
 
-### Seeder Directory & Naming Guidelines
-- **Locations**: Seeders MUST be placed inside `site/seeders/*Seeder.php` (global) or `site/modules/[ModuleName]/seeders/*Seeder.php` (module-scoped).
-- **Naming**: Class names MUST end with `Seeder` (e.g., `UsersSeeder`) and match their filenames (`UsersSeeder.php`).
-- **Inheritance**: The class MUST extend `Totoglu\Console\Database\Seeder`.
+- **Locations:**
+  - Global seeders: `site/seeders/*Seeder.php` (default namespace `Site\Seeders`)
+  - Module seeders: `site/modules/<ModuleName>/seeders/*Seeder.php` (default namespace `ProcessWire`)
+- **Naming:** Class and file names must end with `Seeder` (e.g., `ArticlesSeeder` in `ArticlesSeeder.php`).
+- **Base Class:** Extend `Totoglu\Console\Database\Seeder` and implement `public function run(): void`. The booted `ProcessWire` instance is available at `$this->wire`, and `$this->faker` holds a `\Faker\Generator` instance when `fakerphp/faker` is installed.
 
-### Creating a Seeder Endpoint
-A basic seeder class overrides the `run()` method.
+## Scaffolding & Implementing Seeders
+
+```bash
+# Global seeder in site/seeders/ArticlesSeeder.php
+php vendor/bin/wire make:seeder ArticlesSeeder
+
+# Module seeder in site/modules/Blog/seeders/ArticlesSeeder.php
+php vendor/bin/wire make:seeder ArticlesSeeder --module=Blog
+```
+
+Implementation and orchestration pattern:
 
 ```php
 <?php
+
+declare(strict_types=1);
+
+namespace Site\Seeders;
+
+use ProcessWire\Page;
+use Totoglu\Console\Database\Seeder;
+
+final class ArticlesSeeder extends Seeder
+{
+	public function run(): void
+	{
+		$pages = $this->wire->pages;
+		$sanitizer = $this->wire->sanitizer;
+		$parent = $pages->get('/articles/');
+
+		if (!$parent->id) {
+			return;
+		}
+
+		for ($i = 1; $i <= 5; $i++) {
+			$title = $this->faker !== null
+				? $this->faker->sentence(4)
+				: "Sample Article {$i}";
+			$name = $sanitizer->pageName($title);
+
+			if ($pages->has("parent={$parent->id}, name={$name}, include=all")) {
+				continue;
+			}
+
+			$article = $pages->new([
+				'template' => 'article',
+				'parent' => $parent,
+				'name' => $name,
+				'title' => $title,
+			]);
+
+			if ($article instanceof Page && $article->id) {
+				$article->setAndSave('summary', 'Seeded summary text.');
+			}
+		}
+	}
+}
+```
+
+### Orchestrating Child Seeders (`$this->call()`)
+
+Use `$this->call()` inside a parent seeder to execute dependent seeders in deterministic order (`resolveSeederClass()` resolves FQCNs, `Site\Seeders\*`, `ProcessWire\*`, and discovered short class names, throwing `\RuntimeException` if a target seeder does not exist):
+
+```php
+<?php
+
 declare(strict_types=1);
 
 namespace Site\Seeders;
 
 use Totoglu\Console\Database\Seeder;
-use ProcessWire\Page;
 
-class UsersSeeder extends Seeder
+final class DatabaseSeeder extends Seeder
 {
-    public function run(): void
-    {
-        // Example: Seeding from JSON
-        // $json = json_decode(file_get_contents(__DIR__ . '/users.json'), true);
-        
-        for ($i = 0; $i < 10; $i++) {
-            $p = new Page();
-            $p->template = 'user';
-            $p->parent = $this->wire->users->getPage();
-            
-            // Note: $this->faker is null unless fakerphp/faker is installed via composer.
-            $p->name = "user-{$i}";
-            $p->addStatus(Page::statusActive);
-            $p->save();
-        }
-    }
+	public function run(): void
+	{
+		$this->call('CategoriesSeeder');
+		$this->call('ArticlesSeeder');
+	}
 }
 ```
 
-### Managing Seeders (CLI)
-- `wire make:seeder {Name}` - Create a new seeder class in `site/seeders/`.
-- `wire make:seeder {Name} --module=MyModule` - Create a seeder specifically inside a module.
-- `wire db:seed` - Run all discovered seeders or a specific one with `--class=UsersSeeder`.
+## Running Seeders (CLI)
 
-## Anti-Patterns
-- ❌ **Direct SQL Inserts:** Avoid raw `$database->exec()` logic when `ProcessWire\Page` objects cover the requirements. Native API honors hooks and formatting.
-- ❌ **Naming mismatches:** Don't name files `FakeUsers.php`. It MUST end with `Seeder.php` or it won't be auto-discovered.
+```bash
+# Interactive selection or run all discovered seeders
+php vendor/bin/wire db:seed
+
+# Run a specific seeder class without interactive prompt
+php vendor/bin/wire db:seed --class=ArticlesSeeder --force
+
+# Machine-readable JSON output (requires --force)
+php vendor/bin/wire db:seed --class=ArticlesSeeder --force --json
+```
+
+## Anti-Patterns & Loophole Closing
+
+- ❌ **Raw SQL inserts for Page data:** Always use `$this->wire->pages->new()` or `Page::save()` so ProcessWire populates `pages`, `pages_parents`, and field tables consistently and triggers hooks.
+- ❌ **Non-idempotent seeders:** Always check `$pages->has(...)` before creating records so re-running `wire db:seed` does not create duplicate pages or throw duplicate-name exceptions.
+- ❌ **Omitting `--force` with `--json`:** `db:seed` is a state-mutating command; when invoked with `--json`, always pass `--force`.
 
 ## Related Skills
-- [pw-expert](./pw-expert)
-- [pw-migrations](./pw-migrations)
+- `pw-migrations`
+- `pw-pages`

@@ -1,6 +1,6 @@
 ---
 name: pw-systematic-debugging
-description: "Use when encountering any bug, test failure, blank screen of death, or unexpected behavior in ProcessWire before proposing fixes."
+description: "Use when encountering any bug, exception, test failure, blank screen, hook misfire, or unexpected selector result in ProcessWire before proposing fixes."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-13"
@@ -8,50 +8,55 @@ date_added: "2026-04-13"
 
 # ProcessWire Systematic Debugging
 
-Random fixes waste time and mask underlying issues. ProcessWire notoriously swallows exceptions inside hooks and template renders, making "guessing the bug" a guaranteed failure.
+ProcessWire catches and logs exceptions inside hooks, template rendering, and admin actions. Guessing a fix without reading the logs or reproducing the failure state wastes time and masks root causes.
 
 <HARD-GATE>
-NO FIXES OR FILE MODIFICATIONS WITHOUT ROOT CAUSE INVESTIGATION (LOG READING) FIRST.
-If you have not read the logs via MCP or checked ProcessWire context, you cannot propose fixes.
+NO CODE MODIFICATIONS WITHOUT EVIDENCE FIRST.
+Read the ProcessWire logs (`pw_system_logs_tail_last` or `vendor/bin/wire log:tail`) and reproduce the failing query or code path before proposing a fix.
 </HARD-GATE>
 
-## Phase 1: Context & Log Gathering (Mandatory)
+## Phase 1: Evidence & Log Collection (Mandatory)
 
-Before running any fix, you must retrieve the actual error stack.
+1. **Inspect ProcessWire Logs (`site/assets/logs/`):**
+   - Via MCP: Run `pw_system_get_logs` or `pw_system_logs_tail_last` on `errors` and `exceptions`.
+   - Via CLI: Run `php vendor/bin/wire log:list --json` and `php vendor/bin/wire log:tail errors --lines=30 --json` (or `php vendor/bin/wire log:read exceptions --limit=20 --json`).
+   - Record the exact file, line number, and exception message from the stack trace.
+2. **Reproduce with a Tight Feedback Loop:**
+   - For selector bugs: Run `pw_query` (MCP) or `php vendor/bin/wire page:find "template=article, limit=10" --json` to observe what ProcessWire actually returns.
+   - For runtime/module bugs: Run a minimal reproduction via `pw_execute` (MCP) or `php vendor/bin/wire test --filter=...` so you have a command that reliably goes red on the bug.
+3. **Trace Silent Hooks:**
+   - If a hook (`Pages::saved`, `Page::render`, URL hook) appears not to run, verify where it is registered (`site/init.php` vs `site/ready.php` vs module `init()`/`ready()`) and log its invocation:
 
-1. **Read System Logs (MCP Server)**
-   ProcessWire stores fatal errors and exceptions in textual log files (`site/assets/logs/`).
-   - Run MCP tool: `pw_system_get_logs` to list available logs.
-   - Run MCP tool: `pw_system_logs_tail_last` on `errors` or `exceptions`.
-   - Never skip past stack traces. Look precisely at the failing file and line number.
+```php
+$event->wire()->log->save('debug', sprintf(
+	'Hook fired for page %d (template=%s)',
+	(int) $event->arguments(0)->id,
+	(string) $event->arguments(0)->template?->name
+));
+```
 
-2. **Verify Debug Mode**
-   If logs are empty but the system is failing (e.g. HTTP 500 or Blank White Screen), ensure debug mode is on.
-   Check `site/config.php` for `$config->debug = true;`.
+## Phase 2: Root-Cause Hypothesis
 
-3. **Hook Tracing**
-   If an event isn't firing (e.g., `Pages::saved`), ensure your Hook isn't intentionally bypassing execution or failing silently. Insert explicit logging right inside the hook temporarily:
-   ```php
-   $event->wire()->log->save('debug', "Hook fired for page ID: " . $event->arguments(0)->id);
-   ```
+Check the most frequent ProcessWire failure modes against your evidence:
+- **`NullPage` dereference:** `$pages->get()` and `$pages->findOne()` return a `NullPage` object (`id === 0`) when no match is found, never `null`. Checking `if ($p !== null)` always evaluates to `true`! Always check `if ($p->id)` or `if (!$p instanceof NullPage)`.
+- **Access/Status exclusion in `$pages->find()`:** `$pages->find()` and `$pages->findOne()` exclude `hidden`, `unpublished`, and restricted pages unless `include=hidden|unpublished|all` is passed.
+- **Output formatting state (`$page->of()`):** Saving a loaded page on the frontend without calling `$page->of(false)` first can throw an exception or corrupt formatted field values.
+- **Internal property bypass in Custom Page Classes:** Accessing `$this->template` inside a `Page` subclass can bypass lazy loading; use `$this->get('template')` when inside a custom `Page` method if needed.
 
-## Phase 2: Hypothesis Formation
+## Phase 3: Minimal Fix & Regression Verification
 
-Once evidence is gathered from the logs, form a specific hypothesis.
-- Example: "The log says *Method name() does not exist or is not callable in this context*. This means `$pages->get('template=foo')` returned a `NullPage`, and we didn't verify `$page->id` before interacting with it."
-
-## Phase 3: Minimal Fix & Verification
-
-- Apply the **SMALLEST** possible fix to test the hypothesis (e.g., Wrap logic in `if($page && $page->id)`).
-- Verify the fix using a ProcessWire validation command (`pw_execute`, CLI script, or reloading the endpoint).
-- **Do NOT** bundle code refactoring ("Since I am fixing this bug, I will rewrite the whole hook class") with the bug fix.
+1. Apply the smallest surgical change that addresses the proven root cause.
+2. Re-run the exact reproduction command (`pw_query`, `pw_execute`, or `php vendor/bin/wire test`) and verify it passes and no new entries appear in `errors.txt` / `exceptions.txt`.
+3. Never bundle unrelated refactoring into a bug fix.
 
 ## Anti-Patterns & Loophole Closing
 
-- ❌ **Guess-and-Check:** Proposing "Let's change this string/variable and see if it works" before reading `errors.txt` via MCP.
-- ❌ **Symptom Patching:** Using `@` (error suppressor) or burying problems in generic `try-catch` blocks without understanding *why* the ProcessWire API failed.
-- ❌ **Ignoring `NullPage` Logic:** `pw-expert` rule violation. `$pages->get()` returns an empty `NullPage` object, not `null` or `false`. `if($page === null)` will fail. You must check `if($page->id)`.
-- ❌ **Multiple Fixes at Once:** Changing the Template, the Hook, and the Module Controller simultaneously. You are masking which layer actually caused the crash.
+- ❌ **Proposing a fix before reading `errors` / `exceptions` logs:** Always inspect the logs first.
+- ❌ **Checking `if ($page === null)` on `$pages->get()` / `$pages->findOne()`:** Always check `if ($page->id)`.
+- ❌ **Suppressing errors with `@` or empty `catch (\Throwable)` blocks:** Log unexpected exceptions via `$this->wire()->log->error($e->getMessage())`.
+- ❌ **Changing multiple layers simultaneously:** Change one variable/layer at a time so you can prove which change resolved the failure.
 
-## Triggering Execution
-Once the root cause is successfully verified via minimal steps, either apply the fix immediately or invoke `writing-plans` if the refactor is substantial.
+## Related Skills
+- `pw-test`
+- `pw-pages`
+- `pw-expert`

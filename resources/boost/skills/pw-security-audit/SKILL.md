@@ -1,6 +1,6 @@
 ---
 name: pw-security-audit
-description: "Use when auditing ProcessWire modules, hooks, templates, or MCP endpoints for security vulnerabilities like OWASP, input sanitization, RBAC, CSRF, and SQL injections."
+description: "Use when auditing ProcessWire modules, hooks, templates, URL endpoints, or CLI/MCP handlers for OWASP vulnerabilities, selector injection, XSS, RBAC bypass, CSRF, SQL injection, or path traversal."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
@@ -8,212 +8,107 @@ date_added: "2026-04-08"
 
 # ProcessWire Security Audit
 
-## Role
-
-You are a **ProcessWire Security Auditor**.
-
-You analyze ProcessWire applications for security vulnerabilities, misconfigurations, and insecure coding practices.
-
-You think like an attacker but respond like a security engineer.
-
-You prioritize:
-
-- Input sanitization via `$sanitizer`
-- RBAC correctness via `$user->hasRole()` / `$page->editable()`
-- CSRF token validation via `$session->CSRF`
-- SQL injection prevention (parameterized queries)
-- Path traversal prevention
-- Output escaping
-
-You do NOT overreact. You classify risk levels appropriately.
+Audit ProcessWire applications for exploitable vulnerabilities, access-control gaps, and unsafe input handling using ProcessWire-native mitigations (`$sanitizer`, `$user`, `$page->viewable()`, `$page->editable()`, `$session->CSRF`, `$database->prepare()`, `FileValidatorModule`).
 
 ## Documentation Reference (Source of Truth)
 
-- Core CLI: `php index.php docs get-text Sanitizer`, `php index.php docs get-text Session`, `php index.php docs get-text Users`
+- Core CLI: `php index.php docs get-text Sanitizer`, `php index.php docs get-text Session`, `php index.php docs get-text Users`, `php index.php docs get-text FileValidatorModule`
 - Core Markdown: `wire/core/Sanitizer/API.md`, `wire/core/Session/API.md`, `wire/core/Users/API.md`, `wire/core/WireDatabase/API.md`
 
----
+## Core Audit Checklist
 
-## When to Use
-
-- Reviewing ProcessWire module code for vulnerabilities
-- Auditing hook-based endpoints (`$wire->addHook()`)
-- Checking form handling and file upload logic
-- Reviewing MCP server tool implementations
-- Validating CLI command input handling
-- Reviewing migration files for destructive operations
-
----
-
-## Threat Model
-
-Always consider:
-
-- Unauthenticated front-end visitor
-- Authenticated low-privilege user
-- Privilege escalation via template access
-- Selector injection via unsanitized input
-- Path traversal via log file or asset access
-- CSRF on custom forms
-- XSS via unescaped output
-- File upload abuse
-- CLI command injection (if applicable)
-
----
-
-## Core Audit Areas
-
-### 1️⃣ Input Sanitization (`$sanitizer`)
-
-- Is all user input sanitized before use?
-- Is `$sanitizer->selectorValue()` used before `$pages->find()`?
-- Is `$sanitizer->text()` / `$sanitizer->textarea()` used for string inputs?
-- Is `$sanitizer->email()` used for email validation?
-- Is `$sanitizer->pageName()` used for URL-safe names?
-- Is `$sanitizer->entities()` used for HTML output?
+### 1. Selector Injection (`$sanitizer->selectorValue()`)
+Every external value interpolated into a `$pages->find()`, `$pages->findOne()`, `$pages->get()`, `$pages->count()`, or `$page->children()` selector string MUST be sanitized with `$sanitizer->selectorValue()` (or cast to `(int)` for numeric IDs):
 
 ```php
-// ✅ SAFE
-$q = $sanitizer->selectorValue($input->get->q);
-$results = $pages->find("title%={$q}, limit=50");
+// SAFE
+$q = $sanitizer->selectorValue((string) $input->get('q'));
+$results = $pages->find("template=product, title|summary%={$q}, limit=50");
 
-// ❌ UNSAFE — selector injection
-$q = $input->get->q;
+// UNSAFE — attacker can inject ", include=all, template=user"
+$q = $input->get('q');
 $results = $pages->find("title%={$q}");
 ```
 
----
-
-### 2️⃣ Access Control (RBAC)
-
-- Are `$user->hasRole()` / `$user->hasPermission()` checked?
-- Are `$page->editable()` / `$page->viewable()` used?
-- Are admin routes protected by middleware or permission checks?
-- Can users access other users' resources?
+### 2. Role-Based Access Control (RBAC) & `include=all` Leaks
+- Does the code use `$pages->get()` or `include=all` / `include=unpublished` / `check_access=0` with user-controlled IDs or paths and then render or mutate the page without checking `$page->viewable()` or `$page->editable()`?
+- Are custom URL hooks (`$wire->addHook('/api/...', ...)`) and Process module actions enforcing `$user->isLoggedin()` and `$user->hasPermission('...')`?
 
 ```php
-// ✅ SAFE
-if (!$user->hasRole('editor')) {
-    throw new Wire404Exception();
+// SAFE
+$target = $pages->get((int) $input->post('page_id'));
+if (!$target->id || !$target->editable()) {
+	throw new WirePermissionException($this->_('You do not have permission to edit this page.'));
 }
 
-// ❌ UNSAFE — no access check
-$page = $pages->get($input->get->id);
-$page->title = $input->post->title;
-$page->save();
+// UNSAFE — $pages->get() bypasses access control and unpublished checks
+$target = $pages->get((int) $input->post('page_id'));
+$target->setAndSave('title', $sanitizer->text((string) $input->post('title')));
 ```
 
----
-
-### 3️⃣ CSRF Protection
-
-- Are custom forms protected with CSRF tokens?
-- Is `$session->CSRF->hasValidToken()` called on POST?
+### 3. Cross-Site Request Forgery (CSRF)
+Every state-changing POST/PUT/DELETE handler in templates, URL hooks, or custom admin forms must validate a CSRF token via `$session->CSRF`:
 
 ```php
-// Form rendering
-<input type="hidden" name="<?= $session->CSRF->getTokenName() ?>"
-       value="<?= $session->CSRF->getTokenValue() ?>" />
+// In HTML form:
+echo $session->CSRF->renderInput();
 
-// Form processing
+// In POST handler:
 try {
-    $session->CSRF->hasValidToken();
+	$session->CSRF->validate();
 } catch (WireCSRFException $e) {
-    throw new Wire404Exception();
+	throw new Wire404Exception();
 }
 ```
 
----
-
-### 4️⃣ SQL Injection
-
-- Are raw SQL queries using prepared statements (`$db->prepare()`)?
-- Are table names escaped with `$db->escapeTable()`?
-- Is `bindValue()` / `bindParam()` used for all parameters?
+### 4. SQL Injection (`$this->wire()->database`)
+Raw SQL queries executed on `$this->wire()->database` must use prepared statements (`prepare()` + `bindValue()`) and escape dynamic table/column identifiers via `$database->escapeTable()` / `$database->escapeCol()`:
 
 ```php
-// ✅ SAFE
-$stmt = $db->prepare("SELECT * FROM {$db->escapeTable($table)} WHERE id = :id");
-$stmt->bindValue(':id', $id, \PDO::PARAM_INT);
+// SAFE
+$database = $this->wire()->database;
+$table = $database->escapeTable($tableName);
+$stmt = $database->prepare("SELECT id, data FROM `{$table}` WHERE pages_id = :pageId");
+$stmt->bindValue(':pageId', $page->id, \PDO::PARAM_INT);
 $stmt->execute();
 
-// ❌ UNSAFE — string interpolation
-$stmt = $db->query("SELECT * FROM pages WHERE id = {$id}");
+// UNSAFE — direct interpolation
+$stmt = $database->query("SELECT id, data FROM {$tableName} WHERE pages_id = {$page->id}");
 ```
 
----
-
-### 5️⃣ Path Traversal
-
-- Are file paths validated with `basename()`?
-- Are log file names sanitized before file access?
-- Are upload directories restricted?
+### 5. Cross-Site Scripting (XSS) & Output Formatting
+- Are request parameters (`$input->get`, `$input->post`, URL segments) encoded with `$sanitizer->entities()` before being echoed into HTML or attributes?
+- Are plain-text fields configured with `TextformatterEntities`, or escaped via `$sanitizer->entities((string) $page->getUnformatted('field'))` when output formatting is off?
+- In `Inputfield::render()` or `Process` modules, are attribute values escaped via `$sanitizer->entities()` or `htmlspecialchars($val, ENT_QUOTES, 'UTF-8')`?
 
 ```php
-// ✅ SAFE
-$logName = basename($input->get->file);
-$path = $config->paths->logs . $logName . '.txt';
+// SAFE
+$searchTerm = $sanitizer->entities((string) $input->get('q'));
+echo "<h2>Results for {$searchTerm}</h2>";
 
-// ❌ UNSAFE
-$path = $config->paths->logs . $input->get->file . '.txt';
+// UNSAFE — reflected XSS
+echo "<h2>Results for {$input->get->q}</h2>";
 ```
 
----
+### 6. Path Traversal & File Upload Validation
+- File names derived from user input must be stripped with `basename()` and resolved with `realpath()` to confirm they stay within the intended base directory.
+- Uploaded files handled outside native `InputfieldFile` must be validated with `$sanitizer->validateFile($tmpPath)` and restricted to an explicit allowlist of extensions.
 
-### 6️⃣ Output Escaping (XSS)
+## Risk Classification & Reporting Structure
 
-- Is user-generated content escaped with `$sanitizer->entities()`?
-- Are HTML entities used in template output?
-- Is `{!! !!}` (raw output) used only for trusted content?
+| Severity | Criteria |
+|---|---|
+| **Critical** | Remote code execution, SQL injection, authentication bypass, arbitrary file write/read |
+| **High** | Privilege escalation (editing/viewing restricted pages via `$pages->get()`), missing CSRF on state-changing endpoints |
+| **Medium** | Reflected/stored XSS, selector injection, unvalidated redirects |
+| **Low / Info** | Missing rate limits, verbose error leaks, defense-in-depth improvements |
 
-```php
-// ✅ SAFE
-echo $sanitizer->entities($page->body);
+Report each finding with:
+1. **Location & Severity** (`file:line` + level)
+2. **Exploit Scenario** (concrete input that triggers the flaw)
+3. **ProcessWire-Native Fix** (drop-in replacement code)
 
-// ❌ UNSAFE — XSS vector
-echo $page->body;
-```
-
----
-
-### 7️⃣ Destructive Operations
-
-- Do delete/trash commands check system flags?
-- Is `--force` required or `confirm()` shown for destructive ops?
-- Are migration `down()` methods guarded against data loss?
-
----
-
-## Risk Classification
-
-| Level | Description |
-|-------|-------------|
-| **Critical** | Remote code execution, SQL injection, auth bypass |
-| **High** | Privilege escalation, CSRF, path traversal |
-| **Medium** | XSS, selector injection, missing access checks |
-| **Low** | Information disclosure, missing rate limiting |
-| **Informational** | Code quality, best practice violations |
-
-Do not exaggerate severity.
-
----
-
-## Response Structure
-
-When auditing code:
-
-1. **Summary** — overview of findings
-2. **Vulnerabilities** — each with risk level
-3. **Exploit Scenario** — how it could be exploited
-4. **Recommended Fix** — with code example
-5. **Secure Refactored Example** — if needed
-
----
-
-## Behavioral Constraints
-
-- Do not invent vulnerabilities
-- Do not assume production unless specified
-- Prefer ProcessWire-native mitigation (`$sanitizer`, `$session->CSRF`)
-- Be realistic and precise
-- Do not shame the code author
+## Related Skills
+- `pw-module-filevalidator`
+- `pw-url-routing`
+- `pw-pages`

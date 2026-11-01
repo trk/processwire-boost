@@ -1,6 +1,6 @@
 ---
 name: pw-pages
-description: "Use when constructing ProcessWire Selectors or manipulating Page objects — finding, filtering, creating, editing, trashing, and deleting pages."
+description: "Use when constructing ProcessWire selectors or manipulating Page objects — finding, filtering, counting, creating, editing, trashing, or deleting pages."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
@@ -8,231 +8,136 @@ date_added: "2026-04-08"
 
 # ProcessWire Pages & Selectors Playbook
 
-**CRITICAL RULE:** Before using selectors or page manipulation methods in API calls, always verify API methods using the documentation ladder:
-1. Core CLI: `php index.php docs get-text Pages` or `php index.php docs methods-text Pages`
+Consult the local documentation ladder before using unfamiliar `Pages` or `Page` methods:
+1. Core CLI: `php index.php docs get-text Pages`, `php index.php docs get-text Page`, `php index.php docs methods-text Pages`
 2. Core Markdown: `wire/core/Pages/API.md`, `wire/core/Page/API.md`, `wire/core/PageArray/API.md`, `wire/core/Selectors/API.md`
-3. ProcessWire MCP Server: `pw_query` and `pw_schema_read`
-Never hallucinate API methods.
+3. MCP Server: `pw_schema_read` and `pw_query`
 
-Selectors are the foundational querying language in ProcessWire. They are simple strings of text used in `$pages->find()`, `$pages->get()`, `$page->children()`, `$page->siblings()`, and even for filtering arrays and fields.
+## 1. Page Retrieval Methods Matrix
 
-## Anatomy of a Selector
-
-A standard selector consists of a **field**, an **operator**, and a **value**.
-
-```php
-$pages->find("template=product");
-```
-
-Fields can be combined natively in one string. Commas `,` act as `AND`.
-
-```php
-$pages->find("template=product, parent=/shop/, get_price>100");
-```
-
-## 1. Operators Reference
-
-ProcessWire offers a highly flexible set of operators.
-
-### Basic & Numeric
-
-- `=` : Equal to
-- `!=` : Not equal to (or use negation like `!body*=word`)
-- `<` / `<=` : Less than (or equal to)
-- `>` / `>=` : Greater than (or equal to)
-
-### Text Matching
-
-_Note: Using `_=`, `~=`heavily relies on MySQL FULLTEXT indexes (typically 4+ chars required, ignores stop-words). Use`%=` if you need to match short strings or stop-words.\*
-
-- `*=` : Contains exact phrase / text (words must be sequential).
-- `~=` : Contains all words (order independent).
-- `%=` : Contains phrase/text LIKE (SQL LIKE equivalent, no length restrictions).
-- `^=` : Starts with text.
-- `$=` : Ends with text.
-- `~|=`: Contains any words.
-- `**=`: Partial word matching (useful for live searches).
-
-## 2. OR Logic
-
-You can specify `OR` logic on fields, values, or entire groups.
-
-**OR Values:** Pipe `|` separates possible values.
-
-```php
-$pages->find("template=article|news");
-```
-
-**OR Fields:** Pipe `|` separates possible fields.
-
-```php
-$pages->find("title|summary*=bitcoin");
-```
-
-**OR Groups (Parentheses):** Specify multiple full conditions where only one group needs to match.
-
-```php
-$pages->find("template=product, stock>0, (featured_from<=today, featured_to>=today), (highlighted=1)");
-```
-
-## 3. Sorting & Limits
-
-**Sorting:** Use `sort=field`. Precede with a minus `-` for descending order.
-
-```php
-$pages->find("template=news, sort=-published_date, sort=title");
-```
-
-_(Note: `$pages->find()` defaults to MySQL text relevance if no sort is provided. Always provide a sort when order matters!)_
-
-**Limit/Pagination:**
-
-```php
-$pages->find("template=skyscraper, limit=50"); // Used natively with pagination modules
-```
-
-## 4. Traversing Data (Sub-selectors & Count)
-
-You can dive deep into complex fields directly from the selector.
-
-**Count Selectors:** Target pages based on the quantity inside a multi-value field.
-
-```php
-$pages->find("images.count>=3");
-```
-
-**Subfield Selectors:** Query inner properties of complex fields (Page Reference, Repeater, Image, etc).
-
-```php
-$pages->find("buildings.feet_high>1000, buildings.year_built<1980");
-```
-
-**Matching the exact same row (`@`):**
-If the field is a multi-value field (e.g. Repeaters), the standard subfield selector might match `feet_high` from row A, and `year_built` from row B. To force the selector to match BOTH properties within the **same exact row**, use `@`:
-
-```php
-$pages->find("template=house, @categories.name=modern, @categories.featured=1");
-```
-
-**Sub-selectors `[...]` :**
-A sub-selector runs a query on the related field dynamically.
-
-```php
-// Find products whose company has >5 locations, and one location is in Finland
-$pages->find("template=product, company=[locations>5, locations.title%=Finland]");
-```
-
-## 5. Page Retrieval Methods Matrix
-
-| Method | Returns | Access/Status Filtering | Use Case |
+| Method | Return Type | Access & Status Filtering | Primary Use Case |
 |---|---|---|---|
-| `$pages->find("...")` | `PageArray` | Excludes hidden, unpublished, and restricted | Standard multi-page query |
-| `$pages->findOne("...")` | `Page` or `NullPage` | Same as `find()` (excludes hidden, unpublished) | Locate first matching visible page |
-| `$pages->get("...")` | `Page` or `NullPage` | **No exclusions** (includes hidden, unpublished) | Locate specific page by ID, path, or selector |
-| `$pages->findMany("...")` | `PageArray` iterator | Excludes hidden, unpublished, and restricted | Memory-safe chunked iteration for large sets |
-| `$pages->has("...")` | `int` (page ID) or `0` | No exclusions | Fast existence check without loading object |
-| `$pages->count("...")` | `int` | Excludes hidden, unpublished, and restricted | Count matching rows without loading objects |
+| `$pages->find($selector)` | `PageArray` | Excludes `hidden`, `unpublished`, `trash`, and restricted pages | Standard multi-page query (always include `limit=` and `sort=`) |
+| `$pages->findOne($selector)` | `Page\|NullPage` | Same exclusions as `find()` | Fetch single visible page matching selector |
+| `$pages->get($selector)` | `Page\|NullPage` | **No exclusions** (includes `hidden`, `unpublished`, `trash`, restricted) | Fetch known page by ID, path, or internal system lookup |
+| `$pages->findMany($selector)` | `PageArray` iterator | Same exclusions as `find()` | Memory-safe chunked iteration over thousands of pages |
+| `$pages->count($selector)` | `int` | Same exclusions as `find()` | Count matching pages without hydrating `Page` objects |
+| `$pages->has($selector)` | `int` (`page_id` or `0`) | No exclusions | Fast existence check without loading the `Page` |
+| `$pages->newNullPage()` | `NullPage` | N/A | Instantiate a wired `NullPage` (never call `new NullPage()` directly) |
 
+> [!IMPORTANT]
+> `$pages->get()` and `$pages->findOne()` return a `NullPage` (`$p->id === 0`) when no page matches, never `null`. Always check `if ($p->id)` before reading or mutating properties.
+
+## 2. Selector Operators & Advanced Expressions
+
+### Comparison & Text Matching Operators
+- **Exact / Numeric:** `=`, `!=`, `<`, `<=`, `>`, `>=` (e.g., `template=product, price<=100, created>=2026-01-01`)
+- **Fulltext Phrase / Words (`*=`, `~=`):** Rely on MySQL `FULLTEXT` indexes. `*=` matches sequential phrase; `~=` matches all words in any order.
+- **Substring LIKE (`%=`):** Uses SQL `LIKE '%val%'` without minimum word-length or stopword limits.
+- **Prefix / Suffix (`^=`, `$=`):** `name^=charter-`, `name$=-vip`
+- **Any Word / Partial Word (`~|=`, `**=`):** `title~|=yacht catamaran`, `title**=lux`
+
+### Logical OR & Grouping
 ```php
-// Memory-safe chunked iteration:
-foreach ($pages->findMany("template=product") as $product) {
-    // Automatically loaded and unmanaged in memory chunks
-}
+// OR values on a single field
+$items = $pages->find('template=article|news, sort=-created, limit=20');
 
-// Check existence:
-if ($pages->has("template=user, email=info@example.com")) {
-    // Page exists
-}
+// OR across multiple fields
+$q = $sanitizer->selectorValue((string) $input->get('q'));
+$items = $pages->find("template=product, title|summary|body%={$q}, limit=20");
 
-// PageArray::each formatting:
-echo $pages->find("template=news, sort=-created, limit=5")
-    ->each("<li><a href='{url}'>{title}</a></li>");
+// OR groups: at least one parenthesized group must match
+$items = $pages->find('template=product, stock>0, (featured=1), (discount_percent>=20)');
 ```
 
-## 6. Security & Access Control
-
-By default, database-querying selectors (`find()`, `findOne()`, `children()`) **exclude** hidden, unpublished, or access-restricted pages. `$pages->get()` is the exception (includes hidden/unpublished/restricted pages).
-
-You can override these exclusions:
-
-- `include=hidden` : Allows `hidden` pages.
-- `include=unpublished` : Allows both `hidden` and `unpublished`.
-- `include=trash` : Includes pages located in the trash.
-- `include=all` : Overrides all restrictions (hidden, unpublished, access control).
-- `check_access=0` : Disables role-based access checks for the query, but still excludes unpublished pages.
-
-## 7. Sanitizing User Input
-
-Always sanitize user input before passing it into a selector.
-
+### Subfields, Counts, Same-Row (`@`) & Sub-Selectors (`[...]`)
 ```php
-// Integers:
-$year = (int) $input->get->year;
+// Count of multi-value fields
+$withGallery = $pages->find('template=yacht, images.count>=5, limit=20');
 
-// Arbitrary string values:
-$k = $sanitizer->selectorValue($input->get->keyword);
-$results = $pages->find("title|body~=$k, limit=50");
+// Same-row matching (@) inside Repeaters or multi-value Page fields
+$matched = $pages->find('template=yacht, @seasons.month=july, @seasons.available=1, limit=20');
+
+// Sub-selector ([...]) evaluated dynamically against a relation
+$matched = $pages->find('template=product, manufacturer=[country=Italy, active=1], limit=20');
 ```
 
----
+### Inclusion Overrides
+Override default `find()` / `findOne()` / `count()` exclusions when required:
+- `include=hidden` — Include hidden pages.
+- `include=unpublished` — Include hidden and unpublished pages.
+- `include=trash` — Include trashed pages.
+- `include=all` — Bypass all status and access restrictions.
+- `check_access=0` — Bypass role access checks while still excluding unpublished and trashed pages.
 
-## 8. Creating Pages
-
-Always use `Page` instances to insert new content.
+## 3. Creating Pages
 
 ```php
-// Option A: Standard Page instance
-$p = new \ProcessWire\Page();
-$p->template = "article";
-$p->parent = $pages->get("/articles/"); // MUST have a parent
-$p->name = $sanitizer->pageName("My New Article!"); // URL slug
-$p->title = "My New Article!";
-$p->save();
-
-// Option B: Array syntax ($pages->new)
-$p = $pages->new([
-    'template' => 'article',
-    'parent' => '/articles/',
-    'title' => 'My New Article!',
+// Option A: Array syntax via $pages->new() (creates and saves immediately)
+$article = $pages->new([
+	'template' => 'article',
+	'parent' => '/articles/',
+	'name' => $sanitizer->pageName('My New Article'),
+	'title' => 'My New Article',
 ]);
 
-// Option C: Shortcut ($pages->add)
-$p = $pages->add("article", "/articles/", "my-new-article", [
-    'title' => 'My New Article!'
+// Option B: $pages->add(template, parent, name, values)
+$article = $pages->add('article', '/articles/', 'my-new-article', [
+	'title' => 'My New Article',
 ]);
+
+// Option C: Explicit Page instance when setting multiple fields or statuses before first save
+$article = new Page();
+$article->template = $templates->get('article');
+$article->parent = $pages->get('/articles/');
+$article->name = $sanitizer->pageName('My New Article');
+$article->title = 'My New Article';
+$article->addStatus(Page::statusHidden);
+$article->save();
 ```
 
-## 9. Editing & Updating Pages
+## 4. Updating Pages Safely (`$page->of(false)`)
 
-You must call `->of(false)` to turn off output formatting before saving a page that has already been loaded from the database, otherwise textformatters might corrupt data.
-
-```php
-$p = $pages->get(1234);
-$p->of(false); // TURN OFF OUTPUT FORMATTING
-$p->title = "Updated Title";
-$p->my_custom_field = "New Value";
-$p->save();
-
-// Combined atomic set and save:
-$p->setAndSave('title', 'Updated Title');
-```
-
-## 10. Deleting & Trashing Pages
-
-Use `$pages->trash()` to move a page to the trash securely. Only use `$pages->delete()` when absolutely necessary as it skips the trash.
+Always disable output formatting (`$page->of(false)`) before modifying a loaded page so `Textformatter` output is not written back to the database:
 
 ```php
-$p = $pages->get(1234);
-if ($p->id && $p->trashable()) {
-    $pages->trash($p);
+$article = $pages->get(1234);
+if ($article->id) {
+	$article->of(false);
+	$article->title = 'Updated Title';
+	$article->summary = 'Updated summary';
+	$article->save();
+
+	// Or atomic single-field update (automatically handles output formatting state):
+	$article->setAndSave('title', 'Updated Title');
 }
 ```
 
-## 11. Performance Tips
+## 5. Trashing & Deleting Pages
 
-- **Always use `limit=`** on `$pages->find()` for large datasets
-- Use `$pages->count($selector)` instead of `$pages->find($selector)->count()` — avoids loading all pages into memory
-- Use `$pages->findMany($selector)` when iterating across hundreds or thousands of pages
-- Prefer indexed fields first (`id`, `name`, `template`, `parent_id`) in selectors
-- Call `$pages->uncacheAll()` after manual batch processing
-- Use `$page->of(false)` before modifying output-formatted pages
+Prefer `$pages->trash($page)` over `$pages->delete($page)` unless permanent deletion is explicitly required:
+
+```php
+$article = $pages->get(1234);
+if ($article->id && $article->trashable()) {
+	$pages->trash($article);
+}
+```
+
+## 6. CLI Page Administration (`vendor/bin/wire page:*`)
+
+For administrative tasks from the terminal, use `vendor/bin/wire`:
+- `php vendor/bin/wire page:list --template=article --limit=10 --json`
+- `php vendor/bin/wire page:find "template=article, limit=10" --json`
+- `php vendor/bin/wire page:create --template=article --parent=/articles/ --title="Hello" --json`
+- `php vendor/bin/wire page:update --id=1234 --set="title=Updated" --json`
+- `php vendor/bin/wire page:move --id=1234 --parent=/archive/ --json`
+- `php vendor/bin/wire page:publish|unpublish|restore --id=1234 --json`
+- `php vendor/bin/wire page:trash --id=1234 --force --json`
+
+## Anti-Patterns & Loophole Closing
+
+- ❌ **Checking `if ($page)` or `if ($page !== null)` on `$pages->get()`:** `NullPage` is a truthy object. Always check `if ($page->id)`.
+- ❌ **Interpolating raw `$input` into selectors:** Always wrap user input in `$sanitizer->selectorValue()`.
+- ❌ **Calling `count($pages->find($selector))`:** Hydrates every matching page into memory. Always use `$pages->count($selector)`.
+- ❌ **Mutating and saving a loaded page without `$page->of(false)`:** Corrupts formatted fields; call `$page->of(false)` or `$page->setAndSave()`.

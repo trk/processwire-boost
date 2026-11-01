@@ -8,7 +8,7 @@ date_added: "2026-04-08"
 
 # ProcessWire Process Module Architecture
 
-Every admin page in ProcessWire (Pages, Setup, Modules, Access, etc.) is powered by a `Process` module. Process modules act as backend controllers: they execute upon URL access, handle URL segments, enforce RBAC permissions, and render admin views.
+Every admin page in ProcessWire (Pages, Setup, Modules, Access, etc.) is powered by a `Process` module (scaffold via `php vendor/bin/wire make:module <ModuleName> --type=process`). Process modules act as backend controllers: they execute upon URL access, handle URL segments, enforce RBAC permissions, and render admin views.
 
 ## Documentation Reference (Source of Truth)
 

@@ -1,6 +1,6 @@
 ---
 name: pw-docs-architect
-description: "Use when creating or updating module documentation, package READMEs, architecture guides, or CLI command references for ProcessWire projects."
+description: "Use when creating or updating ProcessWire module READMEs, API.md reference files, [Type]Field.php IDE companion classes, architecture guides, or CLI command documentation."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
@@ -8,140 +8,78 @@ date_added: "2026-04-08"
 
 # ProcessWire Docs Architect
 
-Create comprehensive, long-form technical documentation for ProcessWire modules, packages, and systems. Captures both the **what** and the **why** of every component.
+Author accurate, developer-grade documentation (`README.md`, `API.md`, `[Type]Field.php` PHPDoc companions, and `AGENTS.md`) for ProcessWire modules, packages, and projects.
 
 ## When to Use
+- Writing or updating a ProcessWire module's `README.md` or `API.md`.
+- Documenting a `Fieldtype` module and its `[Type]Field.php` IDE settings class.
+- Documenting `vendor/bin/wire` CLI commands, URL hook endpoints, or MCP tools.
 
-- Writing a module README from scratch
-- Documenting architecture decisions for a ProcessWire package
-- Creating CLI command reference for `vendor/bin/wire` commands
-- Generating onboarding documentation for a ProcessWire project
-- Writing module installation and configuration guides
-- Documenting URL hook endpoints and MCP tool interfaces
+## Phase 1: Source-of-Truth Discovery
 
-## Documentation Process
+Inspect the implementation before writing a single line of documentation:
+1. Run `pw_schema_read` and `pw_module_list` (MCP) or inspect `getModuleInfo()` and `configure()` in the target source files.
+2. Check existing `API.md` conventions via `wire/core/Tools/WireApiDocs/HOWTO-API.md` or `php index.php docs get-text <Class>`.
+3. Verify every CLI command signature, option, and default value directly from its `configure()` method.
 
-### Phase 1: Discovery
+## Phase 2: Document Templates by Artifact Type
 
-Before writing anything, analyze the codebase:
+### 1. Module `API.md` Reference (Upstream ProcessWire Standard)
+Place `API.md` in the module root directory alongside the `.module.php` file:
 
+````markdown
+# FieldtypeMyCustom
+
+Stores normalized decimal prices with currency code metadata.
+
+## Value type
+
+`MyCustomValue` (object) when formatted or unformatted.
+
+## Getting and setting values
+
+```php
+// Reading
+$price = $page->price;
+echo $price->amount; // 125.50
+echo $price->currency; // "EUR"
+
+// Writing
+$page->of(false);
+$page->price->amount = 199.00;
+$page->price->currency = 'EUR';
+$page->save('price');
 ```
-# Understand the schema
-pw_schema_read
-
-# List installed modules
-pw_module_list
-
-# Check module structure
-ls site/modules/MyModule/
-
-# Review existing docs
-cat site/modules/MyModule/README.md
-```
-
-Key questions to answer:
-- What templates and fields does this module create?
-- What hooks does it register?
-- What CLI commands does it provide?
-- What permissions/roles does it require?
-- What other modules does it depend on?
-
-### Phase 2: Structuring
-
-Organize documentation with progressive disclosure:
-
-```
-1. Executive Summary        → 1 paragraph, what it does
-2. Installation             → Composer, module install, config
-3. Quick Start              → Working example in 30 seconds
-4. Configuration            → All module config options
-5. Usage                    → Core features with examples
-6. CLI Commands             → Full command reference
-7. Architecture             → How it works internally
-8. API Reference            → Hooks, methods, events
-9. Security                 → RBAC, sanitization, CSRF
-10. Troubleshooting         → Common issues and solutions
-```
-
-### Phase 3: Writing
-
-Follow these ProcessWire-specific conventions:
-
-#### Module README Structure
-
-```markdown
-# ModuleName
-
-> One-line description of what the module does.
-
-## Requirements
-
-- ProcessWire >= 3.0.200
-- PHP >= 8.3
-- [Other module dependencies]
-
-## Installation
-
-\`\`\`bash
-composer require vendor/module-name
-\`\`\`
-
-Then install via ProcessWire admin:
-**Modules → Refresh → Find → Install**
-
-Or via CLI:
-\`\`\`bash
-wire module:install ModuleName
-\`\`\`
-
-## Configuration
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `apiKey` | string | `''` | API key for external service |
-| `cacheTime` | int | `3600` | Cache duration in seconds |
-
-## Quick Start
-
-\`\`\`php
-// In a template file
-$result = $modules->get('ModuleName')->process($page);
-echo $result->output;
-\`\`\`
-
-## Features
-
-### Feature A
-
-Description with code example...
-
-### Feature B
-
-Description with code example...
-```
-
-#### API.md (Module API Reference)
-
-For modules exposing public methods, always create an `API.md` file alongside `README.md`.
-
-```markdown
-# MyModuleClass
-
-> API reference for interacting with MyModule from templates or hooks.
-
-## Value Types
-- Returns `\ProcessWire\WireArray` for grouped items.
-- Returns `\ProcessWire\NullPage` on search failure.
 
 ## Selectors
-\`\`\`php
-$results = $modules->get('MyModuleClass')->find("status=active");
-\`\`\`
+
+```php
+// Query by amount (default column) or currency subfield
+$items = $pages->find('template=product, price>=100, price.currency=EUR, limit=25');
 ```
 
-#### Fieldtype IDE Companion Class (`[Type]Field.php`)
+## Output / markup
 
-For Fieldtype modules, document properties by creating a companion `[Type]Field.php` class (e.g. `MyCustomField.php` for `FieldtypeMyCustom`) with PHPDoc annotations. The Fieldtype class implements `getFieldClass()` returning `'MyCustomField'`. This enables IDE autocompletion for field settings.
+```php
+echo $page->price; // Outputs formatted string e.g. "€199.00" when $page->of(true)
+```
+
+## Notes
+
+- Database schema uses `DECIMAL(12,2)` for `data` and `CHAR(3)` for `currency`.
+- Empty values return a blank `MyCustomValue` with `amount = 0.0`.
+````
+
+### 2. Core PHPDoc `#pw-` Tags (`HOWTO-API.md`)
+When documenting classes or hookable methods consumed by ProcessWire's doc parser (`php index.php docs`):
+- `#pw-summary <one-line summary>`
+- `#pw-body = <detailed markdown body>`
+- `#pw-group-<group-name>`
+- `#pw-hooker` (marks hookable methods)
+- `#pw-internal` (hides internal methods from public docs)
+
+### 3. Fieldtype IDE Companion Class (`[Type]Field.php`)
+Every `Fieldtype` module should include a `[Type]Field.php` file in the same directory (e.g., `MyCustomField.php` for `FieldtypeMyCustom`) extending `Field` with `@property` annotations for all field and inputfield settings, and return its class name from `getFieldClass(): string`:
 
 ```php
 <?php
@@ -151,184 +89,35 @@ declare(strict_types=1);
 namespace ProcessWire;
 
 /**
- * Companion class for IDE autocompletion 
- * 
- * @property int $maxLength Maximum string length
- * @property string $defaultText Default fallback text
+ * Companion Field class for FieldtypeMyCustom settings autocompletion.
+ *
+ * @property string $defaultCurrency Three-letter ISO currency code (default: "EUR")
+ * @property int $precision Decimal precision (default: 2)
  */
-class MyCustomField extends Field 
+class MyCustomField extends Field
 {
 }
 ```
 
-#### Core CLI Documentation (`php index.php docs`)
-
-ProcessWire core reads `API.md` files natively via the command line:
-- `php index.php docs list` — List all classes with API documentation.
-- `php index.php docs vars` — Map API variables to classes.
-- `php index.php docs get <class>` — Retrieve full documentation.
-- `php index.php docs methods <class>` — List public methods.
-
-When documenting core-level classes with docblocks, use upstream `#pw-` tags:
-- `#pw-summary <text>`: Short one-line summary
-- `#pw-body = <text>`: Detailed explanation
-- `#pw-group-<name>`: Method grouping
-- `#pw-hooker`: Marks method as hookable
-- `#pw-internal`: Omits method from public developer docs
-
-#### CLI Command Documentation
-
-```markdown
-## CLI Commands
-
-### `domain:action`
-
-Brief description of what this command does.
-
-**Usage:**
-\`\`\`bash
-wire domain:action [options] [arguments]
-\`\`\`
-
-**Arguments:**
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `name` | Yes | The resource name |
-
-**Options:**
-| Option | Short | Default | Description |
-|--------|-------|---------|-------------|
-| `--json` | `-j` | `false` | Output as JSON |
-| `--dry-run` | | `false` | Preview without changes |
-| `--force` | `-f` | `false` | Skip confirmation |
-
-**Examples:**
-\`\`\`bash
-# Basic usage
-wire domain:action my-resource
-
-# With JSON output
-wire domain:action my-resource --json
-
-# Force without confirmation
-wire domain:action my-resource --force
-\`\`\`
-```
-
-#### Hook/Endpoint Documentation
-
-```markdown
-## Hooks
-
-### `Pages::saved`
-
-Triggered after a page is saved. Updates the search index.
-
-\`\`\`php
-$wire->addHookAfter('Pages::saved', function (HookEvent $event) {
-    $page = $event->arguments(0);
-    if ($page->template->name !== 'article') return;
-
-    $indexer = $event->wire()->modules->get('SearchIndexer');
-    $indexer->reindex($page);
-});
-\`\`\`
-
-### URL Hook: `/api/search/`
-
-Returns search results as JSON.
-
-**Method:** GET
-**Authentication:** None required
-**Rate Limit:** 60/minute
-
-**Parameters:**
-| Param | Type | Required | Description |
-|-------|------|----------|-------------|
-| `q` | string | Yes | Search query (sanitized via `selectorValue`) |
-| `limit` | int | No | Max results (default: 20, max: 100) |
-
-**Response:**
-\`\`\`json
-{
-  "count": 5,
-  "results": [
-    {"id": 1042, "title": "Example", "url": "/blog/example/"}
-  ]
-}
-\`\`\`
-```
-
-#### Architecture Documentation
-
-```markdown
-## Architecture
-
-### Overview
-
-Brief description of how the module works internally.
-
-### Data Flow
-
-\`\`\`
-User Input → $sanitizer → Selector Query → $pages->find()
-                                                ↓
-                                         Page Processing
-                                                ↓
-                                    Template Rendering → Output
-\`\`\`
-
-### Database Schema
-
-This module creates the following fields:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `ai_summary` | FieldtypeTextarea | AI-generated page summary |
-| `ai_status` | FieldtypeOptions | Processing status (pending/done/error) |
-
-### Design Decisions
-
-**Why Page References instead of Repeaters?**
-Page references allow cross-template querying and independent lifecycle management.
-Repeaters would constrain data to a single parent context.
-
-**Why URL hooks instead of template-based routing?**
-The API endpoints have no corresponding page tree structure.
-URL hooks provide cleaner separation between data API and content pages.
-```
+### 4. Module `README.md` Structure
+Organize module `README.md` files in this exact order:
+1. **Title & Summary:** One-paragraph explanation of what problem the module solves.
+2. **Requirements:** PHP version (`>= 8.4`), ProcessWire version (`>= 3.0.210`), required modules.
+3. **Installation:** `composer require ...` and `php vendor/bin/wire module:install ModuleName`.
+4. **Quick Start:** Copy-paste runnable example using valid ProcessWire API (`$this->wire()->modules->get(...)`, tabs, `declare(strict_types=1);`, curly braces).
+5. **Configuration:** Markdown table of configurable settings (`Setting | Type | Default | Description`).
+6. **Hooks & Events:** Hookable `___method()` signatures and example `$wire->addHookAfter(...)` listeners.
+7. **CLI / MCP Integration (if applicable):** Exact `vendor/bin/wire` commands, arguments, options (`--json`, `--dry-run`, `--force`), and example outputs.
+8. **Security & Permissions:** Required permissions, `$sanitizer` usage, and CSRF rules.
 
 ## Quality Checklist
 
-Before publishing documentation:
+- [ ] Every PHP example uses **tabs**, `declare(strict_types=1);`, curly braces on all control structures, and context-safe API access (`$this->wire()->apiVar` or `$event->wire()->apiVar`).
+- [ ] Every CLI example uses `php vendor/bin/wire <command>` and matches the real `configure()` definition.
+- [ ] Zero placeholders (`TODO`, `TBD`, `"see source code"`).
+- [ ] Zero foreign framework terminology (no Eloquent, Artisan, Blade, or ServiceProvider references).
 
-- [ ] `API.md` is generated for modules exposing public API methods
-- [ ] `[Type]Field.php` companion class is created for Fieldtypes
-- [ ] Executive summary exists and is clear in 1 paragraph
-- [ ] Installation steps are copy-paste ready
-- [ ] Quick Start example works within 30 seconds
-- [ ] All CLI commands have usage, options, and examples
-- [ ] All hooks/endpoints have parameters and response format
-- [ ] Code examples use `$sanitizer` for user input
-- [ ] RBAC requirements are documented
-- [ ] Module config options are in a table
-- [ ] Requirements (PHP/PW version, dependencies) are listed
-- [ ] Architecture section explains "why" not just "what"
-- [ ] No Laravel/Artisan/Eloquent terminology
-
-## Anti-Patterns
-
-- ❌ "See source code for details" — always document inline
-- ❌ Placeholder text like "TODO" or "coming soon"
-- ❌ Laravel framework examples in PW module docs
-- ❌ Missing installation steps
-- ❌ Code examples without context (which file? template? module?)
-- ❌ Undocumented config options
-- ❌ Missing error/edge case documentation
-
-## Output Characteristics
-
-- **Length:** Proportional to module complexity (1-50+ pages)
-- **Style:** Technical but accessible, progressive complexity
-- **Format:** Markdown with tables, code blocks, and diagrams
-- **Audience:** ProcessWire developers with varying experience levels
+## Related Skills
+- `pw-module-development`
+- `pw-module-fieldtype-inputfield`
+- `pw-writing-skills`

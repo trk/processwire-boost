@@ -1,48 +1,46 @@
 # ProcessWire Advanced Development
 
-ProcessWire provides a hooking system, custom module development, and schema management API. For full patterns and examples, activate the `pw-module-development` skill.
+ProcessWire provides a hook system, custom page classes, and a modular plugin architecture. Activate `pw-module-development`, `pw-custom-page-classes`, or the specialized `pw-module-*` skills when working in these areas.
 
-## Hooks
+## Hooks (`WireHooks`)
 
-Place hooks in `site/ready.php` or Module `init()`/`ready()` methods:
-- **`addHookBefore`**: Modify arguments or prevent original execution.
-- **`addHookAfter`**: Read return value, log, or execute follow-up tasks.
-- **Hookable Methods**: Any class method intended to be hookable must use the `___methodName()` triple-underscore prefix convention.
+Register hooks in `site/init.php`, `site/ready.php`, or a module's `init()` / `ready()` method:
+- **`addHookBefore`**: Inspect or mutate `$event->arguments(0)` before execution, or set `$event->replace = true` and `$event->return = ...` to short-circuit the original method.
+- **`addHookAfter`**: Inspect or modify `$event->return` or run side effects after execution (e.g., `Pages::saved`).
+- **URL/Path Hooks**: Register virtual routes directly via `$wire->addHook('/api/items/{id}', ...)` (activate `pw-url-routing`).
+- **Defining Hookable Methods**: Prefix hookable methods with three underscores (`public function ___methodName()`) in a `Wire`-derived class and document the unprefixed name in the class PHPDoc with `@method ReturnType methodName(...)`.
 
-## Module Documentation
+```php
+$wire->addHookAfter('Pages::saved', function(HookEvent $event): void {
+	/** @var Page $page */
+	$page = $event->arguments(0);
+	if ($page->template->name !== 'article') {
+		return;
+	}
+	$event->wire()->log->save('articles', "Saved article {$page->id}");
+});
+```
 
-### API.md files
-Each Fieldtype module directory should have an `API.md` covering usage of that module's Fieldtype (and related classes) from a developer's perspective.
-Recommended structure (one entry per Fieldtype):
-- `# FieldtypeClassName` — H1 is the class name, no "API" suffix
-- One-line description
-- `## Value type` — the PHP type returned
-- `## Getting and setting values` — code examples
-- `## Selectors` — selector usage with notes on non-obvious behavior
-- `## Output / markup` — rendering examples
-- `## Notes` — defaults, sanitization, DB column, compatible types
+## Custom Page Classes (`site/classes/`)
 
-### [Type]Field.php classes (Fieldtype settings typing)
-Each Fieldtype module should have a corresponding `[Type]Field.php` file (e.g. `TextField.php`, `IntegerField.php`) in the same directory:
-- Extends `Field`
-- Contains PHPDoc `@property` annotations for all configurable settings from both the Fieldtype and its Inputfield
-- Fieldtype implements `getFieldClass()` returning the class name
-- The Fieldtype module loads it (commonly via `require_once` at the bottom of the module file)
+When `$config->usePageClasses = true`, ProcessWire maps templates to `[PascalCaseTemplate]Page` classes in `site/classes/` (e.g., template `blog-post` maps to `site/classes/BlogPostPage.php` in `namespace ProcessWire;`). Activate `pw-custom-page-classes` before creating or extending page classes.
 
-### Database & API Variable Access
-- **API Access in Classes:** Inside classes extending `Wire` or `WireData` (Modules, Process classes, Page classes), ALWAYS use `$this->wire()->apiVar` (e.g., `$this->wire()->pages`). Never use `$this->pages` or `$this->modules` directly, as this relies on slow `__get()` magic methods and can conflict with class properties.
-- **Local Scoping in Loops:** When calling the same API variable repeatedly in methods or loops, cache it locally at the top of the method:
-  ```php
-  $pages = $this->wire()->pages;
-  $sanitizer = $this->wire()->sanitizer;
-  ```
-- **Database Access:** Always access as `$this->wire()->database` (property), not `$this->wire()->database()` (method call). In ProcessWire this is a `WireDatabasePDO` wrapper (PDO-like API).
-- **Indentation:** Use **tabs, not spaces** across all ProcessWire modules and classes.
+## Module Architecture (`site/modules/`)
 
-## Module Types
+- **`Module` / `ConfigurableModule`**: Backend services and autoloaded hook providers (`pw-module-development`).
+- **`Process`**: Admin controllers, dashboards, and sub-routes (`pw-module-process` & `pw-admin-ui`).
+- **`Fieldtype` & `Inputfield`**: Custom database field types and form controls (`pw-module-fieldtype-inputfield`).
+- **`Textformatter`**: Runtime string formatters applied when `$page->of()` is `true` (`pw-module-textformatter`).
+- **`FileValidatorModule`**: Upload security scanners invoked by `InputfieldFile` and `$sanitizer->validateFile()` (`pw-module-filevalidator`).
+- **`Markup`**: Reusable HTML rendering modules (`pw-module-markup`).
 
-- **Process Modules**: Admin page URLs and GUI interfaces.
-- **Fieldtype Modules**: Database schema — how data is stored/retrieved.
-- **Inputfield Modules**: HTML form elements — how users input data.
+## Module Documentation & IDE Typing Conventions
 
-**Namespaces**: Always declare `namespace ProcessWire;` or fully qualify (e.g., `\ProcessWire\wire('pages')`).
+### `API.md` Files & `#pw-` Docblock Tags
+Modules and Fieldtypes that expose developer APIs should include an `API.md` file alongside the module code:
+- `# ClassName` (H1 class name without "API" suffix) followed by a one-line summary.
+- Sections: `## Value type`, `## Getting and setting values`, `## Selectors`, `## Output / markup`, `## Notes`.
+- When writing core-compatible PHPDoc blocks, see `wire/core/Tools/WireApiDocs/HOWTO-API.md` for `#pw-summary`, `#pw-body`, `#pw-group-<name>`, `#pw-hooker`, and `#pw-internal` tags.
+
+### `[Type]Field.php` Companion Classes
+Each custom `Fieldtype` module should provide a `[Type]Field.php` companion class in the same directory extending `Field` with `@property` PHPDoc annotations for all configurable field and inputfield settings, and return its class name from `getFieldClass(): string`.

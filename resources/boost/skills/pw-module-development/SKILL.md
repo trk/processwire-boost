@@ -1,6 +1,6 @@
 ---
 name: pw-module-development
-description: "Use when building, structuring, or refactoring native backend modules for ProcessWire using PHP 8.4 and strict typing."
+description: "Use when building, scaffolding, structuring, or refactoring native ProcessWire backend modules (WireData, Module, ConfigurableModule) using PHP 8.4+ and strict typing."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
@@ -8,7 +8,7 @@ date_added: "2026-04-08"
 
 # ProcessWire Core Module Development
 
-This skill governs building native backend modules in ProcessWire. Modules extend `ProcessWire\WireData` and implement `ProcessWire\Module`.
+This skill governs building native backend modules in ProcessWire. Modules extend `ProcessWire\WireData` and implement `ProcessWire\Module` (and optionally `ProcessWire\ConfigurableModule`). Scaffold new modules via `php vendor/bin/wire make:module <ModuleName> --type=module`.
 
 ## Documentation Reference (Source of Truth)
 

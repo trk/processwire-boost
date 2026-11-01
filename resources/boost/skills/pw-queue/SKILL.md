@@ -1,84 +1,112 @@
 ---
 name: pw-queue
-description: "Use when creating, dispatching, or interacting with Queue jobs in ProcessWire (processwire-console file-based queues)."
+description: "Use when creating, dispatching, processing, retrying, or debugging database-backed background queue jobs in ProcessWire via processwire-console."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-09"
 ---
 
-# ProcessWire Queue Management 
+# ProcessWire Queue Management
 
-This specific project implements a background job queue system out-of-the-box via the `processwire-console` package using a lightweight database implementation (`queue_jobs` and `failed_jobs`).
+`trk/processwire-console` provides a database-backed job queue using the `queue_jobs` and `failed_jobs` tables (`QueueManager::TABLE_JOBS` and `QueueManager::TABLE_FAILED`), with automatic class discovery across `site/queue/` and `site/modules/*/queue/`.
 
 ## When to Use
-- You need to run a time-consuming PHP task (like sending emails, talking to APIs, or processing images) in the background.
-- You are asked to implement a Queue strategy in ProcessWire.
-- You need to debug, list, retry, or clear failed background jobs using CLI.
+- Offloading slow operations (sending emails, webhook calls, image/PDF generation, external API syncs) out of the HTTP request cycle.
+- Creating `*Queue.php` job classes or dispatching jobs via `Totoglu\Console\Queue\Queue::push()`.
+- Running workers (`wire queue:work`) or inspecting/retrying failed jobs (`wire queue:failed`, `wire queue:retry`).
 
-## Core Content
+## Directory & Naming Conventions
 
-### Queue Directory & Naming Guidelines
-- **Locations**: All queue endpoints MUST be placed inside `site/queue/*Queue.php` (for global tasks) or `site/modules/[ModuleName]/queue/*Queue.php` (for module-scoped tasks).
-- **Naming**: Class names MUST end with `Queue` (e.g., `SendEmailQueue`) and match their filenames (`SendEmailQueue.php`).
-- **Inheritance**: The class MUST extend `Totoglu\Console\Queue\Queue`.
+- **Locations:**
+  - Global jobs: `site/queue/*Queue.php` (default namespace `Site\Queue`)
+  - Module jobs: `site/modules/<ModuleName>/queue/*Queue.php` (default namespace `ProcessWire`)
+- **Naming:** Class and file names must end with `Queue` (e.g., `SendEmailQueue` in `SendEmailQueue.php`).
+- **Base Class:** Every job class must extend `Totoglu\Console\Queue\Queue` and implement `public function handle(array $payload): void`.
 
-### Creating a Queue Endpoint
-A basic queue class relies on a `handle()` method.
+## Scaffolding & Implementing a Queue Job
+
+Scaffold a new queue job via the CLI:
+
+```bash
+# Global queue job in site/queue/SendEmailQueue.php
+php vendor/bin/wire make:queue SendEmailQueue
+
+# Module-scoped queue job in site/modules/Newsletter/queue/SendEmailQueue.php
+php vendor/bin/wire make:queue SendEmailQueue --module=Newsletter
+```
+
+Implementation pattern:
 
 ```php
 <?php
+
 declare(strict_types=1);
 
 namespace Site\Queue;
 
 use Totoglu\Console\Queue\Queue;
 
-class SendEmailQueue extends Queue
+final class SendEmailQueue extends Queue
 {
-    public function handle(array $payload): void
-    {
-        // 1. Unpack payload cautiously
-        $to = $payload['to'] ?? null;
-        $body = $payload['body'] ?? null;
+	/**
+	 * @param array<string, mixed> $payload
+	 */
+	public function handle(array $payload): void
+	{
+		$to = (string) ($payload['to'] ?? '');
+		$subject = (string) ($payload['subject'] ?? '');
+		$body = (string) ($payload['body'] ?? '');
 
-        if (!$to || !$body) {
-            throw new \Exception("Invalid payload");
-        }
+		if ($to === '' || $body === '') {
+			throw new \InvalidArgumentException('Missing required email payload fields.');
+		}
 
-        // 2. Perform process safely
-        $mail = \ProcessWire\wireMail();
-        $mail->to($to)->subject('Background Mail')->body($body)->send();
-    }
+		$mail = \ProcessWire\wireMail();
+		$mail->to($to)->subject($subject)->body($body)->send();
+	}
 }
 ```
 
-### Dispatching Jobs
-To push jobs into the database from anywhere in ProcessWire:
+## Dispatching Jobs
+
+Ensure the queue tables exist first via `php vendor/bin/wire queue:table` (or `(new QueueManager())->ensureTables()`), then dispatch jobs with `Queue::push()` from templates, hooks, modules, or scheduled tasks:
 
 ```php
 use Totoglu\Console\Queue\Queue;
 
-// The Queue dispatcher automatically discovers classes by their basename.
-Queue::push('SendEmailQueue', [
-    'to' => 'user@example.com',
-    'body' => 'Welcome to the system!'
+// Immediate dispatch to 'default' queue channel
+$jobId = Queue::push('SendEmailQueue', [
+	'to' => 'user@example.com',
+	'subject' => 'Welcome',
+	'body' => 'Welcome to the platform!',
 ]);
+
+// Delayed dispatch (e.g. 60 seconds delay on 'emails' channel)
+$delayedJobId = Queue::push(
+	queueClass: \Site\Queue\SendEmailQueue::class,
+	payload: ['to' => 'user@example.com', 'subject' => 'Follow-up', 'body' => 'Checking in!'],
+	queueName: 'emails',
+	delay: 60
+);
 ```
 
-### Managing the Queue (CLI)
-Always manage the active/failed queues using `wire` commands:
+## CLI Queue Operations
 
-- `wire queue:table` - Use this FIRST to install/scaffold the database tables if they do not exist.
-- `wire queue:work` - Starts the background daemon processor. If asked to "start the queue", run this.
-- `wire queue:failed` - Lists jobs that failed completely after exhausting attempts.
-- `wire queue:retry {id}` - Pushes a failed job back onto the main queue for processing.
-- `wire queue:clear` - Purge all failed jobs.
+| Command | Purpose |
+|---|---|
+| `php vendor/bin/wire make:queue <Name> [--module=<Mod>]` | Scaffold a `*Queue.php` class |
+| `php vendor/bin/wire queue:table` | Create the `queue_jobs` and `failed_jobs` tables |
+| `php vendor/bin/wire queue:work [--queue=default] [--once] [--sleep=3] [--tries=3] [--memory=128]` | Process pending jobs (runs continuously by default, or processes a single job and exits with `--once`) |
+| `php vendor/bin/wire queue:failed [--json]` | List permanently failed jobs in `failed_jobs` |
+| `php vendor/bin/wire queue:retry <id\|all> [--json]` | Re-queue a specific failed job ID or `all` failed jobs |
+| `php vendor/bin/wire queue:clear [--force] [--json]` | Purge all records from `failed_jobs` |
 
-## Anti-Patterns
-- ❌ **Querying native tables explicitly:** Do not run manual `$database->exec('INSERT INTO queue_jobs...')`. Always use `Queue::push()`.
-- ❌ **Naming mismatches:** Don't name your queue file `ProcessEmails.php`. It MUST be `ProcessEmailsQueue.php`.
-- ❌ **Leaving out namespaces:** While auto-discovery attempts to gracefully find basenames, always try to assign a sensible namespace (e.g. `Site\Queue` or `ProcessWire`).
+## Anti-Patterns & Loophole Closing
+
+- ❌ **Inserting into `queue_jobs` with raw SQL:** Always dispatch through `Queue::push()` so payloads and timestamps are serialized consistently.
+- ❌ **Omitting the `Queue` suffix:** A file named `SendEmail.php` will not be discovered by `FeatureDiscoverer`. Always name the class and file `*Queue` (`SendEmailQueue.php`).
+- ❌ **Passing unserializable objects in `$payload`:** Pass scalar IDs (such as `['page_id' => $page->id]`) and re-fetch the `Page` inside `handle()` via `\ProcessWire\wire()->pages->get((int) $payload['page_id'])`.
 
 ## Related Skills
-- [pw-expert](./pw-expert)
-- [pw-module-development](./pw-module-development)
+- `pw-scheduling`
+- `pw-expert`

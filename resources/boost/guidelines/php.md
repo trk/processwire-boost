@@ -1,24 +1,23 @@
 # PHP Rules for ProcessWire
 
-- Always use curly braces for control structures, even for single lines.
-- Prefer strict typing: `declare(strict_types=1);` in all new files.
-- Prefer strict comparisons: `=== null` over `!$var`, `array_key_exists()` over `isset()` where null is valid.
-- Favor explicit return types for all functions and methods.
-- Use explicit type hints for parameters in all method calls.
-- Indentation: **tabs, not spaces** (match ProcessWire core conventions).
-- Keep copyright years in file headers current (when modifying existing headers).
+- **Strict typing:** Declare `declare(strict_types=1);` at the top of every new PHP file.
+- **Indentation:** Use **tabs, not spaces** across all PHP files to match ProcessWire core conventions.
+- **Control structures:** Always use curly braces `{ ... }` for control structures (`if`, `elseif`, `else`, `foreach`, `for`, `while`), even for single-line bodies.
+- **Explicit types:** Provide explicit parameter type hints, return types, and property types on all functions, methods, and classes (except where an upstream ProcessWire parent signature forbids widening/narrowing).
+- **Strict comparisons:** Use `===` / `!==` (`=== null` over `!$var`, `in_array(..., true)`, `array_key_exists()` over `isset()` when `null` is a valid value).
+- **Naming:** Use descriptive `camelCase` variable and method names (e.g., `$isPagePublished`, not `$p_pub`).
+- **Copyright headers:** Keep copyright years current when modifying existing file headers.
 
-## Constructors
+## Constructors & Classes
 
 - Use PHP 8+ constructor property promotion in `__construct()`.
-- Avoid empty `__construct()` methods without parameters unless private.
+- Omit empty `__construct()` methods that take no parameters and perform no initialization.
 
-## Comments & Documentation
+## Comments & PHPDoc
 
-- Prefer PHPDoc blocks over inline comments.
-- Do not use comments within code unless reflecting complex business logic.
-- Use array shape type definitions (e.g., `array{id: int, name: string}`) when appropriate.
+- Prefer PHPDoc blocks over inline comments; add inline comments only to explain non-obvious invariants or business constraints.
+- Use PHPDoc array shapes (e.g., `@return array{id: int, name: string}`) and generics (`@var PageArray|ProductPage[] $items`) where native PHP types cannot express the structure.
 
 ## Enums
 
-- Use Enums for constant sets of data. Keys should be TitleCase.
+- Use backed or unit `enum` types for fixed sets of domain constants, with `TitleCase` case names.

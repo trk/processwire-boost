@@ -1,91 +1,89 @@
 # ProcessWire Core Logic & Variables
 
-ProcessWire is a data-driven CMF where almost everything is represented as a `Page`. Always use the `$wire` API (or global variables like `$pages`, `$users`, `$templates`) for operations rather than direct SQL unless absolutely necessary. For detailed context-safe API access patterns, activate the `pw-expert` skill.
+ProcessWire is built around a hierarchical page tree where every piece of content is a `Page` object whose fields are defined by its `Template` (`Fieldgroup`). Use ProcessWire API variables rather than raw SQL for content and schema operations. For advanced CLI and scoping patterns, activate the `pw-expert` skill.
 
-## Core API Variables
+## Core Concepts & API Variables
 
-- **`$pages`**: Page retrieval and manipulation:
-  - `find(selector)`: Returns `PageArray` (excludes hidden, unpublished, and restricted pages by default).
-  - `findOne(selector)`: Finds a single page matching selector with normal access/status filtering (unlike `get()`).
-  - `get(selector)`: Retrieves a single page by ID, path, or selector — includes hidden/unpublished/restricted pages. Returns `NullPage` (id=0) when not found.
-  - `findMany(selector)`: Memory-safe chunked iterator for iterating large datasets without memory exhaustion.
-  - `count(selector)`: Counts matching pages without loading them into memory.
-  - `has(selector)`: Lightweight existence check — returns first matching page ID or 0.
-  - `new([...])`: Creates and saves a page with array syntax.
-  - `add(template, parent, name, [...])`: Creates, populates, and saves a page.
-  - **NullPage instances**: Use `$pages->newNullPage()` — never `new NullPage()` directly (won't be wired).
-- **`$templates` & `$fields`**: `$templates->get(name)`, `$fields->get(name)` — schema access.
-- **`$users`, `$roles`, `$permissions`**: Access control — `$users->get(name)`, `$user->hasRole('editor')`.
-- **`$input`**: Safe request data — `$input->get->name`, `$input->post->name`, `$input->urlSegment(1)`.
-- **`$sanitizer`**: Input sanitization — `$sanitizer->text()`, `$sanitizer->selectorValue()`, `$sanitizer->email()`.
-- **`$database`**: Direct database access — Always access via property (e.g., `$this->wire()->database`), not method. This is a `WireDatabasePDO` wrapper (PDO-like API).
-- **`$config`**: System configuration, paths, URLs — `$config->paths->templates`, `$config->urls->assets`.
+| API Variable | Class | Purpose |
+|---|---|---|
+| `$pages` | `Pages` | Page retrieval and lifecycle (`find`, `findOne`, `findMany`, `get`, `count`, `has`, `new`, `add`, `save`, `trash`, `delete`, `newNullPage`) |
+| `$page` | `Page` | Current page in template context |
+| `$fields` | `Fields` | Field schema definitions (`$fields->get('name')`, `$fields->save($field)`) |
+| `$templates` | `Templates` | Template definitions (`$templates->get('name')`, `$templates->save($tpl)`) |
+| `$modules` | `Modules` | Module loading and configuration (`$modules->get('ModuleName')`, `$modules->isInstalled()`) |
+| `$user` / `$users` | `User` / `Users` | Current user (`$user->isLoggedin()`, `$user->hasRole()`, `$user->hasPermission()`) and user management |
+| `$roles` / `$permissions` | `Roles` / `Permissions` | Role and permission definitions |
+| `$input` | `WireInput` | Request data (`$input->get('q')`, `$input->post('title')`, `$input->urlSegment(1)`) |
+| `$sanitizer` | `Sanitizer` | Input sanitization and escaping (`text`, `textarea`, `email`, `pageName`, `selectorValue`, `entities`, `validateFile`) |
+| `$session` | `Session` | Session state, redirects (`$session->redirect()`), flash notices, and CSRF (`$session->CSRF`) |
+| `$cache` | `WireCache` | Time- or template-invalidated caching (`$cache->get('key', 3600, fn() => ...)`) |
+| `$database` | `WireDatabasePDO` | PDO database wrapper — always access as property `$this->wire()->database`, never as a method |
+| `$files` | `WireFileTools` | Safe filesystem operations (`mkdir`, `rmdir`, `copy`, `rename`, `tempDir`) |
+| `$datetime` | `WireDateTime` | Date formatting and parsing |
+| `$log` | `WireLog` | Application logging (`$log->save('channel', 'message')`, `$log->error()`) |
+| `$languages` | `Languages` | Installed languages (present when `LanguageSupport` is installed) |
+| `$config` | `Config` | System configuration, filesystem paths (`$config->paths->*`), and URLs (`$config->urls->*`) |
 
-## Working with Pages and Fields
+## API Variable Scoping & Multi-Instance Safety
+
+- **Inside `Wire`-derived classes (Modules, Custom Page classes):** Always use `$this->wire()->apiVar` (e.g., `$this->wire()->pages`). Never use `$this->pages` (triggers slow `__get()` magic lookups and risks property collisions).
+- **Local caching in methods and loops:** When accessing an API variable multiple times in a method or loop, cache it in a local variable at the top of the method:
+
+```php
+$pages = $this->wire()->pages;
+$sanitizer = $this->wire()->sanitizer;
+```
+
+- **Inside Hook callbacks (`site/ready.php`, `site/init.php`, Modules):** Use `$event->wire()->apiVar`.
+- **Inside Template files (`site/templates/*.php`):** Use injected variables (`$page`, `$pages`) or the Functions API (`page()`, `pages()` when `$config->useFunctionsAPI === true`).
+- **Inside standalone closures or anonymous migration classes:** Use `wire()->apiVar` or `wire('apiVar')` (anonymous migration classes do not extend `Wire`, so `$this->wire()` is unavailable).
+- **Never overwrite API variable names:** Never assign local variables named `$pages`, `$page`, `$user`, `$users`, `$input`, `$files`, `$config`, `$session`, `$sanitizer`, `$log`, `$cache`, `$database`, `$fields`, `$templates`, or `$modules` in template or global scope.
+- **NullPage instantiation:** Always call `$this->wire()->pages->newNullPage()` — never `new NullPage()` directly (an unwired `NullPage` lacks the ProcessWire instance).
+
+## Working with Pages and Field Values
 
 ```php
 // Reading field values
 echo $page->title;
 echo $page->body;
 
-// Images and files
+// Single and multi-image fields
 $image = $page->images->first();
 if ($image) {
 	echo $image->size(800, 600)->url;
 }
 
 // Page reference fields
-$category = $page->category; // Returns single Page or NullPage
+$category = $page->category; // Single Page or NullPage
+if ($category->id) {
+	echo $category->title;
+}
 foreach ($page->related_products as $related) {
 	echo $related->title;
 }
 
-// PageArray::each formatting
+// PageArray::each rendering
 echo $page->children('sort=title')->each("<li><a href='{url}'>{title}</a></li>");
 
-// Setting and saving values
-$page->of(false); // Turn off output formatting before modifying loaded pages
+// Mutating and saving a loaded page
+$page->of(false); // Disable output formatting before mutating field values
 $page->title = 'New Title';
-$page->save('title'); // Save single field
-// Or combined atomic set and save:
+$page->save('title');
+// Or atomic single-field update:
 $page->setAndSave('title', 'New Title');
+
+// Creating a new page
+$newPage = $pages->new([
+	'template' => 'product',
+	'parent' => '/products/',
+	'title' => 'New Product',
+]);
 ```
 
-## Selector Status & Access Inclusion Modes
-By default, `$pages->find()` and `$pages->findOne()` exclude hidden, unpublished, and restricted pages. Override with `include=[mode]`:
-- `include=hidden`: Allows hidden pages.
-- `include=unpublished`: Allows hidden and unpublished pages.
-- `include=trash`: Includes pages residing in the trash.
-- `include=all`: Overrides all restrictions (hidden, unpublished, access control).
+## Orienting on an Existing Site
 
-## API Variable Scoping & Multi-Instance Safety
-
-- **In Wire-derived classes (Modules, Custom Pages):** Use `$this->wire()->apiVar` (e.g. `$this->wire()->pages`). Avoid `$this->pages` (slow `__get()` magic methods and property collisions).
-- **Local caching in methods and loops:** For multiple calls in the same method, assign a locally scoped variable at the top:
-  ```php
-  $pages = $this->wire()->pages;
-  $sanitizer = $this->wire()->sanitizer;
-  ```
-- **In Hooks (`ready.php`, Modules):** Use `$event->wire()->apiVar`.
-- **In Templates (`/site/templates/*.php`):** Use native injected `$page`, `$pages` or optional Functions API `pages()` (if `$config->useFunctionsAPI === true`).
-
-## Orienting on an Existing Site (Fast Path)
-When working on an unfamiliar ProcessWire site, start here:
-1) Core CLI documentation: `php index.php docs list` and `php index.php docs vars`
-2) `site/templates/`
-3) `site/modules/`
-4) `site/config.php`
-5) Admin → Setup → Templates (fields per template)
-6) Admin → Setup → Fields (all fields and types)
-
-### Optional: AgentTools site-map (only if installed)
-**AgentTools is an optional module** and will not be available in every project.
-Use it only when you have verified the module is installed (e.g., it exists in `site/modules/AgentTools/` or via module listing/MCP).
-
-If installed, it can generate a fast JSON snapshot for orientation:
-`php index.php --at-sitemap-generate`
-`php index.php --at-sitemap-generate-schema`
-
-If not installed, fall back to:
-- `pw_schema_read` (if MCP available) for templates/fields
-- Reading `site/templates/` + `site/modules/` for architecture
+1. Inspect schema via `pw_schema_read` and `pw_module_list` (MCP) or `vendor/bin/wire template:list --json` and `vendor/bin/wire field:list --json`.
+2. Check `site/config.php`, `site/init.php`, and `site/ready.php` for hooks, URL routes, and custom configuration.
+3. Inspect `site/classes/` for Custom Page Classes and `site/templates/` for template controllers.
+4. Inspect `site/modules/` for project-specific modules and check if any expose `AGENTS.md` or `API.md`.
+5. If the optional `AgentTools` module is installed in `site/modules/AgentTools/`, read `site/modules/AgentTools/AGENTS.md`.

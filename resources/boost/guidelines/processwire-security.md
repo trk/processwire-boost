@@ -1,54 +1,56 @@
 # Security & Access Control
 
-Always assume user input is hostile. ProcessWire provides robust tools for sanitation, output encoding, and Role-Based Access Control (RBAC).
+Treat all external input (`$input->get`, `$input->post`, `$input->cookie`, URL segments, headers, and uploaded files) as untrusted. Activate `pw-security-audit` when reviewing or hardening endpoints.
 
-## Input Sanitization (`$sanitizer`)
+## Input Sanitization & Output Encoding (`$sanitizer`)
 
-Never insert raw `$input->post` or `$input->get` values into the database or HTML directly.
+Sanitize every input according to its target context:
 
-- **`$sanitizer->text($val)`**: Strips HTML completely and reduces to a single line.
-- **`$sanitizer->textarea($val)`**: Multi-line text. Can accept optional flags to strip HTML.
-- **`$sanitizer->email($val)`**: Returns a validated email address or an empty string.
-- **`$sanitizer->entities($val)`**: Encodes characters into HTML entities (prevent XSS output).
-- **`$sanitizer->pageName($val)`**: Formats a string to be URL-safe (lowercase, hyphenated, safe chars).
-- **`$sanitizer->selectorValue($val)`**: **CRITICAL**. Always sanitize user input before putting it into a `$pages->find()` selector!
+- **`$sanitizer->selectorValue($val)`**: **Mandatory** before interpolating any user input into a `$pages->find()`, `$pages->findOne()`, or `$pages->get()` selector string.
+- **`$sanitizer->text($val)`**: Single-line plain text with HTML stripped.
+- **`$sanitizer->textarea($val)`**: Multi-line plain text with HTML stripped.
+- **`$sanitizer->email($val)`**: Returns a valid email address or `''`.
+- **`$sanitizer->pageName($val)`**: URL-safe ProcessWire page slug (`a-z0-9-_`).
+- **`$sanitizer->int($val)` / `$sanitizer->float($val)`**: Numeric casting.
+- **`$sanitizer->entities($val)`**: HTML entity encoding for safe output rendering (prevents XSS).
+- **`$sanitizer->validateFile($path)`**: Runs all registered `FileValidatorModule` scanners on an uploaded file.
 
-Example of safe selector parsing:
 ```php
-$q = $sanitizer->selectorValue($input->get->q);
-$results = $pages->find("title%=$q");
+$q = $sanitizer->selectorValue($input->get('q'));
+$results = $pages->find("template=product, title|summary%={$q}, limit=25");
 ```
 
 ## Role-Based Access Control (RBAC)
 
-Use the `$user` object to explicitly check permissions, especially when writing custom endpoints, saving forms, or rendering sensitive content.
+Enforce explicit access checks on custom endpoints, mutations, and protected views:
 
 ```php
-// Check for generic roles or permissions
-if ($user->hasRole('editor')) { ... }
-if ($user->hasPermission('page-edit')) { ... }
+if (!$user->isLoggedin() || !$user->hasPermission('page-edit')) {
+	throw new WirePermissionException($this->_('Access denied.'));
+}
 
-// Check if the current user can edit a specific page
-if ($page->editable()) { ... }
+if (!$page->viewable()) {
+	throw new Wire404Exception();
+}
 
-// Check if the current user can view a specific page
-if ($page->viewable()) { ... }
-```
-
-## CSRF Protection
-
-When generating custom forms on the front-end or custom admin modules, always protect them with CSRF tokens.
-
-**Generating the Token in the Form:**
-```html
-<input type="hidden" name="<?= $session->CSRF->getTokenName(); ?>" value="<?= $session->CSRF->getTokenValue(); ?>" />
-```
-
-**Validating the Token on POST:**
-```php
-try {
-    $session->CSRF->hasValidToken(); 
-} catch (WireCSRFException $e) {
-    die("CSRF Token Invalid!");
+if (!$page->editable()) {
+	throw new WirePermissionException($this->_('You cannot edit this page.'));
 }
 ```
+
+## CSRF Protection (`$session->CSRF`)
+
+Protect every state-changing POST/PUT/DELETE request in custom forms and admin actions with ProcessWire's CSRF token manager:
+
+```php
+// In HTML form:
+// <?= $session->CSRF->renderInput() ?>
+
+// On POST handling:
+$session->CSRF->validate(); // Throws WireCSRFException when invalid
+```
+
+## SQL Injection & Path Traversal Prevention
+
+- **Prepared Statements:** When using `$this->wire()->database`, always use `$database->prepare()` with `bindValue()` and `$database->escapeTable()` for dynamic table identifiers.
+- **Path Traversal:** Never concatenate raw request parameters into file paths; strip directory components with `basename()` and verify the resolved path stays inside the expected directory.

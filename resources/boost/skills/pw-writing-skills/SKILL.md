@@ -1,126 +1,79 @@
 ---
 name: pw-writing-skills
-description: "Use when creating or improving Boost skills for ProcessWire agents to ensure optimal CSO formatting and testing requirements."
+description: "Use when creating or editing ProcessWire Boost skills (SKILL.md) or agent guidelines to optimize context pointers, information hierarchy, and TDD skill verification."
 category: meta
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
 ---
 
-# ProcessWire Writing Skills
+# ProcessWire Writing Skills & Agent Documents
 
-Create, improve, and validate agent skills for the ProcessWire Boost ecosystem.
+Author, refine, and verify `SKILL.md` playbooks and guideline documents for the ProcessWire Boost ecosystem.
 
-**Writing skills IS Test-Driven Development applied to process documentation.**
+## 1. Core Principles (`writing-for-agents` + Skill TDD)
 
-## 1. The Iron Law (TDD for Skills)
+### Context Pointers & The Two Loads
+- **Context load** is the permanent cost of always-loaded text (`AGENTS.md` guidelines and skill `description` frontmatter) on every turn.
+- A skill's `description` is a **context pointer**: its wording alone decides when the agent loads the skill.
+  - **Start with `"Use when..."`** in third-person.
+  - **List distinct trigger branches** (symptoms, ProcessWire classes, CLI commands, or tasks that require the skill).
+  - **Never summarize the workflow or process in `description`.** When a description summarizes the steps, agents follow the one-line summary as a shortcut and skip reading `SKILL.md`.
 
-```
-NO SKILL WITHOUT A FAILING TEST FIRST
-```
+### Information Hierarchy, Co-location & Pruning
+- **In-file steps** (ordered actions ending on a checkable completion criterion) sit at the top of the hierarchy.
+- **In-file reference** (tables, API signatures, anti-patterns) is co-located under clear headings so reading a rule brings its caveats with it.
+- **Progressive disclosure:** Keep `SKILL.md` under 500 lines. Push heavy 100+ line API tables or templates into sibling reference files inside the skill directory and point to them explicitly.
+- **Single source of truth & pruning:** Never duplicate rules already enforced by `php.md` or `processwire-core.md` unless a domain-specific gotcha requires it. Delete no-op sentences that do not change default model behavior.
 
-This applies to NEW skills AND EDITS to existing skills.
+### Match the Guidance Form to the Failure Mode
 
-If you didn't watch an agent fail without the skill, you don't know if the skill teaches the right thing. 
+| Baseline Agent Failure | Effective Form | Counter-Productive Form |
+|---|---|---|
+| Violates a discipline rule under pressure (skips logs, skips migrations, guesses schema) | Hard gate + prohibition + rationalization counter-table | Soft advice (`"prefer..."`, `"consider..."`) |
+| Produces wrong-shaped output (wrong class structure, wrong indentation, wrong API scope) | Positive recipe / complete canonical code block | List of `"don't..."` negations |
+| Omits a required piece (missing `[Type]Field.php`, missing `down()` in migration) | Explicit numbered phase or checklist slot | Prose reminder buried in a paragraph |
 
-**RED -> GREEN -> REFACTOR Cycle:**
-1. **RED (Baseline):** Run a pressure scenario with subagents *without* the skill. Document the exact behavior and rationalizations the agent uses to skip best practices.
-2. **GREEN (Minimal Skill):** Write the specific skill addressing those rationalizations. Verify the agent now complies.
-3. **REFACTOR (Close Loopholes):** If the agent finds a new workaround, add an explicit counter to the skill.
+## 2. The Iron Law: RED -> GREEN -> REFACTOR for Skills
 
-**Violating the letter of the rules is violating the spirit of the rules.**
-Agents will rationalize under pressure ("It's too simple to test", "I'll test later"). Do not allow this. Add explicit anti-patterns to prevent loopholes.
-
-## 2. When to Use & Skill Directories
-
-- Creating a NEW skill for `resources/boost/skills/`
-- Improving an EXISTING Boost skill that agents ignore
-- Debugging why a skill isn't being triggered
-
-All Boost skills live in `resources/boost/skills/<skill-name>/`:
-
-```
-resources/boost/skills/
-├── pw-module-development/         # Core module scaffold & PHP patterns
-│   └── SKILL.md
-├── pw-pages/                      # Selectors, CRUD, page lifecycle
-│   └── SKILL.md
-└── pw-brainstorming/              # Design process & implementation planning
-    └── SKILL.md
+```text
+NO SKILL OR SKILL EDIT WITHOUT OBSERVING THE BASELINE FAILURE FIRST
 ```
 
-**Naming Convention:** All Boost skills MUST use the `pw-` prefix (e.g., `pw-pages`, `pw-module-development`).
+1. **RED (Baseline):** Identify the exact mistake or rationalization an agent makes without the skill (e.g., calling `$this->pages` in a module, using 4 spaces instead of tabs, or writing `$this->wire()` in an anonymous migration class).
+2. **GREEN (Minimal Skill):** Write the minimal positive recipe and explicit guardrails addressing those failures.
+3. **REFACTOR (Close Loopholes):** Verify with a subagent or review pass that every code block and instruction is unambiguous and free of contradictions.
 
-## 3. YAML Frontmatter (CSO Optimization)
+## 3. SKILL.md Frontmatter & Formatting Contract
 
-Every `SKILL.md` MUST start with:
+All Boost skills live in `resources/boost/skills/pw-<topic>/SKILL.md`:
 
 ```yaml
 ---
-name: skill-name              # Must match directory name
-description: "Use when..."    # Starts with 'Use when' — this is the trigger
-risk: safe                    # safe | unknown | critical
-source: processwire-boost     # Always processwire-boost for Boost skills
+name: pw-topic-name
+description: "Use when [specific ProcessWire trigger conditions, classes, or tasks]."
+risk: safe
+source: processwire-boost
+date_added: "YYYY-MM-DD"
 ---
 ```
 
-### Description Best Practices (Critical for Discovery)
-The `description` field is how AI agents discover skills. **Never summarize the skill's workflow or process in the description.** Describe ONLY the triggering conditions.
+### Mandatory Code Block Standards inside Skills
+Agents copy code patterns directly from skills. Every PHP code snippet inside a `SKILL.md` MUST obey:
+1. `declare(strict_types=1);` and `namespace ProcessWire;` (or the exact `Site\*` / `Totoglu\*` namespace).
+2. **Tabs for indentation** (never 4 spaces).
+3. **Curly braces on all control structures**, even single-line `if` / `foreach` statements.
+4. Context-safe API access (`$this->wire()->apiVar` in `Wire` classes, `$event->wire()->apiVar` in hooks, `wire()->apiVar` in anonymous classes/closures).
+5. CLI examples invoked via `php vendor/bin/wire <command>`.
 
-```yaml
-# ✅ Good — trigger-based
-description: "Use when building custom Fieldtype and Inputfield modules in ProcessWire."
+## 4. Deployment & Verification Checklist
 
-# ❌ Bad — summary-based / shortcut
-description: "A comprehensive guide to ProcessWire Fieldtype development."
-```
-If your description summarizes the workflow, the AI might skip reading the file and just hallucinate the steps!
-
-## 4. Skill Content Structure
-
-```markdown
-# ProcessWire [Skill Title]
-
-## When to Use
-- [Specific trigger condition]
-
-## Core Concepts
-- ProcessWire-specific patterns and examples
-- Code samples using `wire()`, `$pages`, `$sanitizer`
-- CLI commands using `vendor/bin/wire`
-
-## Anti-Patterns & Loophole Closing
-- What NOT to do (with ❌ markers)
-- Explicit counters for AI rationalizations
+- [ ] `name` starts with `pw-` and matches the directory name in `resources/boost/skills/`.
+- [ ] `description` starts with `"Use when..."`, is under 500 characters, and contains zero workflow summaries.
+- [ ] All PHP code blocks use tabs, `declare(strict_types=1);`, and curly braces on all control structures.
+- [ ] All CLI commands, options, and table names match `trk/processwire-console` and `trk/processwire-boost` implementations.
+- [ ] Includes an `## Anti-Patterns & Loophole Closing` section countering real agent mistakes.
 
 ## Related Skills
-- Links to complementary pw- skills
-```
-
-## 5. Quality & Deployment Checklist
-
-Before deploying any skill, run through this TDD-adapted checklist:
-
-**Testing (Mandatory):**
-- [ ] Created pressure scenarios for the skill
-- [ ] Watched an agent fail without the skill (Baseline/RED)
-- [ ] Verified an agent complies with the new skill (GREEN)
-- [ ] Closed newly discovered rationalization loopholes (REFACTOR)
-
-**Formatting:**
-- [ ] `name` field matches directory name exactly
-- [ ] `SKILL.md` filename is ALL CAPS
-- [ ] Description starts with "Use when..." and does NOT summarize workflows
-- [ ] All code examples use ProcessWire API (not Laravel/Symfony)
-- [ ] PHP examples use `declare(strict_types=1)` and `namespace ProcessWire`
-- [ ] CLI examples use `vendor/bin/wire` or `wire` alias
-- [ ] Total SKILL.md under 500 lines (split into references/ if larger)
-
-## Common Mistakes
-
-| Mistake | Fix |
-|---------|-----|
-| Skipping the RED phase | Always test baseline behavior before writing the file |
-| Laravel examples in PW skills | Use ProcessWire API equivalents |
-| Description summarizes content | Use "Use when..." triggers |
-| Missing anti-patterns section | Add ❌ markers to block AI shortcuts and workarounds |
+- `pw-docs-architect`
+- `pw-writing-plans`

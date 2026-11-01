@@ -1,143 +1,114 @@
 ---
 name: pw-url-routing
-description: "Use when utilizing ProcessWire URL/Path hooks to create custom routing, virtual pages, or API endpoints without physical backend templates."
+description: "Use when registering ProcessWire URL/Path hooks ($wire->addHook('/path/...')) to build virtual routes, JSON API endpoints, or dynamic redirects without physical pages."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
 ---
 
-# ProcessWire URL/Path Hooks Skill
+# ProcessWire URL/Path Hooks (`pw-url-routing`)
 
-## When to Use This Skill
+Register URL/Path hooks in `site/init.php` (recommended, runs before page rendering) or `site/ready.php`, or inside a module's `init()` method to handle virtual paths and JSON endpoints without creating templates or pages in the admin tree.
 
-Use this skill when you need to:
+## Documentation Reference (Source of Truth)
 
-- Create custom API endpoints (e.g., returning JSON data).
-- Handle specific URLs without creating physical pages, templates, or fields in the admin.
-- Create virtual routes, short URLs, or SEO-friendly URL segments dynamically.
-- Intercept existing paths before ProcessWire issues a 404 response.
+- Core CLI: `php index.php docs get-text WireHooks`
+- Core Markdown: `wire/core/WireHooks/API.md`
 
----
+## 1. Route Patterns & Argument Extraction
 
-> [!IMPORTANT]
-> **CRITICAL DOCUMENTATION RULE**: Before writing any ProcessWire code or using its API, consult the local documentation ladder:
-> - Core CLI: `php index.php docs get-text WireHooks` and `php index.php docs get-text Pages`
-> - Core Markdown: `wire/core/WireHooks/API.md` and `wire/core/Pages/API.md`
-> - MCP tools: `pw_query` and `pw_schema_read`
-> Never hallucinate API methods. ALL code and strings MUST strictly be written in English and wrapped in translation functions (`$this->_('...')` or `__('...', __FILE__)`).
-
-## Fundamentals
-
-URL hooks are defined during the ProcessWire boot process, typically in `site/init.php` (recommended) or `site/ready.php`, or inside a module's `init()` method.
-
-### Basic Routing
-
-To output a string directly:
+### Exact Routes & JSON Responses
+Returning an `array` from a URL hook automatically sets `Content-Type: application/json` and encodes the payload as JSON:
 
 ```php
-$wire->addHook('/api/hello', function($event) {
-    return 'Hello World';
+<?php
+
+declare(strict_types=1);
+
+namespace ProcessWire;
+
+$wire->addHook('/api/health', function(HookEvent $event): array {
+	return [
+		'ok' => true,
+		'timestamp' => time(),
+	];
 });
 ```
 
-To output HTML and prevent further ProcessWire output, return `true`:
+### Named Parameters (`{param}`) & Inline Regex Constraints (`(name:pattern)`)
 
 ```php
-$wire->addHook('/api/hello', function($event) {
-    echo '<h1>Hello World</h1>';
-    return true;
+// Named parameter: /api/products/{sku}
+$wire->addHook('/api/products/{sku}', function(HookEvent $event): array|bool {
+	$sanitizer = $event->wire()->sanitizer;
+	$pages = $event->wire()->pages;
+
+	$sku = $sanitizer->selectorValue((string) $event->arguments('sku'));
+	if ($sku === '') {
+		return false; // Triggers ProcessWire 404 response
+	}
+
+	$product = $pages->findOne("template=product, sku={$sku}");
+	if (!$product->id || !$product->viewable()) {
+		return false;
+	}
+
+	return [
+		'id' => $product->id,
+		'title' => (string) $product->title,
+		'sku' => (string) $product->get('sku'),
+		'url' => $product->url,
+	];
+});
+
+// Constrained parameter: only matches numeric IDs
+$wire->addHook('/orders/(id:[0-9]+)', function(HookEvent $event): Page|bool {
+	$orderId = (int) $event->arguments('id');
+	$order = $event->wire()->pages->findOne("template=order, id={$orderId}");
+
+	return $order->id ? $order : false;
 });
 ```
 
-### Rendering an Existing Page
+## 2. Return Value Semantics
 
-You can return a `Page` object to map a custom URL directly to an existing page. ProcessWire will make this the active `$page` and render it normally:
+| Return Value | ProcessWire Behavior |
+|---|---|
+| `string` | Outputs the string directly as the response body. |
+| `array` | Sets `Content-Type: application/json` header and outputs `json_encode($return)`. |
+| `Page` | Sets the returned `Page` as the active `$page` and renders its template normally. |
+| `true` | Indicates the callback already sent headers/output manually (e.g., via `echo`). |
+| `false` or `null` | Aborts the route and delegates to ProcessWire's standard 404 handler. |
 
-```php
-$wire->addHook('/special-offer', function($event) {
-    return $event->wire()->pages->get('/about/contact/');
-});
-```
+## 3. Trailing Slashes, Pagination & HTTP Method Guards
 
-## Advanced Routing Patterns
-
-### Named Arguments (Variables)
-
-You can extract values from the URL into arguments.
-
-- **Simple Named Arguments**: `{argument_name}`
-
-```php
-$wire->addHook('/hello/{planet}', function($event) {
-    // You can access it via arguments or directly
-    $planet = $event->arguments('planet');
-    // or $event->planet;
-
-    // Validate or return false for a 404 response
-    if (!in_array($planet, ['earth', 'mars'])) {
-        return false;
-    }
-
-    return "Hello " . $planet;
-});
-```
-
-- **Pattern Matching Named Arguments**: `(name:pattern)`
-
-```php
-$wire->addHook('/hello/(planet:earth|mars|jupiter)', function($event) {
-    return "Hello " . $event->planet;
-});
-```
-
-### Wildcards & Regular Expressions
-
-If the path structure is complex, you can use full PCRE regex patterns.
-Remembering portions of the matched URL without named arguments uses `$event->arguments(1)`.
-
-```php
-$wire->addHook('(/.*)/json', function($event) {
-    $path = $event->arguments(1);
-    $page = $event->wire()->pages->findOne($path);
-
-    if (!$page->id || !$page->viewable()) {
-        return false;
-    }
-
-    // Returning an array automatically outputs as JSON with proper Content-Type
-    return [
-        'id' => $page->id,
-        'title' => $page->title
-    ];
-});
-```
-
-## Important Behaviors & Constraints
-
-> [!WARNING]
-> **Trailing Slashes**: ProcessWire strictly enforces trailing slashes. `/foo/bar/` definition will 301 redirect `/foo/bar` to `/foo/bar/`.
-> To accept both without redirecting: `$wire->addHook('/foo/bar/?', ...)`
-
-> [!NOTE]
-> **Pagination**: URL hooks ignore numbered pagination by default (`/foo/bar/page2`).
-> To support pagination, append `{pageNum}` strictly as the last segment without a trailing slash:
-> `$wire->addHook('/foo/bar/{pageNum}', ...)`
-> The page number can be accessed via `$event->pageNum`.
-
-## Return Values Reference
-
-1. **String**: Output string directly.
-2. **Array**: Converted automatically to JSON with `application/json` header.
-3. **Page Object**: ProcessWire renders the page and sets it as the active `$page`.
-4. **`true`**: Tells ProcessWire you output the data manually (via `echo`).
-5. **`false` or `null`**: Instructs ProcessWire to return a standard 404 response.
-
-## Conditional Registration
-
-Instead of checking request types inside the hook callback, conditionally wrap the hook registration to save memory and process cycles:
+- **Trailing Slashes:** ProcessWire enforces trailing slash conventions on URL hooks:
+  - Defining `/api/items/` will `301` redirect `/api/items` to `/api/items/`.
+  - Append `/?` (`/api/items/?`) to accept both with and without a trailing slash without redirecting (essential for POST/webhook endpoints where a `301` redirect drops the POST body).
+- **Pagination (`{pageNum}`):** Append `{pageNum}` as the final segment without a trailing slash (`/articles/feed/{pageNum}`) and read `(int) $event->pageNum`.
+- **HTTP Method Filtering:** Guard registration with `$input->is('POST')` so the hook is only registered on matching request methods:
 
 ```php
 if ($input->is('POST')) {
-    $wire->addHook('/api/submit', function($event) { /* Handle POST */ });
+	$wire->addHook('/api/contact/?', function(HookEvent $event): array {
+		$session = $event->wire()->session;
+		$sanitizer = $event->wire()->sanitizer;
+		$input = $event->wire()->input;
+
+		$session->CSRF->validate();
+		$email = $sanitizer->email((string) $input->post('email'));
+
+		return ['ok' => $email !== ''];
+	});
 }
 ```
+
+## Anti-Patterns & Loophole Closing
+
+- ❌ **Trailing-slash redirects on POST/Webhook URLs:** Defining `/webhooks/stripe/` causes `POST /webhooks/stripe` to `301` redirect to `GET /webhooks/stripe/`. Always use `/webhooks/stripe/?` for POST/PUT/DELETE endpoints.
+- ❌ **Returning `$pages->get($id)` without checking `$page->viewable()`:** `$pages->get()` ignores access control and unpublished status. Use `$pages->findOne()` or check `$page->viewable()` before returning data.
+- ❌ **Using `$this->wire()` inside a closure in `site/init.php`:** Inside a route closure, access the API via `$event->wire()->pages`, `$event->wire()->sanitizer`, etc.
+
+## Related Skills
+- `pw-security-audit`
+- `pw-pages`

@@ -1,6 +1,6 @@
 ---
 name: pw-maintenance
-description: "Use when toggling the application's maintenance mode (down/up) in ProcessWire and managing downtime configuration."
+description: "Use when toggling ProcessWire application maintenance mode (wire down / wire up) or configuring site/init.php to intercept HTTP requests during downtime."
 risk: moderate
 source: processwire-boost
 date_added: "2026-04-09"
@@ -8,57 +8,78 @@ date_added: "2026-04-09"
 
 # ProcessWire Maintenance Mode
 
-This implements a managed maintenance mode for ProcessWire driven by CLI commands, mimicking Laravel's `artisan down` behavior. 
+Manage application downtime via `vendor/bin/wire down` and `vendor/bin/wire up`, paired with early HTTP interception in `site/init.php`.
 
 ## When to Use
-- You are about to run a heavily disruptive migration or seeding.
-- The website needs to display a "demo/under construction" or "maintenance" message gracefully while you allow designated administrators (with a secret parameter) to continue browsing.
+- Before running disruptive schema migrations, bulk imports, or database restores.
+- When putting the site into maintenance or demo mode while allowing developers to bypass downtime using a secret token.
 
-## Core Content
+## How It Works
 
-### How It Works
-The `wire down` command writes a `down.json` payload into ProcessWire's `$config->paths->assets` directory. The `wire up` command deletes this file.
+`vendor/bin/wire down` writes a JSON payload to `$config->paths->site . 'down.json'` (`site/down.json`, mode `0600`, outside web-accessible `site/assets/` so the secret token cannot be fetched over HTTP). `vendor/bin/wire up` removes `site/down.json`.
 
-Because `processwire-console` operates independently of HTTP requests, **it cannot stop requests directly**. To make it work, the `site/init.php` file MUST be configured to intercept traffic when `down.json` exists.
+Because CLI commands run in a separate process from web requests, `site/init.php` must check for `site/down.json` on non-CLI requests.
 
-### Integration (One-Time Setup in `site/init.php`)
-To ensure the website goes down for visitors during maintenance, verify or place this snippet inside `site/init.php`:
+## HTTP Interception Setup (`site/init.php`)
+
+Place this check in `site/init.php` (never in `index.php`, which is overwritten during ProcessWire core upgrades):
 
 ```php
-// Intercept down.json if exists
-$downFile = $config->paths->assets . 'down.json';
-if (file_exists($downFile) && php_sapi_name() !== 'cli') {
-    $down = json_decode(file_get_contents($downFile), true);
-    // Support secret bypassing (e.g. ?secret=dev123)
-    $providedSecret = wire('input')->get('secret') ?: wire('session')->get('maintenance_secret');
-    
-    if (empty($down['secret']) || $providedSecret !== $down['secret']) {
-        if (!empty($down['redirect'])) wire('session')->redirect($down['redirect']);
-        http_response_code($down['status'] ?? 503);
-        die('Site is under maintenance. Please check back soon.');
-    } else {
-        // Save the secret in session so they don't have to keep it in the URL
-        if ($providedSecret === $down['secret']) {
-            wire('session')->set('maintenance_secret', $down['secret']);
-        }
-    }
+<?php
+
+declare(strict_types=1);
+
+namespace ProcessWire;
+
+$downFile = $config->paths->site . 'down.json';
+if (is_file($downFile) && PHP_SAPI !== 'cli') {
+	/** @var array{redirect?: ?string, retry?: ?string, secret?: ?string, status?: int, time?: int}|null $down */
+	$down = json_decode((string) file_get_contents($downFile), true);
+	if (is_array($down)) {
+		$secret = (string) ($down['secret'] ?? '');
+		$providedSecret = (string) ($input->get('secret') ?: $session->get('maintenance_secret'));
+
+		if ($secret !== '' && hash_equals($secret, $providedSecret)) {
+			$session->set('maintenance_secret', $secret);
+		} else {
+			if (!empty($down['redirect'])) {
+				$session->redirect((string) $down['redirect']);
+			}
+			if (!empty($down['retry'])) {
+				header('Retry-After: ' . (int) $down['retry']);
+			}
+			http_response_code((int) ($down['status'] ?? 503));
+			exit('Site is under maintenance. Please check back soon.');
+		}
+	}
 }
 ```
 
-### Supported CLI Commands
-- `wire down`
-  - Safely stops the app for the public.
-  - Options:
-    - `--redirect=/some-url` - Where to push visitors.
-    - `--status=503` - Explicit HTTP code.
-    - `--secret=developerToken123` - Very critical. If passed, the developer visits `example.com/?secret=developerToken123` and can still use the site normally to verify fixes.
-- `wire up`
-  - Restores the application to live status.
+## CLI Commands Reference
 
-## Anti-Patterns
-- ❌ **Editing index.php:** ProcessWire updates overwrite `index.php`. Do not place the check logic there. Place it in `site/init.php` (earliest site hook).
-- ❌ **Missing CLI check:** Always ensure `php_sapi_name() !== 'cli'` inside `site/init.php` or you will lock yourself out of the `wire` CLI commands while down!
+```bash
+# Enter maintenance mode (503 Service Unavailable)
+php vendor/bin/wire down
+
+# Enter maintenance mode with secret bypass (?secret=devToken123), retry header, and custom status
+php vendor/bin/wire down --secret=devToken123 --retry=60 --status=503
+
+# Enter maintenance mode with redirect
+php vendor/bin/wire down --redirect=/maintenance.html
+
+# Machine-readable JSON output
+php vendor/bin/wire down --secret=devToken123 --json
+
+# Exit maintenance mode and restore live traffic
+php vendor/bin/wire up --json
+```
+
+## Anti-Patterns & Loophole Closing
+
+- ❌ **Reading `down.json` from web-accessible `site/assets/`:** `wire down` writes strictly to `$config->paths->site . 'down.json'` (`site/down.json`) so the secret token is never publicly downloadable. Always read `$config->paths->site . 'down.json'`.
+- ❌ **Editing `index.php`:** ProcessWire core upgrades replace `index.php`. Always place request interception in `site/init.php`.
+- ❌ **Omitting `PHP_SAPI !== 'cli'`:** Without the CLI guard in `site/init.php`, running `vendor/bin/wire up` or `vendor/bin/wire migrate` will terminate with the maintenance message and lock out CLI administration.
 
 ## Related Skills
-- [pw-expert](./pw-expert)
-- [pw-migrations](./pw-migrations)
+- `pw-expert`
+- `pw-migrations`

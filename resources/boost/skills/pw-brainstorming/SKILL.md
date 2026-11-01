@@ -1,6 +1,6 @@
 ---
 name: pw-brainstorming
-description: "Use when brainstorming or designing ProcessWire modules, templates, field schemas, or hooks to resolve ambiguity and validate architecture before implementation."
+description: "Use when brainstorming or designing ProcessWire modules, templates, field schemas, custom page classes, or hooks to resolve ambiguity and validate architecture before implementation."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
@@ -8,74 +8,57 @@ date_added: "2026-04-08"
 
 # ProcessWire Brainstorming
 
-Help turn raw ideas into **clear, validated designs and specifications** in ProcessWire through structured dialogue.
+Turn feature ideas into **validated ProcessWire specifications** through grounded discovery and structured dialogue before touching code or running migrations.
 
 ## When to Use
-- Before starting any non-trivial ProcessWire work that could affect schema, routing, permissions, or module architecture.
-- When the user’s request has ambiguity (scope, RBAC, data model, UI approach) that would cause costly rework if assumed.
+- Before starting any non-trivial ProcessWire feature that introduces or alters templates, fields, custom page classes, URL hooks, permissions, or modules.
+- Whenever a user request contains architectural ambiguity (data modeling, RBAC, routing, or UI approach).
 
 <HARD-GATE>
-Do NOT invoke any implementation skill, write any code, scaffold any project, or run any migrations until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
+Do NOT write implementation code, scaffold modules, or run migrations until you have explored the live schema, presented a concise design, and received user approval.
 </HARD-GATE>
 
-## The Process
+## Ordered Workflow
 
-You must complete these items in order. Do NOT skip steps or combine them.
+### 1. Ground in Live ProcessWire Context (Mandatory)
+Before asking the user questions, inspect the current deployment:
+- Run `pw_schema_read` (MCP) or read `.agents/map.json` to see existing templates, fields, roles, and permissions.
+- Check `site/modules/` and `site/classes/` for existing domain models and modules.
+- If the request spans multiple independent subsystems, decompose them and scope brainstorming to the first subsystem.
+- **Completion criterion:** You know which templates, fields, and modules already exist and have zero unanswered factual questions that the codebase itself can answer.
 
-### 1️⃣ Explore Current ProcessWire Context (Mandatory)
-Before asking any questions, explore the existing state:
-- Run `pw_schema_read` via MCP to understand existing templates and fields (never hallucinate schema).
-- Review `site/modules/` for installed custom modules.
-- If the request describes multiple independent subsystems, decompose the project first. Brainstorm the first sub-project only.
-**Do not design yet.**
+### 2. Clarify Decisions One Question at a Time
+Facts are your job; design decisions belong to the user:
+- Ask **one focused question per turn** (prefer multiple-choice options with a recommended default).
+- Clarify: page tree hierarchy (`parent` / `template`), field relationships (`FieldtypePage` vs `FieldtypeRepeater` vs `WireEntries` / custom `Fieldtype`), access control (roles/permissions), and explicit non-goals.
 
-### 2️⃣ Understanding the Idea (One Question at a Time)
-Your goal is **shared clarity**, not speed.
-- Ask **one question per message** (prefer multiple-choice).
-- Understand: templates/fields needed, page tree structure, access control (RBAC), and explicit non-goals.
+### 3. Lock Understanding (Soft Gate)
+Summarize the agreed scope in 5-10 lines:
+1. Target ProcessWire components (templates, fields, page classes, modules, hooks).
+2. Constraints & explicit non-goals.
+3. Explicit assumptions.
+Ask: *"Does this accurately capture what we are building?"*
 
-### 3️⃣ ProcessWire Constraints Check
-Identify hidden complexities:
-- **Schema Impact:** Brand new fields vs. modifying existing?
-- **Data Relationships:** Page references vs. Repeaters vs. Custom Fieldtypes?
-- **Module Dependencies:** Does this require HTMX, ProFields, or specific Textformatters?
-If the user is unsure, propose reasonable ProcessWire defaults, but mark them explicitly as assumptions.
+### 4. Propose Approaches & Present Design
+- Present 2-3 viable ProcessWire architectures (e.g., Custom Page Class + Template vs. URL Hook service vs. Process Module), leading with your recommended choice and its trade-offs.
+- Present the chosen design in concise sections (data model, hooks/routing, security/RBAC, verification plan).
 
-### 4️⃣ Understanding Lock (Soft Gate)
-Before proposing any design, summarize what you know:
-1. What is being built / Affected ProcessWire components
-2. Key constraints & Explicit non-goals
-3. List all **Assumptions**
-Then explicitly ask: *"Does this accurately reflect your intent?"*
+### 5. Write Spec & Self-Review
+Save the approved specification to `docs/specs/YYYY-MM-DD-<topic>.md` and verify inline:
+- **Zero placeholders:** No `TODO` or `TBD` sections.
+- **Schema accuracy:** Every referenced template or field either already exists in `pw_schema_read` or is explicitly listed as a new migration item.
+- **Scoping & Security:** Every endpoint or form defines its `$sanitizer`, RBAC (`$user->hasPermission()`), and CSRF strategy.
 
-### 5️⃣ Propose Approaches & Present Design
-Once confirmed, propose 2-3 technical approaches (e.g., Hook-centric vs. Process Module vs. Custom Page Class). Lead with your recommended option.
-Then present the detailed design in sections (200-300 words). Ask *"Does this look right so far?"* after each section.
+### 6. Handoff to Planning
+Once the user approves the specification, invoke `pw-writing-plans` to produce the step-by-step migration and implementation plan.
 
-### 6️⃣ Write Design Doc & Spec Self-Review
-Write the approved design to a tracking markdown file (e.g. `docs/specs/YYYY-MM-DD-<topic>.md`).
-Before asking the user to review it, **Review yourself inline**:
-- **Placeholder scan:** Any "TODO" or vague requirements? Fix them inline.
-- **Internal consistency:** Does the architecture match ProcessWire's Data Model limits?
-- **Ambiguity check:** Fix anything interpreted two ways.
+## Anti-Patterns & Loophole Closing
 
-### 7️⃣ User Review Gate
-Ask the user to review the written spec. Proceed only once approved.
-
-### 8️⃣ Transition to Implementation
-- **Terminal State:** Invoke the `writing-plans` skill to create the actual implementation and migration plan.
-- **Do NOT** write implementation code or migrations while brainstorming.
-
----
-
-## Anti-Patterns
-
-- ❌ **"This is too simple to need a design"**: Every project needs confirmation. "Simple" hooks are where unexamined assumptions cause the most wasted work.
-- ❌ **Multiple questions at once**: Never overwhelm the user with a wall of 5 questions.
-- ❌ **Writing migrations during brainstorming**: Implementation belongs strictly to `writing-plans` (or `pw-migrations`). Brainstorming creates the spec.
-- ❌ **Assuming schema structures**: Always run `pw_schema_read` first to base designs on reality, not guesswork.
-- ❌ **Multi-Agent Roleplay**: Do not hallucinate review personas (Skeptics, Integrators); rigorously Self-Review your Spec instead.
+- ❌ **Asking the user what templates or fields exist:** Never ask the user a question that `pw_schema_read` or `.agents/map.json` can answer directly.
+- ❌ **Wall of questions:** Asking 4-5 open-ended questions in a single turn stalls decision-making; ask one structured question at a time.
+- ❌ **Writing migrations during brainstorming:** Schema mutations belong in the implementation phase after `pw-writing-plans`.
 
 ## Related Skills
-- `pw-writing-skills`: Use for formatting AI skill files.
-- `pw-writing-plans`: Triggered immediately AFTER brainstorming completes.
+- `pw-writing-plans`
+- `pw-migrations`
+- `pw-custom-page-classes`
