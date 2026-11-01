@@ -8,176 +8,198 @@ use Totoglu\Console\Boost\Install\Agents\Agent;
 
 final class SkillWriter
 {
-    /**
-     * @param array<string, array{path: string, guidelines_path: ?string, skills_path: ?string, has_guidelines: bool, has_skills: bool}> $discoverableModules
-     */
-    public function __construct(
-        private readonly string $targetDir,
-        private readonly array $discoverableModules
-    ) {}
+	/**
+	 * @param array<string, array{path: string, guidelines_path: ?string, skills_path: ?string, has_guidelines: bool, has_skills: bool}> $discoverableModules
+	 */
+	public function __construct(
+		private readonly string $targetDir,
+		private readonly array $discoverableModules
+	) {
+	}
 
-    /**
-     * @param list<string> $modules
-     * @param list<Agent> $agents
-     */
-    public function sync(array $modules, array $agents = []): void
-    {
-        $target = $this->targetDir . '/skills';
-        if (!is_dir($target)) {
-            mkdir($target, 0755, true);
-        }
+	/**
+	 * @param list<string> $modules
+	 * @param list<Agent> $agents
+	 */
+	public function sync(array $modules, array $agents = []): void
+	{
+		$target = $this->targetDir . '/skills';
+		if (!is_dir($target)) {
+			mkdir($target, 0755, true);
+		}
 
-        $skillSources = $this->collectDesiredSkillSources($modules);
+		$skillSources = $this->collectDesiredSkillSources($modules);
+		$allModuleSkills = $this->collectDesiredSkillSources(array_keys($this->discoverableModules));
 
-        foreach ($skillSources as $skillName => $sourcePath) {
-            $targetPath = $target . '/' . $skillName;
+		foreach (array_diff_key($allModuleSkills, $skillSources) as $deselectedSkillName => $_path) {
+			$staleTargetPath = $target . '/' . $deselectedSkillName;
+			if (is_dir($staleTargetPath)) {
+				self::deleteTree($staleTargetPath);
+			}
+		}
 
-            if ($sourcePath === $targetPath) {
-                continue;
-            }
+		foreach ($skillSources as $skillName => $sourcePath) {
+			$targetPath = $target . '/' . $skillName;
 
-            if (is_dir($targetPath)) {
-                $this->deleteTree($targetPath);
-            } elseif (is_file($targetPath)) {
-                unlink($targetPath);
-            }
+			if ($sourcePath === $targetPath) {
+				continue;
+			}
 
-            $this->copyDirectory($sourcePath, $targetPath);
-        }
+			if (is_dir($targetPath)) {
+				self::deleteTree($targetPath);
+			} elseif (is_file($targetPath)) {
+				unlink($targetPath);
+			}
 
-        $projectRoot = dirname($this->targetDir);
+			self::copyDirectory($sourcePath, $targetPath);
+		}
 
-        foreach ($agents as $agent) {
-            $agentSkillsPath = $agent->skillsPath();
+		$projectRoot = dirname($this->targetDir);
+		$canonicalSkills = $this->collectSkillSourcesFromDirectory($target);
 
-            // When an agent uses the canonical Boost skills directory (.agents/skills),
-            // it is already populated by the step above.
-            if ($agentSkillsPath === '' || $agentSkillsPath === '.agents/skills') {
-                continue;
-            }
+		foreach ($agents as $agent) {
+			$agentSkillsPath = $agent->skillsPath();
 
-            $agentTargetDir = $projectRoot . '/' . ltrim($agentSkillsPath, '/');
-            if (!is_dir($agentTargetDir)) {
-                mkdir($agentTargetDir, 0755, true);
-            }
+			if ($agentSkillsPath === '' || $agentSkillsPath === '.agents/skills') {
+				continue;
+			}
 
-            foreach ($skillSources as $skillName => $sourcePath) {
-                $agent->exportSkill($skillName, $sourcePath, $agentTargetDir);
-            }
-        }
-    }
+			$agentTargetDir = $projectRoot . '/' . ltrim($agentSkillsPath, '/');
+			if (!is_dir($agentTargetDir)) {
+				mkdir($agentTargetDir, 0755, true);
+			}
 
-    /**
-     * @param list<Agent>|null $agents
-     */
-    public function removeCoreSkills(?array $agents = null): void
-    {
-        foreach (array_keys($this->collectDesiredSkillSources([])) as $skillName) {
-            $skillPath = $this->targetDir . '/skills/' . $skillName;
-            if (is_dir($skillPath)) {
-                $this->deleteTree($skillPath);
-            }
-        }
+			foreach (array_diff_key($allModuleSkills, $skillSources) as $deselectedSkillName => $_path) {
+				$staleAgentSkillPath = $agentTargetDir . '/' . $deselectedSkillName;
+				if (is_dir($staleAgentSkillPath)) {
+					self::deleteTree($staleAgentSkillPath);
+				}
+			}
 
-        if ($agents !== null) {
-            $projectRoot = dirname($this->targetDir);
-            foreach ($agents as $agent) {
-                $skillsPath = $agent->skillsPath();
-                if ($skillsPath !== '' && $skillsPath !== '.agents/skills') {
-                    $skillsFullPath = $projectRoot . '/' . ltrim($skillsPath, '/');
-                    if (is_dir($skillsFullPath)) {
-                        $this->deleteTree($skillsFullPath);
-                    }
-                }
-            }
-        }
-    }
+			foreach ($canonicalSkills as $skillName => $sourcePath) {
+				$agent->exportSkill($skillName, $sourcePath, $agentTargetDir);
+			}
+		}
+	}
 
-    /**
-     * @param list<string> $modules
-     * @return array<string, string>
-     */
-    private function collectDesiredSkillSources(array $modules): array
-    {
-        $sources = $this->collectSkillSourcesFromDirectory(dirname(__DIR__, 2) . '/resources/boost/skills');
+	/**
+	 * @param list<Agent>|null $agents
+	 */
+	public function removeCoreSkills(?array $agents = null): void
+	{
+		$managedSkills = $this->collectDesiredSkillSources(array_keys($this->discoverableModules));
+		foreach (array_keys($managedSkills) as $skillName) {
+			$skillPath = $this->targetDir . '/skills/' . $skillName;
+			if (is_dir($skillPath)) {
+				self::deleteTree($skillPath);
+			}
+		}
 
-        foreach ($modules as $moduleName) {
-            if (!isset($this->discoverableModules[$moduleName])) {
-                continue;
-            }
+		if ($agents !== null) {
+			foreach ($agents as $agent) {
+				$this->removeAgentSkills($agent);
+			}
+		}
+	}
 
-            $skillsPath = $this->discoverableModules[$moduleName]['skills_path'] ?? null;
-            if (!is_string($skillsPath)) {
-                continue;
-            }
+	public function removeAgentSkills(Agent $agent): void
+	{
+		$skillsPath = $agent->skillsPath();
+		if ($skillsPath === '' || $skillsPath === '.agents/skills') {
+			return;
+		}
 
-            $sources = array_merge($sources, $this->collectSkillSourcesFromDirectory($skillsPath));
-        }
+		$projectRoot = dirname($this->targetDir);
+		$skillsFullPath = $projectRoot . '/' . ltrim($skillsPath, '/');
+		if (is_dir($skillsFullPath)) {
+			self::deleteTree($skillsFullPath);
+		}
+	}
 
-        $targetSkillsDir = $this->targetDir . '/skills';
-        if (is_dir($targetSkillsDir)) {
-            $sources = array_merge($this->collectSkillSourcesFromDirectory($targetSkillsDir), $sources);
-        }
+	/**
+	 * @param list<string> $modules
+	 * @return array<string, string>
+	 */
+	private function collectDesiredSkillSources(array $modules): array
+	{
+		$sources = $this->collectSkillSourcesFromDirectory(dirname(__DIR__, 2) . '/resources/boost/skills');
 
-        return $sources;
-    }
+		foreach ($modules as $moduleName) {
+			if (!isset($this->discoverableModules[$moduleName])) {
+				continue;
+			}
 
-    /**
-     * @return array<string, string>
-     */
-    private function collectSkillSourcesFromDirectory(string $sourceDir): array
-    {
-        if (!is_dir($sourceDir)) {
-            return [];
-        }
+			$skillsPath = $this->discoverableModules[$moduleName]['skills_path'] ?? null;
+			if (!is_string($skillsPath)) {
+				continue;
+			}
 
-        $sources = [];
-        foreach (new \DirectoryIterator($sourceDir) as $file) {
-            if ($file->isDot() || !$file->isDir()) {
-                continue;
-            }
+			$sources = array_merge($sources, $this->collectSkillSourcesFromDirectory($skillsPath));
+		}
 
-            $skillPath = $file->getPathname();
-            if (!is_file($skillPath . '/SKILL.md')) {
-                continue;
-            }
+		return $sources;
+	}
 
-            $sources[$file->getFilename()] = $skillPath;
-        }
+	/**
+	 * @return array<string, string>
+	 */
+	private function collectSkillSourcesFromDirectory(string $sourceDir): array
+	{
+		if (!is_dir($sourceDir)) {
+			return [];
+		}
 
-        return $sources;
-    }
+		$sources = [];
+		foreach (new \DirectoryIterator($sourceDir) as $file) {
+			if ($file->isDot() || !$file->isDir()) {
+				continue;
+			}
 
-    private function copyDirectory(string $source, string $target): void
-    {
-        if (!is_dir($target)) {
-            mkdir($target, 0755, true);
-        }
+			$skillPath = $file->getPathname();
+			if (!is_file($skillPath . '/SKILL.md')) {
+				continue;
+			}
 
-        foreach (scandir($source) ?: [] as $file) {
-            if ($file === '.' || $file === '..') {
-                continue;
-            }
+			$sources[$file->getFilename()] = $skillPath;
+		}
 
-            $srcFile = $source . '/' . $file;
-            $dstFile = $target . '/' . $file;
+		return $sources;
+	}
 
-            if (is_dir($srcFile)) {
-                $this->copyDirectory($srcFile, $dstFile);
-                continue;
-            }
+	public static function copyDirectory(string $source, string $target): void
+	{
+		if (!is_dir($target)) {
+			mkdir($target, 0755, true);
+		}
 
-            copy($srcFile, $dstFile);
-        }
-    }
+		foreach (scandir($source) ?: [] as $file) {
+			if ($file === '.' || $file === '..') {
+				continue;
+			}
 
-    private function deleteTree(string $dir): bool
-    {
-        foreach (array_diff(scandir($dir) ?: [], ['.', '..']) as $file) {
-            $path = $dir . '/' . $file;
-            is_dir($path) ? $this->deleteTree($path) : unlink($path);
-        }
+			$srcFile = $source . '/' . $file;
+			$dstFile = $target . '/' . $file;
 
-        return rmdir($dir);
-    }
+			if (is_dir($srcFile)) {
+				self::copyDirectory($srcFile, $dstFile);
+				continue;
+			}
+
+			copy($srcFile, $dstFile);
+		}
+	}
+
+	public static function deleteTree(string $dir): bool
+	{
+		if (!is_dir($dir)) {
+			return false;
+		}
+
+		foreach (array_diff(scandir($dir) ?: [], ['.', '..']) as $file) {
+			$path = $dir . '/' . $file;
+			is_dir($path) ? self::deleteTree($path) : @unlink($path);
+		}
+
+		return @rmdir($dir);
+	}
 }

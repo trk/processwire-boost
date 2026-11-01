@@ -4,58 +4,55 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost\Install\Agents;
 
-use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
-use Totoglu\Console\Boost\Contracts\SupportsMcp;
-use Totoglu\Console\Boost\Contracts\SupportsSkills;
 use Totoglu\Console\Boost\Install\Enums\McpPathStrategy;
 
-final class Junie extends Agent implements SupportsGuidelines, SupportsMcp, SupportsSkills
+final class Junie extends Agent
 {
-    public function name(): string
-    {
-        return 'junie';
-    }
+	public function name(): string
+	{
+		return 'junie';
+	}
 
-    public function displayName(): string
-    {
-        return 'Junie';
-    }
+	public function displayName(): string
+	{
+		return 'Junie';
+	}
 
-    public function mcpConfigPath(): ?string
-    {
-        return '.junie/mcp/mcp.json';
-    }
+	public function mcpConfigPath(): ?string
+	{
+		return '.junie/mcp/mcp.json';
+	}
 
-    public function systemDetectionPaths(): array
-    {
-        return ['~/.junie'];
-    }
+	public function systemDetectionPaths(): array
+	{
+		return ['~/.junie'];
+	}
 
-    public function systemDetectionBinaries(): array
-    {
-        return ['junie'];
-    }
+	public function systemDetectionBinaries(): array
+	{
+		return ['junie'];
+	}
 
-    public function projectDetectionPaths(): array
-    {
-        return ['.junie', '.junie/mcp/mcp.json'];
-    }
+	public function projectDetectionPaths(): array
+	{
+		return ['.junie', '.junie/mcp/mcp.json'];
+	}
 
-    public function guidelinesPath(): string
-    {
-        return 'AGENTS.md';
-    }
+	public function guidelinesPath(): string
+	{
+		return 'AGENTS.md';
+	}
 
-    /**
-     * Junie cannot resolve relative paths — requires absolute filesystem paths.
-     */
-    public function mcpPathStrategy(): McpPathStrategy
-    {
-        return McpPathStrategy::Absolute;
-    }
+	/**
+	 * Junie cannot resolve relative paths — requires absolute filesystem paths.
+	 */
+	public function mcpPathStrategy(): McpPathStrategy
+	{
+		return McpPathStrategy::Absolute;
+	}
 
-    public function skillsPath(): string
-    {
-        return '.junie/skills';
-    }
+	public function skillsPath(): string
+	{
+		return '.junie/skills';
+	}
 }

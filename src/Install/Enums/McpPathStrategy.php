@@ -13,12 +13,12 @@ namespace Totoglu\Console\Boost\Install\Enums;
  */
 enum McpPathStrategy: string
 {
-    /** Relative paths from project root (default for most agents) */
-    case Relative = 'relative';
+	/** Relative paths from project root (default for most agents) */
+	case Relative = 'relative';
 
-    /** Absolute filesystem paths (for agents that cannot resolve relative paths) */
-    case Absolute = 'absolute';
+	/** Absolute filesystem paths (for agents that cannot resolve relative paths) */
+	case Absolute = 'absolute';
 
-    /** IDE workspace variable `${workspaceFolder}` (for IDEs like Trae that resolve this) */
-    case WorkspaceFolder = 'workspace_folder';
+	/** IDE workspace variable `${workspaceFolder}` (for IDEs like Trae that resolve this) */
+	case WorkspaceFolder = 'workspace_folder';
 }

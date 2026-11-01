@@ -4,173 +4,189 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost\Install\Agents;
 
-use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
-use Totoglu\Console\Boost\Contracts\SupportsMcp;
-use Totoglu\Console\Boost\Contracts\SupportsSkills;
 use Totoglu\Console\Boost\Install\Enums\McpPathStrategy;
 use Totoglu\Console\Boost\Install\Mcp\FileWriter;
-use Totoglu\Console\Boost\Install\Mcp\TomlFileWriter;
+use Totoglu\Console\Boost\Install\SkillWriter;
 
 abstract class Agent
 {
-    abstract public function name(): string;
-    abstract public function displayName(): string;
+	abstract public function name(): string;
+	abstract public function displayName(): string;
 
-    public function mcpConfigPath(): ?string
-    {
-        return null;
-    }
+	public function mcpConfigPath(): ?string
+	{
+		return null;
+	}
 
-    public function guidelinesPath(): string
-    {
-        return 'AGENTS.md';
-    }
+	public function guidelinesPath(): string
+	{
+		return 'AGENTS.md';
+	}
 
-    /**
-     * The MCP path strategy for this agent.
-     *
-     * - Relative:        `vendor/bin/wire` (default, most agents)
-     * - Absolute:        `/full/path/vendor/bin/wire` (Junie, Gemini)
-     * - WorkspaceFolder: `${workspaceFolder}/vendor/bin/wire` (Trae)
-     */
-    public function mcpPathStrategy(): McpPathStrategy
-    {
-        return McpPathStrategy::Relative;
-    }
+	/**
+	 * The MCP path strategy for this agent.
+	 *
+	 * - Relative:        `vendor/bin/wire` (default, most agents)
+	 * - Absolute:        `/full/path/vendor/bin/wire` (Junie, Gemini)
+	 * - WorkspaceFolder: `${workspaceFolder}/vendor/bin/wire` (Trae)
+	 */
+	public function mcpPathStrategy(): McpPathStrategy
+	{
+		return McpPathStrategy::Relative;
+	}
 
-    /**
-     * @deprecated Use mcpPathStrategy() instead.
-     */
-    public function useAbsolutePathForMcp(): bool
-    {
-        return $this->mcpPathStrategy() === McpPathStrategy::Absolute;
-    }
+	/**
+	 * Get the PHP binary path based on the agent's path strategy.
+	 */
+	public function getPhpPath(): string
+	{
+		return match ($this->mcpPathStrategy()) {
+			McpPathStrategy::Absolute => PHP_BINARY,
+			McpPathStrategy::WorkspaceFolder, McpPathStrategy::Relative => 'php',
+		};
+	}
 
-    /**
-     * Get the PHP binary path based on the agent's path strategy.
-     */
-    public function getPhpPath(): string
-    {
-        return match ($this->mcpPathStrategy()) {
-            McpPathStrategy::Absolute => PHP_BINARY,
-            McpPathStrategy::WorkspaceFolder, McpPathStrategy::Relative => 'php',
-        };
-    }
+	/**
+	 * Get the wire CLI path based on the agent's path strategy.
+	 */
+	public function getWirePath(string $projectRoot): string
+	{
+		return match ($this->mcpPathStrategy()) {
+			McpPathStrategy::Absolute => $projectRoot . '/vendor/bin/wire',
+			McpPathStrategy::WorkspaceFolder => '${workspaceFolder}/vendor/bin/wire',
+			McpPathStrategy::Relative => 'vendor/bin/wire',
+		};
+	}
 
-    /**
-     * Get the wire CLI path based on the agent's path strategy.
-     */
-    public function getWirePath(string $projectRoot): string
-    {
-        return match ($this->mcpPathStrategy()) {
-            McpPathStrategy::Absolute => $projectRoot . '/vendor/bin/wire',
-            McpPathStrategy::WorkspaceFolder => '${workspaceFolder}/vendor/bin/wire',
-            McpPathStrategy::Relative => 'vendor/bin/wire',
-        };
-    }
+	public function skillsPath(): string
+	{
+		return '.agents/skills';
+	}
 
-    public function skillsPath(): string
-    {
-        return '.agents/skills';
-    }
+	public function supportsGuidelines(): bool
+	{
+		return $this->guidelinesPath() !== '';
+	}
 
-    public function frontmatter(): bool
-    {
-        return false;
-    }
+	public function supportsMcp(): bool
+	{
+		$path = $this->mcpConfigPath();
 
-    public function transformGuidelines(string $markdown): string
-    {
-        return $markdown;
-    }
+		return $path !== null && $path !== '';
+	}
 
-    /**
-     * @return list<string>
-     */
-    public function systemDetectionPaths(): array
-    {
-        return [];
-    }
+	public function supportsSkills(): bool
+	{
+		return $this->skillsPath() !== '';
+	}
 
-    /**
-     * @return list<string>
-     */
-    public function systemDetectionBinaries(): array
-    {
-        return [];
-    }
+	public function frontmatter(): bool
+	{
+		return false;
+	}
 
-    /**
-     * @return list<string>
-     */
-    public function projectDetectionPaths(): array
-    {
-        $paths = [];
+	public function transformGuidelines(string $markdown): string
+	{
+		return $markdown;
+	}
 
-        $guidelinesPath = $this->guidelinesPath();
-        if ($guidelinesPath !== 'AGENTS.md' && $guidelinesPath !== '') {
-            $paths[] = $guidelinesPath;
-        }
+	/**
+	 * @return list<string>
+	 */
+	public function systemDetectionPaths(): array
+	{
+		return [];
+	}
 
-        $mcpConfigPath = $this->mcpConfigPath();
-        if (is_string($mcpConfigPath) && $mcpConfigPath !== '') {
-            $paths[] = $mcpConfigPath;
-        }
+	/**
+	 * @return list<string>
+	 */
+	public function systemDetectionBinaries(): array
+	{
+		return [];
+	}
 
-        $skillsPath = $this->skillsPath();
-        if ($skillsPath !== '.agents/skills' && $skillsPath !== '') {
-            $paths[] = $skillsPath;
-        }
+	/**
+	 * @return list<string>
+	 */
+	public function projectDetectionPaths(): array
+	{
+		$paths = [];
 
-        return array_values(array_unique($paths));
-    }
+		$guidelinesPath = $this->guidelinesPath();
+		if ($guidelinesPath !== 'AGENTS.md' && $guidelinesPath !== '') {
+			$paths[] = $guidelinesPath;
+		}
 
-    public function detectOnSystem(): bool
-    {
-        foreach ($this->systemDetectionPaths() as $path) {
-            if ($this->pathExists($this->expandHome($path))) {
-                return true;
-            }
-        }
+		$mcpConfigPath = $this->mcpConfigPath();
+		if (is_string($mcpConfigPath) && $mcpConfigPath !== '') {
+			$paths[] = $mcpConfigPath;
+		}
 
-        foreach ($this->systemDetectionBinaries() as $binary) {
-            if ($this->binaryExists($binary)) {
-                return true;
-            }
-        }
+		$skillsPath = $this->skillsPath();
+		if ($skillsPath !== '.agents/skills' && $skillsPath !== '') {
+			$paths[] = $skillsPath;
+		}
 
-        return false;
-    }
+		return array_values(array_unique($paths));
+	}
 
-    public function detectInProject(string $basePath): bool
-    {
-        foreach ($this->projectDetectionPaths() as $path) {
-            if ($this->pathExists($basePath . '/' . ltrim($path, '/'))) {
-                return true;
-            }
-        }
+	public function detectOnSystem(): bool
+	{
+		foreach ($this->systemDetectionPaths() as $path) {
+			if ($this->pathExists($this->expandHome($path))) {
+				return true;
+			}
+		}
 
-        return false;
-    }
+		foreach ($this->systemDetectionBinaries() as $binary) {
+			if ($this->binaryExists($binary)) {
+				return true;
+			}
+		}
 
-    public function mcpConfigKey(): string
-    {
-        return str_ends_with((string) $this->mcpConfigPath(), '.toml') ? 'mcp_servers' : 'mcpServers';
-    }
+		return false;
+	}
 
-    public function defaultMcpConfig(): array
-    {
-        return [$this->mcpConfigKey() => []];
-    }
+	public function detectInProject(string $basePath): bool
+	{
+		foreach ($this->projectDetectionPaths() as $path) {
+			if ($this->pathExists($basePath . '/' . ltrim($path, '/'))) {
+				return true;
+			}
+		}
 
-    public function mcpServerConfig(string $command, array $args = [], array $env = [], string $cwd = ''): array
-    {
-        $payload = ['command' => $command, 'args' => $args, 'env' => $env];
-        if ($cwd !== '') {
-            $payload['cwd'] = $cwd;
-        }
-        return $payload;
-    }
+		return false;
+	}
+
+	public function mcpConfigKey(): string
+	{
+		return str_ends_with((string) $this->mcpConfigPath(), '.toml') ? 'mcp_servers' : 'mcpServers';
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	public function defaultMcpConfig(): array
+	{
+		return [$this->mcpConfigKey() => []];
+	}
+
+	/**
+	 * @param list<string> $args
+	 * @param array<string, string> $env
+	 * @return array<string, mixed>
+	 */
+	public function mcpServerConfig(string $command, array $args = [], array $env = [], string $cwd = ''): array
+	{
+		$payload = ['command' => $command, 'args' => $args, 'env' => $env];
+		if ($cwd !== '') {
+			$payload['cwd'] = $this->mcpPathStrategy() === McpPathStrategy::WorkspaceFolder
+				? '${workspaceFolder}'
+				: $cwd;
+		}
+		return $payload;
+	}
 
 	public function resolveMcpPath(string $cwd = ''): ?string
 	{
@@ -188,116 +204,88 @@ abstract class Agent
 		return $path;
 	}
 
+	public function installProjectMcp(string $projectRoot, string $key = 'processwire'): void
+	{
+		$command = $this->getPhpPath();
+		$wire = $this->getWirePath($projectRoot);
+
+		if (!$this->installMcp($key, $command, [$wire, 'boost:mcp'], [], $projectRoot)) {
+			throw new \RuntimeException(sprintf('Failed to install MCP configuration for %s.', static::class));
+		}
+	}
+
+	/**
+	 * @param list<string> $args
+	 * @param array<string, string> $env
+	 */
 	public function installMcp(string $key, string $command, array $args = [], array $env = [], string $cwd = ''): bool
 	{
 		$path = $this->resolveMcpPath($cwd);
-		if (!$path) {
+		if ($path === null) {
 			return false;
 		}
 
-		if (str_ends_with($path, '.toml')) {
-			$w = new TomlFileWriter($path, $this->defaultMcpConfig());
-			return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env, $cwd))->save();
-		}
+		$serverConfig = $this->mcpServerConfig($command, $args, $env, $cwd);
+		$writer = new FileWriter($path, $this->defaultMcpConfig());
 
-		$w = new FileWriter($path, $this->defaultMcpConfig());
-		return $w->configKey($this->mcpConfigKey())->addServerConfig($key, $this->mcpServerConfig($command, $args, $env, $cwd))->save();
+		return $writer->configKey($this->mcpConfigKey())->addServerConfig($key, $serverConfig)->save();
 	}
 
 	public function uninstallMcp(string $key, string $cwd = ''): bool
 	{
 		$path = $this->resolveMcpPath($cwd);
-		if (!$path || !file_exists($path)) {
+		if ($path === null || !file_exists($path)) {
 			return true;
 		}
 
-		if (str_ends_with($path, '.toml')) {
-			$w = new TomlFileWriter($path, $this->defaultMcpConfig());
-			return $w->configKey($this->mcpConfigKey())->remove($key);
-		}
+		$writer = new FileWriter($path, $this->defaultMcpConfig());
 
-		$w = new FileWriter($path, $this->defaultMcpConfig());
-		return $w->configKey($this->mcpConfigKey())->remove($key);
+		return $writer->configKey($this->mcpConfigKey())->remove($key);
 	}
 
-    public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
-    {
-        $skillDir = $targetDir . '/' . $skillName;
-        if (!is_dir($skillDir)) {
-            mkdir($skillDir, 0755, true);
-        }
+	public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
+	{
+		$skillDir = $targetDir . '/' . $skillName;
+		if (!is_dir($skillDir)) {
+			mkdir($skillDir, 0755, true);
+		}
 
-        if (is_dir($skillPath)) {
-            $this->copyDirectory($skillPath, $skillDir);
-        } elseif (is_file($skillPath)) {
-            copy($skillPath, $skillDir . '/SKILL.md');
-        }
+		if (is_dir($skillPath)) {
+			SkillWriter::copyDirectory($skillPath, $skillDir);
+		} elseif (is_file($skillPath)) {
+			copy($skillPath, $skillDir . '/SKILL.md');
+		}
 
-        return $skillDir . '/SKILL.md';
-    }
+		return $skillDir . '/SKILL.md';
+	}
 
-    protected function copyDirectory(string $source, string $target): void
-    {
-        if (!is_dir($target)) {
-            mkdir($target, 0755, true);
-        }
+	private function binaryExists(string $binary): bool
+	{
+		$escaped = escapeshellarg($binary);
+		$command = PHP_OS_FAMILY === 'Windows'
+			? "where {$escaped} >NUL 2>&1"
+			: "command -v {$escaped} >/dev/null 2>&1";
 
-        foreach (scandir($source) ?: [] as $file) {
-            if ($file === '.' || $file === '..') {
-                continue;
-            }
+		$output = [];
+		$exitCode = 1;
+		exec($command, $output, $exitCode);
 
-            $srcFile = $source . '/' . $file;
-            $dstFile = $target . '/' . $file;
+		return $exitCode === 0;
+	}
 
-            if (is_dir($srcFile)) {
-                $this->copyDirectory($srcFile, $dstFile);
-                continue;
-            }
+	private function pathExists(string $path): bool
+	{
+		return file_exists($path) || is_dir($path);
+	}
 
-            copy($srcFile, $dstFile);
-        }
-    }
+	private function expandHome(string $path): string
+	{
+		if (!str_starts_with($path, '~/')) {
+			return $path;
+		}
 
-    /**
-     * @return array<class-string, bool>
-     */
-    public function supportedContracts(): array
-    {
-        return [
-            SupportsGuidelines::class => $this instanceof SupportsGuidelines,
-            SupportsSkills::class => $this instanceof SupportsSkills,
-            SupportsMcp::class => $this instanceof SupportsMcp,
-        ];
-    }
+		$home = getenv('HOME');
 
-    private function binaryExists(string $binary): bool
-    {
-        $escaped = escapeshellarg($binary);
-        $command = PHP_OS_FAMILY === 'Windows'
-            ? "where {$escaped} >NUL 2>&1"
-            : "command -v {$escaped} >/dev/null 2>&1";
-
-        $output = [];
-        $exitCode = 1;
-        exec($command, $output, $exitCode);
-
-        return $exitCode === 0;
-    }
-
-    private function pathExists(string $path): bool
-    {
-        return file_exists($path) || is_dir($path);
-    }
-
-    private function expandHome(string $path): string
-    {
-        if (!str_starts_with($path, '~/')) {
-            return $path;
-        }
-
-        $home = getenv('HOME');
-
-        return is_string($home) && $home !== '' ? $home . substr($path, 1) : $path;
-    }
+		return is_string($home) && $home !== '' ? $home . substr($path, 1) : $path;
+	}
 }

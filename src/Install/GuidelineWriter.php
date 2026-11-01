@@ -4,279 +4,295 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost\Install;
 
-use Totoglu\Console\Boost\Contracts\SupportsGuidelines;
-use function ProcessWire\wire;
+use Totoglu\Console\Boost\Install\Agents\Agent;
 
 final class GuidelineWriter
 {
-    /**
-     * @param array<string, array{path: string, guidelines_path: ?string, skills_path: ?string, has_guidelines: bool, has_skills: bool}> $discoverableModules
-     */
-    public function __construct(
-        private readonly string $projectRoot,
-        private readonly string $targetDir,
-        private readonly array $discoverableModules
-    ) {}
+	/**
+	 * @param array<string, array{path: string, guidelines_path: ?string, skills_path: ?string, has_guidelines: bool, has_skills: bool}> $discoverableModules
+	 */
+	public function __construct(
+		private readonly string $projectRoot,
+		private readonly string $targetDir,
+		private readonly array $discoverableModules
+	) {
+	}
 
-    /**
-     * @param list<SupportsGuidelines> $agents
-     * @param list<string> $modules
-     */
-    public function write(array $agents, array $modules): void
-    {
-        $instructionParts = [];
+	/**
+	 * @param list<Agent> $agents
+	 * @param list<string> $modules
+	 */
+	public function write(array $agents, array $modules): void
+	{
+		$instructionParts = [];
 
-        $foundation = $this->renderFoundationRule();
-        if ($foundation !== null) {
-            $instructionParts[] = "=== foundation rules ===\n\n" . $foundation;
-        }
+		$foundation = $this->renderFoundationRule();
+		if ($foundation !== null) {
+			$instructionParts[] = "=== foundation rules ===\n\n" . $foundation;
+		}
 
-        foreach ($this->loadCoreGuidelines() as $name => $content) {
-            $instructionParts[] = "=== {$name} rules ===\n\n" . $content;
-        }
+		foreach ($this->loadCoreGuidelines() as $name => $content) {
+			$instructionParts[] = "=== {$name} rules ===\n\n" . $content;
+		}
 
-        foreach ($this->buildModuleInstructions($modules) as $moduleInstruction) {
-            $instructionParts[] = $moduleInstruction;
-        }
+		foreach ($this->buildModuleInstructions($modules) as $moduleInstruction) {
+			$instructionParts[] = $moduleInstruction;
+		}
 
-        $fullInstructions = implode("\n\n", $instructionParts);
-        $boostBlock = "<processwire-boost-guidelines>\n\n{$fullInstructions}\n\n</processwire-boost-guidelines>";
+		$fullInstructions = implode("\n\n", $instructionParts);
+		$boostBlock = "<processwire-boost-guidelines>\n\n{$fullInstructions}\n\n</processwire-boost-guidelines>";
 
-        $agentsPath = $this->projectRoot . '/AGENTS.md';
-        $this->writeBoostBlock(
-            $agentsPath,
-            $boostBlock,
-            "# Universal AI Agent Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n"
-        );
+		$agentsPath = $this->projectRoot . '/AGENTS.md';
+		$this->writeBoostBlock(
+			$agentsPath,
+			$boostBlock,
+			"# Universal AI Agent Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n"
+		);
 
-        $writtenGuidelines = ['AGENTS.md'];
+		$writtenGuidelines = ['AGENTS.md'];
 
-        foreach ($agents as $agent) {
-            $guidelinesFile = $agent->guidelinesPath();
+		foreach ($agents as $agent) {
+			$guidelinesFile = $agent->guidelinesPath();
 
-            if (in_array($guidelinesFile, $writtenGuidelines, true)) {
-                continue;
-            }
+			if (in_array($guidelinesFile, $writtenGuidelines, true)) {
+				continue;
+			}
 
-            $guidelinesFullPath = $this->projectRoot . '/' . $guidelinesFile;
-            $agentBoostBlock = $agent->transformGuidelines($boostBlock);
+			$guidelinesFullPath = $this->projectRoot . '/' . $guidelinesFile;
+			$agentBoostBlock = $agent->transformGuidelines($boostBlock);
 
-            $name = method_exists($agent, 'displayName') ? $agent->displayName() : 'AI Agent';
-            $defaultHeader = "# {$name} Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n";
-            if ($agent->frontmatter()) {
-                $defaultHeader = "---\ndescription: {$name} Instructions\n---\n\n" . $defaultHeader;
-            }
+			$name = $agent->displayName();
+			$defaultHeader = "# {$name} Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n";
+			if ($agent->frontmatter()) {
+				$defaultHeader = "---\ndescription: {$name} Instructions\n---\n\n" . $defaultHeader;
+			}
 
-            $this->writeBoostBlock($guidelinesFullPath, $agentBoostBlock, $defaultHeader);
-            $writtenGuidelines[] = $guidelinesFile;
-        }
-    }
+			$this->writeBoostBlock($guidelinesFullPath, $agentBoostBlock, $defaultHeader);
+			$writtenGuidelines[] = $guidelinesFile;
+		}
+	}
 
-    /**
-     * @param list<SupportsGuidelines> $agents
-     */
-    public function remove(array $agents): void
-    {
-        $targets = ['AGENTS.md'];
-        foreach ($agents as $agent) {
-            $path = $agent->guidelinesPath();
-            if (!in_array($path, $targets, true)) {
-                $targets[] = $path;
-            }
-        }
+	/**
+	 * @param list<Agent> $agents
+	 */
+	public function remove(array $agents): void
+	{
+		$targets = ['AGENTS.md'];
+		foreach ($agents as $agent) {
+			$path = $agent->guidelinesPath();
+			if (!in_array($path, $targets, true)) {
+				$targets[] = $path;
+			}
+		}
 
-        foreach ($targets as $path) {
-            $fullPath = $this->projectRoot . '/' . $path;
-            if (!is_file($fullPath)) {
-                continue;
-            }
+		foreach ($targets as $path) {
+			$this->removeBoostBlockFromFile($this->projectRoot . '/' . $path);
+		}
+	}
 
-            $content = (string) file_get_contents($fullPath);
-            $updated = preg_replace('/\n*<processwire-boost-guidelines>.*?<\/processwire-boost-guidelines>\n*/s', "\n", $content);
-            $updated = is_string($updated) ? trim($updated) : trim($content);
+	public function removeAgent(Agent $agent): void
+	{
+		$path = $agent->guidelinesPath();
+		if ($path === '' || $path === 'AGENTS.md') {
+			return;
+		}
 
-            if ($updated === '' || preg_match('/^(?:---\s*\ndescription:[^\n]+\n---\s*\n+)?# [^\n]+ Instructions\n\nGenerated for ProcessWire AI Ecosystem\.\s*$/', $updated)) {
-                unlink($fullPath);
-            } else {
-                file_put_contents($fullPath, $updated . "\n");
-            }
-        }
-    }
+		$this->removeBoostBlockFromFile($this->projectRoot . '/' . $path);
+	}
 
-    /**
-     * @return array<string, string>
-     */
-    private function loadCoreGuidelines(): array
-    {
-        $guidelinesDir = dirname(__DIR__, 2) . '/resources/boost/guidelines';
-        if (!is_dir($guidelinesDir)) {
-            return [];
-        }
+	private function removeBoostBlockFromFile(string $fullPath): void
+	{
+		if (!is_file($fullPath)) {
+			return;
+		}
 
-        $guidelines = [];
-        foreach (scandir($guidelinesDir) ?: [] as $file) {
-            if ($file === '.' || $file === '..' || $file === 'foundation.md') {
-                continue;
-            }
+		$content = (string) file_get_contents($fullPath);
+		$updated = preg_replace('/\n*<processwire-boost-guidelines>.*?<\/processwire-boost-guidelines>\n*/s', "\n", $content);
+		$updated = is_string($updated) ? trim($updated) : trim($content);
 
-            if (strtolower(pathinfo($file, PATHINFO_EXTENSION)) !== 'md') {
-                continue;
-            }
+		if ($updated === '' || preg_match('/^(?:---\s*\ndescription:[^\n]+\n---\s*\n+)?# [^\n]+ Instructions\n\nGenerated for ProcessWire AI Ecosystem\.\s*$/', $updated)) {
+			unlink($fullPath);
+		} else {
+			file_put_contents($fullPath, $updated . "\n");
+		}
+	}
 
-            $filePath = $guidelinesDir . '/' . $file;
-            if (!is_file($filePath)) {
-                continue;
-            }
+	/**
+	 * @return array<string, string>
+	 */
+	private function loadCoreGuidelines(): array
+	{
+		$guidelinesDir = dirname(__DIR__, 2) . '/resources/boost/guidelines';
+		if (!is_dir($guidelinesDir)) {
+			return [];
+		}
 
-            $ruleName = str_replace(['-', '_'], ' ', pathinfo($file, PATHINFO_FILENAME));
-            $guidelines[$ruleName] = (string) file_get_contents($filePath);
-        }
+		$guidelines = [];
+		foreach (scandir($guidelinesDir) ?: [] as $file) {
+			if ($file === '.' || $file === '..' || $file === 'foundation.md') {
+				continue;
+			}
 
-        return $guidelines;
-    }
+			if (strtolower(pathinfo($file, PATHINFO_EXTENSION)) !== 'md') {
+				continue;
+			}
 
-    /**
-     * @param list<string> $modules
-     * @return list<string>
-     */
-    private function buildModuleInstructions(array $modules): array
-    {
-        if ($modules === []) {
-            return [];
-        }
+			$filePath = $guidelinesDir . '/' . $file;
+			if (!is_file($filePath)) {
+				continue;
+			}
 
-        $instructions = [];
-        $moduleDirectories = [];
+			$ruleName = str_replace(['-', '_'], ' ', pathinfo($file, PATHINFO_FILENAME));
+			$guidelines[$ruleName] = (string) file_get_contents($filePath);
+		}
 
-        foreach ($modules as $moduleName) {
-            if (!isset($this->discoverableModules[$moduleName])) {
-                continue;
-            }
+		return $guidelines;
+	}
 
-            $module = $this->discoverableModules[$moduleName];
-            $moduleContent = '';
+	/**
+	 * @param list<string> $modules
+	 * @return list<string>
+	 */
+	private function buildModuleInstructions(array $modules): array
+	{
+		if ($modules === []) {
+			return [];
+		}
 
-            if (is_string($module['guidelines_path']) && is_dir($module['guidelines_path'])) {
-                foreach (scandir($module['guidelines_path']) ?: [] as $file) {
-                    if ($file === '.' || $file === '..') {
-                        continue;
-                    }
+		$instructions = [];
+		$moduleDirectories = [];
 
-                    if (strtolower(pathinfo($file, PATHINFO_EXTENSION)) !== 'md') {
-                        continue;
-                    }
+		foreach ($modules as $moduleName) {
+			if (!isset($this->discoverableModules[$moduleName])) {
+				continue;
+			}
 
-                    $moduleContent .= (string) file_get_contents($module['guidelines_path'] . '/' . $file) . "\n\n";
-                }
-            }
+			$module = $this->discoverableModules[$moduleName];
+			$moduleContent = '';
 
-            if ($moduleContent !== '') {
-                $instructions[] = "=== module rule: {$moduleName} ===\n\n" . trim($moduleContent);
-            }
+			if (is_string($module['guidelines_path']) && is_dir($module['guidelines_path'])) {
+				foreach (scandir($module['guidelines_path']) ?: [] as $file) {
+					if ($file === '.' || $file === '..') {
+						continue;
+					}
 
-            $agentsPath = $module['path'] . '/AGENTS.md';
-            if (!is_file($agentsPath)) {
-                continue;
-            }
+					if (strtolower(pathinfo($file, PATHINFO_EXTENSION)) !== 'md') {
+						continue;
+					}
 
-            $agentContent = (string) file_get_contents($agentsPath);
-            $description = "Context and guidelines for {$moduleName}.";
+					$moduleContent .= (string) file_get_contents($module['guidelines_path'] . '/' . $file) . "\n\n";
+				}
+			}
 
-            if (preg_match('/^---\s*\ndescription:\s*(.*?)\n---/s', $agentContent, $matches)) {
-                $description = trim($matches[1]);
-            } elseif (preg_match('/description:\s*(.*)/', $agentContent, $matches)) {
-                $description = trim($matches[1]);
-            }
+			if ($moduleContent !== '') {
+				$instructions[] = "=== module rule: {$moduleName} ===\n\n" . trim($moduleContent);
+			}
 
-            $relPath = str_replace($this->projectRoot . '/', '', $agentsPath);
-            $moduleDirectories[] = "- **{$moduleName}**: {$description}\n  > Please use `view_file` on `{$relPath}` to read the full context when working on this module.";
-        }
+			$agentsPath = $module['path'] . '/AGENTS.md';
+			if (!is_file($agentsPath)) {
+				continue;
+			}
 
-        if ($moduleDirectories !== []) {
-            $instructions[] = "=== Module Context Index ===\n\nThe following modules provide extensive architectural guidelines. **DO NOT GUESS** their API. Use the `view_file` tool to read the corresponding path when your task explicitly involves them:\n\n" . implode("\n\n", $moduleDirectories);
-        }
+			$agentContent = (string) file_get_contents($agentsPath);
+			$description = "Context and guidelines for {$moduleName}.";
 
-        return $instructions;
-    }
+			if (preg_match('/^---\s*\ndescription:\s*(.*?)\n---/s', $agentContent, $matches)) {
+				$description = trim(trim($matches[1]), "\"'");
+			} elseif (preg_match('/description:\s*(.*)/', $agentContent, $matches)) {
+				$description = trim(trim($matches[1]), "\"'");
+			}
 
-    private function renderFoundationRule(): ?string
-    {
-        $templatePath = dirname(__DIR__, 2) . '/resources/boost/guidelines/foundation.md';
-        if (!is_file($templatePath)) {
-            return null;
-        }
+			$relPath = str_starts_with($agentsPath, $this->projectRoot . '/')
+				? substr($agentsPath, strlen($this->projectRoot) + 1)
+				: $agentsPath;
+			$moduleDirectories[] = "- **{$moduleName}**: {$description}\n  > Please use `view_file` on `{$relPath}` to read the full context when working on this module.";
+		}
 
-        $content = (string) file_get_contents($templatePath);
+		if ($moduleDirectories !== []) {
+			$instructions[] = "=== Module Context Index ===\n\nThe following modules provide extensive architectural guidelines. **DO NOT GUESS** their API. Use the `view_file` tool to read the corresponding path when your task explicitly involves them:\n\n" . implode("\n\n", $moduleDirectories);
+		}
 
-        $pwVersion = '3.x';
-        if (function_exists('\ProcessWire\wire')) {
-            $config = \ProcessWire\wire('config');
-            if ($config && isset($config->version)) {
-                $pwVersion = (string) $config->version;
-            }
-        } elseif (function_exists('wire')) {
-            $config = wire('config');
-            if ($config && isset($config->version)) {
-                $pwVersion = (string) $config->version;
-            }
-        }
+		return $instructions;
+	}
 
-        $replacements = [
-            '{{ PHP_VERSION }}' => PHP_VERSION,
-            '{{ PW_VERSION }}' => $pwVersion,
-        ];
+	private function renderFoundationRule(): ?string
+	{
+		$templatePath = dirname(__DIR__, 2) . '/resources/boost/guidelines/foundation.md';
+		if (!is_file($templatePath)) {
+			return null;
+		}
 
-        $roster = "- php - " . PHP_VERSION . "\n";
-        $roster .= "- processwire/core - v" . $pwVersion . "\n\n";
-        $roster .= "> [!TIP]\n";
-        $roster .= "> This system contains many other installed modules. You MUST use the `pw_module_list` MCP tool to discover installed ProcessWire modules before assuming existence of dependencies.\n";
-        $replacements['{{ ROSTER }}'] = $roster;
+		$content = (string) file_get_contents($templatePath);
 
-        $skillsMenu = '';
-        $skillsDir = $this->targetDir . '/skills';
-        if (is_dir($skillsDir)) {
-            foreach (new \DirectoryIterator($skillsDir) as $file) {
-                if ($file->isDot() || !$file->isDir()) {
-                    continue;
-                }
+		$pwVersion = '3.x';
+		if (function_exists('\ProcessWire\wire')) {
+			try {
+				$config = \ProcessWire\wire('config');
+				if ($config && isset($config->version)) {
+					$pwVersion = (string) $config->version;
+				}
+			} catch (\Throwable) {
+				// ProcessWire instance is not booted in standalone/test context
+			}
+		}
 
-                $skillFile = $file->getPathname() . '/SKILL.md';
-                if (!is_file($skillFile)) {
-                    continue;
-                }
+		$replacements = [
+			'{{ PHP_VERSION }}' => PHP_VERSION,
+			'{{ PW_VERSION }}' => $pwVersion,
+		];
 
-                $skillContent = (string) file_get_contents($skillFile);
-                if (preg_match('/description:\s*(.*)/', $skillContent, $matches)) {
-                    $description = trim(trim($matches[1]), "\"'");
-                    $skillsMenu .= "- `{$file->getFilename()}` — {$description}\n";
-                }
-            }
-        }
-        $replacements['{{ SKILLS_MENU }}'] = $skillsMenu;
+		$roster = '- php - ' . PHP_VERSION . "\n";
+		$roster .= '- processwire/core - v' . $pwVersion . "\n\n";
+		$roster .= "> [!TIP]\n";
+		$roster .= "> This system contains many other installed modules. You MUST use the `pw_module_list` MCP tool to discover installed ProcessWire modules before assuming existence of dependencies.\n";
+		$replacements['{{ ROSTER }}'] = $roster;
 
-        return str_replace(array_keys($replacements), array_values($replacements), $content);
-    }
+		$skillEntries = [];
+		$skillsDir = $this->targetDir . '/skills';
+		if (is_dir($skillsDir)) {
+			foreach (new \DirectoryIterator($skillsDir) as $file) {
+				if ($file->isDot() || !$file->isDir()) {
+					continue;
+				}
 
-    private function writeBoostBlock(string $filePath, string $boostBlock, string $defaultHeader): void
-    {
-        $directory = dirname($filePath);
-        if (!is_dir($directory)) {
-            mkdir($directory, 0755, true);
-        }
+				$skillFile = $file->getPathname() . '/SKILL.md';
+				if (!is_file($skillFile)) {
+					continue;
+				}
 
-        if (!file_exists($filePath)) {
-            file_put_contents($filePath, $defaultHeader . $boostBlock . "\n");
-            return;
-        }
+				$skillContent = (string) file_get_contents($skillFile);
+				if (preg_match('/description:\s*(.*)/', $skillContent, $matches)) {
+					$description = trim(trim($matches[1]), "\"'");
+					$skillEntries[$file->getFilename()] = "- `{$file->getFilename()}` — {$description}\n";
+				}
+			}
+		}
+		ksort($skillEntries);
+		$replacements['{{ SKILLS_MENU }}'] = implode('', $skillEntries);
 
-        $existing = (string) file_get_contents($filePath);
-        if (str_contains($existing, '<processwire-boost-guidelines>') && str_contains($existing, '</processwire-boost-guidelines>')) {
-            $pattern = '/<processwire-boost-guidelines>.*?<\/processwire-boost-guidelines>/s';
-            $updated = preg_replace($pattern, $boostBlock, $existing, 1);
-            file_put_contents($filePath, is_string($updated) ? $updated : $existing);
-            return;
-        }
+		return str_replace(array_keys($replacements), array_values($replacements), $content);
+	}
 
-        file_put_contents($filePath, rtrim($existing) . "\n\n" . $boostBlock . "\n");
-    }
+	private function writeBoostBlock(string $filePath, string $boostBlock, string $defaultHeader): void
+	{
+		$directory = dirname($filePath);
+		if (!is_dir($directory)) {
+			mkdir($directory, 0755, true);
+		}
+
+		if (!file_exists($filePath)) {
+			file_put_contents($filePath, $defaultHeader . $boostBlock . "\n");
+			return;
+		}
+
+		$existing = (string) file_get_contents($filePath);
+		if (str_contains($existing, '<processwire-boost-guidelines>') && str_contains($existing, '</processwire-boost-guidelines>')) {
+			$pattern = '/<processwire-boost-guidelines>.*?<\/processwire-boost-guidelines>/s';
+			$updated = preg_replace($pattern, $boostBlock, $existing, 1);
+			file_put_contents($filePath, is_string($updated) ? $updated : $existing);
+			return;
+		}
+
+		file_put_contents($filePath, rtrim($existing) . "\n\n" . $boostBlock . "\n");
+	}
 }
