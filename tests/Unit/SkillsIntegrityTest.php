@@ -177,4 +177,75 @@ final class SkillsIntegrityTest extends TestCase
 		$this->assertStringContainsString('--pw-border-color', $content);
 		$this->assertStringContainsString('pw-button-dropdown-wrap', $content);
 	}
+
+	public function test_all_skills_use_cso_trigger_descriptions_and_tab_indented_php_blocks(): void
+	{
+		$skills = scandir($this->skillsDir) ?: [];
+		foreach ($skills as $skill) {
+			if ($skill === '.' || $skill === '..' || !is_dir($this->skillsDir . '/' . $skill)) {
+				continue;
+			}
+
+			$file = $this->skillsDir . '/' . $skill . '/SKILL.md';
+			$content = (string) file_get_contents($file);
+
+			$this->assertMatchesRegularExpression(
+				'/^description:\s*"?Use when\s+/m',
+				$content,
+				"Skill {$skill} description must start with 'Use when '"
+			);
+
+			if (preg_match_all('/```php\n(.*?)\n```/s', $content, $matches)) {
+				foreach ($matches[1] as $blockIndex => $phpBlock) {
+					foreach (explode("\n", $phpBlock) as $lineNum => $line) {
+						$this->assertDoesNotMatchRegularExpression(
+							'/^ +(?!\*)/',
+							$line,
+							sprintf('Space-indented PHP line in %s block #%d line %d: %s', $skill, $blockIndex + 1, $lineNum + 1, $line)
+						);
+					}
+				}
+			}
+		}
+	}
+
+	public function test_skills_align_with_processwire_console_runtime_contracts(): void
+	{
+		$maintenance = (string) file_get_contents($this->skillsDir . '/pw-maintenance/SKILL.md');
+		$this->assertStringContainsString("\$config->paths->site . 'down.json'", $maintenance);
+		$this->assertStringNotContainsString("\$config->paths->assets . 'down.json'", $maintenance);
+
+		$queue = (string) file_get_contents($this->skillsDir . '/pw-queue/SKILL.md');
+		$this->assertStringContainsString('queue_jobs', $queue);
+		$this->assertStringContainsString('failed_jobs', $queue);
+		$this->assertStringNotContainsString('file-based queues', $queue);
+
+		$plans = (string) file_get_contents($this->skillsDir . '/pw-writing-plans/SKILL.md');
+		$this->assertStringContainsString('wire()->fields', $plans);
+		$this->assertStringNotContainsString('$this->wire()->fields->get(\'summary\')', $plans);
+
+		$expert = (string) file_get_contents($this->skillsDir . '/pw-expert/SKILL.md');
+		$this->assertStringContainsString('outputJsonSuccess(OutputInterface $output, array $data = []): int', $expert);
+		$this->assertStringContainsString('outputJsonError(OutputInterface $output, string $code, string $message): int', $expert);
+		$this->assertStringContainsString('/^[A-Za-z][A-Za-z0-9_]*$/', $expert);
+
+		$guidelinesDir = dirname(__DIR__, 2) . '/resources/boost/guidelines';
+		foreach (scandir($guidelinesDir) ?: [] as $gFile) {
+			if (!str_ends_with($gFile, '.md')) {
+				continue;
+			}
+			$gContent = (string) file_get_contents($guidelinesDir . '/' . $gFile);
+			if (preg_match_all('/```php\n(.*?)\n```/s', $gContent, $matches)) {
+				foreach ($matches[1] as $blockIndex => $phpBlock) {
+					foreach (explode("\n", $phpBlock) as $lineNum => $line) {
+						$this->assertDoesNotMatchRegularExpression(
+							'/^ +(?!\*)/',
+							$line,
+							sprintf('Space-indented PHP line in guideline %s block #%d line %d: %s', $gFile, $blockIndex + 1, $lineNum + 1, $line)
+						);
+					}
+				}
+			}
+		}
+	}
 }

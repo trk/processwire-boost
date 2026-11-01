@@ -117,5 +117,20 @@ final class SkillWriterTest extends TestCase
 		$this->assertFileExists($targetDir . '/skills/custom-module-skill/SKILL.md');
 		$this->assertFileExists($projectRoot . '/.cursor/skills/custom-module-skill/SKILL.md');
 		$this->assertFalse(is_dir($projectRoot . '/custom-module-skill'));
+
+		// Place a remote skill in .agents/skills and deselect MockModule:
+		// MockModule's skill is pruned while the remote skill is preserved and exported to .cursor/skills.
+		mkdir($targetDir . '/skills/remote-custom-skill', 0755, true);
+		file_put_contents(
+			$targetDir . '/skills/remote-custom-skill/SKILL.md',
+			"# Remote Custom Skill\ndescription: Installed via boost:add-skill"
+		);
+
+		$writer->sync([], $agents);
+
+		$this->assertFalse(is_dir($targetDir . '/skills/custom-module-skill'));
+		$this->assertFalse(is_dir($projectRoot . '/.cursor/skills/custom-module-skill'));
+		$this->assertFileExists($targetDir . '/skills/remote-custom-skill/SKILL.md');
+		$this->assertFileExists($projectRoot . '/.cursor/skills/remote-custom-skill/SKILL.md');
 	}
 }

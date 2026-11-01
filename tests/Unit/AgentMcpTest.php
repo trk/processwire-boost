@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Totoglu\Console\Boost\Tests\Unit;
 
-use Totoglu\Console\Boost\Contracts\SupportsMcp;
 use Totoglu\Console\Boost\Install\Agents\Amp;
 use Totoglu\Console\Boost\Install\Agents\Antigravity;
 use Totoglu\Console\Boost\Install\Agents\ClaudeCode;
@@ -20,7 +19,6 @@ use Totoglu\Console\Boost\Install\Agents\OpenCode;
 use Totoglu\Console\Boost\Install\Agents\Pi;
 use Totoglu\Console\Boost\Install\Agents\Trae;
 use Totoglu\Console\Boost\Install\Agents\Zed;
-use Totoglu\Console\Boost\Install\McpWriter;
 use Totoglu\Console\Boost\Tests\TestCase;
 
 final class AgentMcpTest extends TestCase
@@ -46,13 +44,28 @@ final class AgentMcpTest extends TestCase
 
 		foreach ($expectations as $agentClass => [$expectedPath, $expectedKey]) {
 			$agent = new $agentClass();
-			$this->assertInstanceOf(SupportsMcp::class, $agent);
+			$this->assertTrue($agent->supportsMcp());
 			$this->assertSame($expectedPath, $agent->mcpConfigPath(), sprintf('%s path mismatch', $agentClass));
 			$this->assertSame($expectedKey, $agent->mcpConfigKey(), sprintf('%s key mismatch', $agentClass));
 		}
 
 		$pi = new Pi();
-		$this->assertNotInstanceOf(SupportsMcp::class, $pi);
+		$this->assertFalse($pi->supportsMcp());
+	}
+
+	public function test_trae_workspace_folder_strategy_uses_workspace_folder_cwd(): void
+	{
+		$trae = new Trae();
+		$trae->installProjectMcp($this->tempDir, 'processwire');
+
+		$writtenFile = $this->tempDir . '/.trae/mcp.json';
+		$this->assertFileExists($writtenFile);
+
+		$data = json_decode((string) file_get_contents($writtenFile), true);
+		$this->assertIsArray($data);
+		$this->assertSame('php', $data['mcpServers']['processwire']['command']);
+		$this->assertSame(['${workspaceFolder}/vendor/bin/wire', 'boost:mcp'], $data['mcpServers']['processwire']['args']);
+		$this->assertSame('${workspaceFolder}', $data['mcpServers']['processwire']['cwd']);
 	}
 
 	public function test_copilot_mcp_server_config_includes_type_stdio(): void
@@ -125,12 +138,11 @@ final class AgentMcpTest extends TestCase
 		$this->assertSame('local', $data['mcp']['processwire']['type']);
 	}
 
-	public function test_mcp_writer_installs_and_removes_using_project_root(): void
+	public function test_install_project_mcp_installs_and_removes_using_project_root(): void
 	{
 		$agent = new Antigravity();
-		$writer = new McpWriter($agent, $this->tempDir);
 
-		$writer->write('processwire');
+		$agent->installProjectMcp($this->tempDir, 'processwire');
 		$targetFile = $this->tempDir . '/.agents/mcp_config.json';
 
 		$this->assertFileExists($targetFile);
@@ -138,7 +150,7 @@ final class AgentMcpTest extends TestCase
 		$this->assertArrayHasKey('mcpServers', $data);
 		$this->assertArrayHasKey('processwire', $data['mcpServers']);
 
-		$writer->remove('processwire');
+		$agent->uninstallMcp('processwire', $this->tempDir);
 		$updated = json_decode((string) file_get_contents($targetFile), true);
 		$this->assertArrayNotHasKey('processwire', $updated['mcpServers']);
 	}
