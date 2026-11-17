@@ -43,4 +43,4 @@ Modules and Fieldtypes that expose developer APIs should include an `API.md` fil
 - When writing core-compatible PHPDoc blocks, see `wire/core/Tools/WireApiDocs/HOWTO-API.md` for `#pw-summary`, `#pw-body`, `#pw-group-<name>`, `#pw-hooker`, and `#pw-internal` tags.
 
 ### `[Type]Field.php` Companion Classes
-Each custom `Fieldtype` module should provide a `[Type]Field.php` companion class in the same directory extending `Field` with `@property` PHPDoc annotations for all configurable field and inputfield settings, and return its class name from `getFieldClass(): string`.
+Each custom `Fieldtype` module should provide a `[Type]Field.php` companion class in the same directory extending `Field` with `@property` PHPDoc annotations for all configurable field and inputfield settings, and return its class name from `getFieldClass(array $a = []): string`.

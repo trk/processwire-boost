@@ -85,5 +85,4 @@ $newPage = $pages->new([
 1. Inspect schema via `pw_schema_read` and `pw_module_list` (MCP) or `vendor/bin/wire template:list --json` and `vendor/bin/wire field:list --json`.
 2. Check `site/config.php`, `site/init.php`, and `site/ready.php` for hooks, URL routes, and custom configuration.
 3. Inspect `site/classes/` for Custom Page Classes and `site/templates/` for template controllers.
-4. Inspect `site/modules/` for project-specific modules and check if any expose `AGENTS.md` or `API.md`.
-5. If the optional `AgentTools` module is installed in `site/modules/AgentTools/`, read `site/modules/AgentTools/AGENTS.md`.
+4. Inspect `site/modules/` for project-specific modules and check if any expose `AGENTS.md` or `API.md` (listed automatically in the **Module Context Index** when configured).

@@ -8,9 +8,9 @@ date_added: "2026-04-08"
 
 # ProcessWire Fieldtype and Inputfield Architecture
 
-In ProcessWire, custom data types are decoupled into two distinct modules (scaffold via `php vendor/bin/wire make:module <BaseName> --type=fieldtype`):
-1. **Fieldtype (Database & Persistence Layer):** Extends `Fieldtype`. Manages MariaDB/MySQL table schema (`getDatabaseSchema`), transforms raw DB rows into runtime values (`wakeupValue`), prepares values for database persistence (`sleepValue`), sanitizes values on assignment (`sanitizeValue`), and provides the blank value (`getBlankValue`).
-2. **Inputfield (User Interface & Input Handling Layer):** Extends `Inputfield`. Renders the HTML form controls for the backend admin and frontend (`render`), and intercepts HTTP POST/GET inputs (`processInput`).
+In ProcessWire, custom data types are decoupled into two distinct modules (scaffold via `php vendor/bin/wire make:module Fieldtype<BaseName> --type=fieldtype` and `php vendor/bin/wire make:module Inputfield<BaseName> --type=inputfield`):
+1. **Fieldtype (Database & Persistence Layer):** Extends `Fieldtype`. Manages MariaDB/MySQL table schema (`getDatabaseSchema`), transforms raw DB rows into runtime values (`___wakeupValue`), prepares values for database persistence (`___sleepValue`), sanitizes values on assignment (`sanitizeValue`), and provides the blank value (`getBlankValue`).
+2. **Inputfield (User Interface & Input Handling Layer):** Extends `Inputfield`. Renders the HTML form controls for the backend admin and frontend (`___render`), and intercepts HTTP POST/GET inputs (`___processInput`).
 
 ## Documentation Reference (Source of Truth)
 
@@ -77,23 +77,25 @@ class FieldtypeCustom extends Fieldtype
 		return '';
 	}
 
-	public function wakeupValue(Page $page, Field $field, $value): string
+	public function ___wakeupValue(Page $page, Field $field, $value): string
 	{
-		if (empty($value)) {
+		if ($value === null || $value === '') {
 			return $this->getBlankValue($page, $field);
 		}
 		return (string) $value;
 	}
 
-	public function sleepValue(Page $page, Field $field, $value): string
+	public function ___sleepValue(Page $page, Field $field, $value): string
 	{
 		return $this->sanitizeValue($page, $field, $value);
 	}
 
 	/**
 	 * Returns the companion Field class name for IDE settings autocompletion.
+	 *
+	 * @param array<string, mixed> $a
 	 */
-	public function getFieldClass(): string
+	public function getFieldClass(array $a = []): string
 	{
 		return 'CustomField';
 	}
@@ -124,7 +126,7 @@ class InputfieldCustom extends Inputfield
 		];
 	}
 
-	public function render(): string
+	public function ___render(): string
 	{
 		$id = $this->attr('id');
 		$name = $this->attr('name');
@@ -138,7 +140,7 @@ class InputfieldCustom extends Inputfield
 		return $out;
 	}
 
-	public function processInput(WireInputData $input): self
+	public function ___processInput(WireInputData $input): self
 	{
 		$name = $this->attr('name');
 		if (!isset($input->$name)) {
@@ -214,5 +216,5 @@ Stores data as `varchar(512)` in MariaDB/MySQL. Default blank value is empty str
 ## Anti-Patterns to Avoid
 
 - ❌ **Do not** omit `sanitizeValue()`. It is called automatically on value assignment (`$page->my_field = 'val'`) and is the primary defense against corrupted data.
-- ❌ **Do not** write raw unescaped values in `render()`. Always pass values through `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')`.
+- ❌ **Do not** write raw unescaped values in `___render()`. Always pass values through `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')`.
 - ❌ **Do not** hardcode database tables. Let ProcessWire create and manage field tables via `getDatabaseSchema()`.

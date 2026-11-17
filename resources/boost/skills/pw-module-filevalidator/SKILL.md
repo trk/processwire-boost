@@ -15,15 +15,15 @@ ProcessWire natively discovers modules whose class name begins with `FileValidat
 Before writing or modifying any FileValidator module, inspect the core API:
 - **Core CLI:** `php index.php docs get-text FileValidatorModule`
 - **Core Markdown:** `wire/core/Module/FileValidatorModule/API.md`
-- **Core Base Class:** `wire/core/FileValidatorModule.php`
-- **Core Examples:** `wire/modules/FileValidator/FileValidatorImage.php`, `wire/modules/FileValidator/FileValidatorZip.php`
+- **Core Base Class:** `wire/core/Module/FileValidatorModule/FileValidatorModule.php`
+- **Core Example:** `wire/modules/FileValidatorZip.module`
 
 ## Architecture Requirements
 
 1. **Naming:** Class name must begin with `FileValidator` (e.g. `FileValidatorCSV`, `FileValidatorPDF`).
 2. **Inheritance:** Class must extend `ProcessWire\FileValidatorModule`.
 3. **Module Info:** Must define the `validates` array containing lowercase file extensions (e.g. `['csv']`, `['pdf']`, or `'/.*/'` for all extensions).
-4. **Primary Method:** Must implement `isValidFile(string $filename): bool`.
+4. **Primary Method:** Must implement `protected function isValidFile($filename): bool` (note: keep `$filename` untyped in the method signature to match upstream `FileValidatorModule::isValidFile($filename)`).
    - Return `true` if the file passes validation.
    - Return `false` if the file fails validation.
    - Record user-facing failure reasons with `$this->error($this->_('Your message'))`.
@@ -98,9 +98,9 @@ class FileValidatorCSV extends FileValidatorModule
 ## Context Awareness (Page, Field, Pagefile)
 
 When ProcessWire validates a file belonging to a page field context, it automatically sets context properties accessible through public getters:
-- `$page = $this->getPage();` (Page or NullPage)
-- `$field = $this->getField();` (Field or null)
-- `$pagefile = $this->getPagefile();` (Pagefile, Pageimage, or null)
+- `$page = $this->getPage();` (`Page` or `null`)
+- `$field = $this->getField();` (`Field` or `null`)
+- `$pagefile = $this->getPagefile();` (`Pagefile`, `Pageimage`, or `null`)
 
 Use these getters when validation rules depend on the page template or field settings:
 

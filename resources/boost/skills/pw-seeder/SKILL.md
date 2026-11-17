@@ -1,7 +1,7 @@
 ---
 name: pw-seeder
 description: "Use when creating, orchestrating, or running database seeders and Faker data population in ProcessWire via processwire-console."
-risk: moderate
+risk: medium
 source: processwire-boost
 date_added: "2026-04-09"
 ---

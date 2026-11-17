@@ -79,7 +79,7 @@ When documenting classes or hookable methods consumed by ProcessWire's doc parse
 - `#pw-internal` (hides internal methods from public docs)
 
 ### 3. Fieldtype IDE Companion Class (`[Type]Field.php`)
-Every `Fieldtype` module should include a `[Type]Field.php` file in the same directory (e.g., `MyCustomField.php` for `FieldtypeMyCustom`) extending `Field` with `@property` annotations for all field and inputfield settings, and return its class name from `getFieldClass(): string`:
+Every `Fieldtype` module should include a `[Type]Field.php` file in the same directory (e.g., `MyCustomField.php` for `FieldtypeMyCustom`) extending `Field` with `@property` annotations for all field and inputfield settings, and return its class name from `getFieldClass(array $a = []): string`:
 
 ```php
 <?php
@@ -103,7 +103,7 @@ class MyCustomField extends Field
 Organize module `README.md` files in this exact order:
 1. **Title & Summary:** One-paragraph explanation of what problem the module solves.
 2. **Requirements:** PHP version (`>= 8.4`), ProcessWire version (`>= 3.0.210`), required modules.
-3. **Installation:** `composer require ...` and `php vendor/bin/wire module:install ModuleName`.
+3. **Installation:** `composer require ...` and `php vendor/bin/wire module:install --name=ModuleName`.
 4. **Quick Start:** Copy-paste runnable example using valid ProcessWire API (`$this->wire()->modules->get(...)`, tabs, `declare(strict_types=1);`, curly braces).
 5. **Configuration:** Markdown table of configurable settings (`Setting | Type | Default | Description`).
 6. **Hooks & Events:** Hookable `___method()` signatures and example `$wire->addHookAfter(...)` listeners.
@@ -115,7 +115,7 @@ Organize module `README.md` files in this exact order:
 - [ ] Every PHP example uses **tabs**, `declare(strict_types=1);`, curly braces on all control structures, and context-safe API access (`$this->wire()->apiVar` or `$event->wire()->apiVar`).
 - [ ] Every CLI example uses `php vendor/bin/wire <command>` and matches the real `configure()` definition.
 - [ ] Zero placeholders (`TODO`, `TBD`, `"see source code"`).
-- [ ] Zero foreign framework terminology (no Eloquent, Artisan, Blade, or ServiceProvider references).
+- [ ] Zero foreign framework terminology (no non-ProcessWire ORM, CLI runner, templating engine, or service container references).
 
 ## Related Skills
 - `pw-module-development`

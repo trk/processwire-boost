@@ -12,11 +12,9 @@ ProcessWire's backend (`AdminThemeUikit` with the Konkat theme) is a native, tok
 
 ## Design System References (Sources of Truth)
 
-- **Local Repository:** `trk/pw-design-system`
-- **Core Workspace Blueprint:** `trk/pw-design-system/src/components/25-module-workspace.html`
-- **Native Inputfield Blueprint:** `trk/pw-design-system/src/components/24-inputfields.html`
-- **Module Author Guidelines:** `trk/pw-design-system/src/components/25-module-guidelines.html`
-- **Token Definitions:** `trk/pw-design-system/assets/css/design-system.css`
+- **Admin Theme Module:** `wire/modules/AdminTheme/AdminThemeUikit/AdminThemeUikit.module`
+- **Theme Styles & CSS Variables:** `wire/modules/AdminTheme/AdminThemeUikit/uikit-pw/pw/`
+- **Inputfield & Form Wrappers:** `wire/core/Inputfield/InputfieldWrapper.php`, `wire/modules/Inputfield/InputfieldForm/InputfieldForm.module`
 
 ---
 
@@ -324,26 +322,32 @@ public function init(): void
 
 ---
 
-## 6. HTMX Mini-SPA in Admin (Process Modules)
+## 6. AJAX & Partial HTML Endpoints in Admin (`Process` Modules)
 
-When building dynamic SPA-like Process modules:
+When building dynamic partial updates inside `Process` modules:
 1. **Separate Full Page vs Partial Endpoint:**
    - Full page (`___execute`): Renders complete layout within admin chrome.
-   - Partial endpoint (`___executePartial`): Returns RAW HTML only (no admin masthead/breadcrumbs):
+   - Partial endpoint (`___executePartial`): Verifies an AJAX/partial request and returns fragment HTML or JSON directly without admin masthead/breadcrumbs:
 
 ```php
 public function ___executePartial(): string
 {
-	/** @var Htmx $htmx */
-	$htmx = $this->wire()->modules->get('Htmx');
-	$html = $htmx->renderComponent(MyComponent::class, []);
+	$config = $this->wire()->config;
+	$sanitizer = $this->wire()->sanitizer;
+	$isPartial = $config->ajax || !empty($_SERVER['HTTP_HX_REQUEST']);
 
+	if (!$isPartial) {
+		$this->wire()->session->redirect('./');
+		return '';
+	}
+
+	$label = $sanitizer->entities($this->_('Updated panel content'));
 	header('Content-Type: text/html; charset=utf-8');
-	echo $html;
-	exit; // Prevents AdminTheme from wrapping partial in admin chrome
+	echo "<div class='pw-panel-body'>{$label}</div>";
+	exit; // Prevents AdminTheme from wrapping partial output in admin chrome
 }
 ```
-2. **Avoid Component Tampering:** Do not swap outer shells containing state-aware components if their signed state tokens do not match. Swap inner contents or load views via separate `hx-get`.
+2. **Preserve CSRF Protection on State-Mutating Requests:** Always validate `$this->wire()->session->CSRF->validate()` on `POST` actions before mutating state.
 
 ---
 

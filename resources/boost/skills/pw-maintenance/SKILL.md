@@ -1,7 +1,7 @@
 ---
 name: pw-maintenance
 description: "Use when toggling ProcessWire application maintenance mode (wire down / wire up) or configuring site/init.php to intercept HTTP requests during downtime."
-risk: moderate
+risk: medium
 source: processwire-boost
 date_added: "2026-04-09"
 ---

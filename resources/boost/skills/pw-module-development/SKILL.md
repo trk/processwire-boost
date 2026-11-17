@@ -48,12 +48,8 @@ namespace ProcessWire;
 
 class CustomLogger extends WireData implements Module
 {
-	public function __construct(
-		protected readonly string $logName = 'custom-logger',
-		public int $defaultLimit = 10
-	) {
-		parent::__construct();
-	}
+	protected string $logName = 'custom-logger';
+	public int $defaultLimit = 10;
 
 	public static function getModuleInfo(): array
 	{
@@ -85,8 +81,8 @@ class CustomLogger extends WireData implements Module
 			return;
 		}
 
-		$log = $this->wire()->log;
-		$user = $this->wire()->user;
+		$log = $event->wire()->log;
+		$user = $event->wire()->user;
 
 		$log->save($this->logName, sprintf(
 			'Page %d (%s) saved by user %s',

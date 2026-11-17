@@ -1,6 +1,6 @@
 ---
 name: pw-expert
-description: "Use when building Symfony Console / Laravel Prompts CLI commands for trk/processwire-console, using InteractWithProcessWire helpers, or resolving context-safe ProcessWire API variable access across classes, hooks, templates, and closures."
+description: "Use when building Symfony Console and interactive CLI commands for trk/processwire-console, using InteractWithProcessWire helpers, or resolving context-safe ProcessWire API variable access across classes, hooks, templates, and closures."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
@@ -8,7 +8,7 @@ date_added: "2026-04-08"
 
 # ProcessWire Expert: CLI Architecture & API Scoping
 
-Reference for authoring `trk/processwire-console` commands (`Symfony Console` + `Laravel Prompts` + `InteractWithProcessWire`) and accessing ProcessWire API variables safely across every runtime scope.
+Reference for authoring `trk/processwire-console` commands (`Symfony Console` + `laravel/prompts` + `InteractWithProcessWire`) and accessing ProcessWire API variables safely across every runtime scope.
 
 ## Part 1: `trk/processwire-console` Command Architecture
 
@@ -93,13 +93,14 @@ final class ExampleActionCommand extends Command
 |---|---|
 | `outputJsonSuccess` | `$this->outputJsonSuccess(OutputInterface $output, array $data = []): int` — Emits `{"ok": true, "data": ...}` and returns `Command::SUCCESS`. |
 | `outputJsonError` | `$this->outputJsonError(OutputInterface $output, string $code, string $message): int` — Emits `{"ok": false, "error": {"code": ..., "message": ...}}` and returns `Command::FAILURE`. |
-| `searchPage` | `$this->searchPage(string $label = 'Search for a page', bool $includeTrash = false): string\|int` — Interactive Laravel Prompts `search()` helper returning a selected Page ID or path. |
+| `searchPage` | `$this->searchPage(string $label = 'Search for a page', bool $includeTrash = false): string\|int` — Interactive `laravel/prompts` `search()` helper returning a selected Page ID or path. |
 | `searchField` / `searchTemplate` / `searchRole` / `searchPermission` / `searchUser` / `searchInstalledModule` / `searchInstallableModule` / `searchLog` | Interactive `search()` helpers returning the selected item name (`string`). |
 | `multiselectLogs` | `$this->multiselectLogs(string $label = 'Select logs to clear'): array<int, string>` — Interactive multi-select over available ProcessWire log channels. |
 | `isValidIdentifier` | `$this->isValidIdentifier(string $name): bool` — Validates PHP/ProcessWire class or module identifiers (`/^[A-Za-z][A-Za-z0-9_]*$/`). |
 | `parseKeyValueSets` | `$this->parseKeyValueSets(array\|string\|null $raw): array<string, string>` — Parses repeatable `--set="key=value"` options. |
 | `loadStub` | `$this->loadStub(string $stubFile, array $replacements = []): ?string` — Loads a stub from `resources/stubs/` and applies placeholder replacements. |
-| `scaffoldFeatureClass` | `$this->scaffoldFeatureClass(InputInterface $input, OutputInterface $output, string $suffix, string $subDir, string $defaultSiteNamespace, string $stubFile, string $promptLabel, string $promptPlaceholder): int` — Shared generator pipeline for `make:queue`, `make:seeder`, and `make:task`. |
+| `failCommand` | `$this->failCommand(OutputInterface $output, bool $asJson, string $code, string $message): int` — Emits a structured JSON error when `$asJson` is `true`, otherwise renders `Laravel\Prompts\error($message)` and returns `Command::FAILURE`. |
+| `scaffoldFeatureClass` | `$this->scaffoldFeatureClass(InputInterface $input, OutputInterface $output, string $label, string $suffix, string $directory, string $defaultNamespace, string $stubFile, string $successMessagePrefix): int` — Shared generator pipeline for `make:queue`, `make:seeder`, and `make:task`. |
 
 ### Registering Commands from Composer Packages
 
@@ -140,6 +141,6 @@ ProcessWire supports multi-instance execution and distinct runtime scopes. Alway
 
 ## Anti-Patterns & Loophole Closing
 
-- ❌ **Using Laravel framework classes (`Illuminate\*`, Eloquent, facades):** `trk/processwire-console` uses only `laravel/prompts` and `symfony/console` on top of ProcessWire core.
+- ❌ **Using foreign framework classes, ORMs, or static facades:** `trk/processwire-console` uses only `laravel/prompts` and `symfony/console` on top of ProcessWire core.
 - ❌ **Allowing destructive `--json` commands without `--force`:** When `--json` is passed to a destructive command (`delete`, `detach`, `uninstall`, `trash`, `purge`, `rollback`, `reset`, `refresh`, `fresh`, `restore`, `clear`, `seed`), require `--force` and return `$this->outputJsonError($output, 'CONFIRMATION_REQUIRED', ...)` if omitted.
 - ❌ **Calling `$this->pages` inside modules or custom page classes:** Always use `$this->wire()->pages`.

@@ -30,7 +30,7 @@ Before asking the user questions, inspect the current deployment:
 ### 2. Clarify Decisions One Question at a Time
 Facts are your job; design decisions belong to the user:
 - Ask **one focused question per turn** (prefer multiple-choice options with a recommended default).
-- Clarify: page tree hierarchy (`parent` / `template`), field relationships (`FieldtypePage` vs `FieldtypeRepeater` vs `WireEntries` / custom `Fieldtype`), access control (roles/permissions), and explicit non-goals.
+- Clarify: page tree hierarchy (`parent` / `template`), field relationships (`FieldtypePage` vs `FieldtypeRepeater` vs `FieldtypeFieldsetPage` / custom `Fieldtype`), access control (roles/permissions), and explicit non-goals.
 
 ### 3. Lock Understanding (Soft Gate)
 Summarize the agreed scope in 5-10 lines:

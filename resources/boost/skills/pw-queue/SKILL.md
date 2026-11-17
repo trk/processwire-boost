@@ -8,7 +8,7 @@ date_added: "2026-04-09"
 
 # ProcessWire Queue Management
 
-`trk/processwire-console` provides a database-backed job queue using the `queue_jobs` and `failed_jobs` tables (`QueueManager::TABLE_JOBS` and `QueueManager::TABLE_FAILED`), with automatic class discovery across `site/queue/` and `site/modules/*/queue/`.
+`trk/processwire-console` provides a database-backed job queue using the `queue_jobs` and `failed_jobs` database tables managed by `Totoglu\Console\Queue\QueueManager`, with automatic class discovery across `site/queue/` and `site/modules/*/queue/`.
 
 ## When to Use
 - Offloading slow operations (sending emails, webhook calls, image/PDF generation, external API syncs) out of the HTTP request cycle.

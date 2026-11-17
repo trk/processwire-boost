@@ -4,7 +4,7 @@ Prefer native `vendor/bin/wire` CLI commands and ProcessWire MCP server tools ov
 
 ## CLI Core Commands (`vendor/bin/wire`)
 
-Every core console command supports `--json` for structured machine-readable output (`{"ok": true, "data": ...}` or `{"ok": false, "error": {"code": "...", "message": "..."}}`). Many mutation commands also support `--dry-run` (safe preview) and `--force` (required when invoking destructive commands with `--json`).
+Every console command (except the `boost:mcp` JSON-RPC 2.0 stdio server) supports `--json` for structured machine-readable output (`{"ok": true, "data": ...}` or `{"ok": false, "error": {"code": "...", "message": "..."}}`). Most schema/content mutation commands also support `--dry-run` (safe preview), and destructive commands require `--force` when invoked with `--json` or `--no-interaction`.
 
 - **System & Config:** `version`, `down`, `up`, `tinker`, `cache:clear`, `cache:wire:clear`
 - **Pages:** `page:list`, `page:find`, `page:create`, `page:update`, `page:move`, `page:publish`, `page:unpublish`, `page:trash`, `page:restore`
@@ -15,7 +15,7 @@ Every core console command supports `--json` for structured machine-readable out
 - **Migrations:** `make:migration`, `migrate`, `migrate:status`, `migrate:rollback`, `migrate:reset`, `migrate:refresh`, `migrate:fresh`, `migrate:install`
 - **Seeders & Backups:** `make:seeder`, `db:seed`, `db:backup`, `db:restore`, `backup:list`, `backup:purge`
 - **Queues & Scheduling:** `make:queue`, `queue:table`, `queue:work`, `queue:failed`, `queue:retry`, `queue:clear`, `make:task`, `schedule:run`
-- **Logs & Testing:** `log:list`, `log:read`, `log:tail`, `log:clear`, `log:clear-all`, `make:test`, `test`
+- **Logs & Testing:** `log:list`, `log:read`, `log:tail`, `log:clear`, `log:clear-all`, `make:test`, `test`, `test:e2e`
 - **Boost:** `boost:install`, `boost:update`, `boost:add-skill`, `boost:mcp`
 
 ## ProcessWire MCP Server (`processwire`)

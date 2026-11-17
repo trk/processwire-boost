@@ -55,5 +55,5 @@ Activate the relevant playbook skill immediately when your task enters its trigg
 
 Verify selector queries, schema changes, and module logic before claiming completion:
 - Use `pw_query` or `pw_execute` via MCP, or run `vendor/bin/wire <command> --json` from the terminal.
-- Run Pest suites via `vendor/bin/wire test`.
+- Run Pest suites via `vendor/bin/wire test` and Playwright E2E suites (when configured) via `vendor/bin/wire test:e2e`.
 - If a one-off verification script is required, execute it and delete any temporary scratch file before finishing.

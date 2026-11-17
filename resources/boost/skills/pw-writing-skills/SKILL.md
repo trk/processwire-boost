@@ -1,7 +1,6 @@
 ---
 name: pw-writing-skills
 description: "Use when creating or editing ProcessWire Boost skills (SKILL.md) or agent guidelines to optimize context pointers, information hierarchy, and TDD skill verification."
-category: meta
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
