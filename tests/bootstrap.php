@@ -14,9 +14,20 @@ spl_autoload_register(static function (string $class): void {
 		}
 
 		$relativeClass = substr($class, strlen($prefix));
+		if ($relativeClass === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_\\\\]*$/', $relativeClass) !== 1) {
+			return;
+		}
+
+		$realBase = realpath($baseDir);
 		$file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
-		if (is_file($file)) {
-			require_once $file;
+		$realFile = realpath($file);
+		if (
+			$realBase !== false
+			&& $realFile !== false
+			&& str_starts_with($realFile, rtrim($realBase, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
+			&& is_file($realFile)
+		) {
+			require_once $realFile;
 			return;
 		}
 	}

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Totoglu\Console\Boost\Tests;
 
 use PHPUnit\Framework\TestCase as BaseTestCase;
+use Totoglu\Console\Boost\Install\SkillWriter;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -27,15 +28,6 @@ abstract class TestCase extends BaseTestCase
 
 	protected function removeDirectory(string $path): void
 	{
-		if (!is_dir($path)) {
-			return;
-		}
-
-		foreach (array_diff(scandir($path) ?: [], ['.', '..']) as $item) {
-			$itemPath = $path . '/' . $item;
-			is_dir($itemPath) ? $this->removeDirectory($itemPath) : @unlink($itemPath);
-		}
-
-		@rmdir($path);
+		SkillWriter::deleteTree($path);
 	}
 }

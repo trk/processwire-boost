@@ -73,6 +73,13 @@ final class McpCommandTest extends TestCase
 		]);
 
 		$this->assertNull($response);
+
+		$pingNotification = $server->handleRequest([
+			'jsonrpc' => '2.0',
+			'method' => 'ping',
+		]);
+
+		$this->assertNull($pingNotification);
 	}
 
 	public function test_tools_list_returns_tools_with_valid_input_schemas_and_no_duplicate_aliases(): void
@@ -136,5 +143,72 @@ final class McpCommandTest extends TestCase
 		$this->assertArrayHasKey('modules', $decoded);
 		$this->assertArrayHasKey('roles', $decoded);
 		$this->assertArrayHasKey('permissions', $decoded);
+	}
+
+	public function test_security_guards_and_jsonrpc_request_validation(): void
+	{
+		$server = new McpServer();
+
+		// Invalid JSON-RPC version, empty object, or non-scalar id returns -32600
+		$invalidReq = $server->handleRequest(['id' => 9, 'method' => '']);
+		$this->assertIsArray($invalidReq);
+		$this->assertSame(-32600, $invalidReq['error']['code']);
+
+		$emptyReq = $server->handleRequest([]);
+		$this->assertIsArray($emptyReq);
+		$this->assertSame(-32600, $emptyReq['error']['code']);
+
+		$badIdReq = $server->handleRequest(['jsonrpc' => '2.0', 'id' => ['nested'], 'method' => 'ping']);
+		$this->assertIsArray($badIdReq);
+		$this->assertSame(-32600, $badIdReq['error']['code']);
+
+		$badParamsReq = $server->handleRequest(['jsonrpc' => '2.0', 'id' => 12, 'method' => 'tools/call', 'params' => ['positional']]);
+		$this->assertIsArray($badParamsReq);
+		$this->assertSame(-32602, $badParamsReq['error']['code']);
+
+		// Built-in system permission deletion is blocked before touching DB
+		$delSysPerm = $server->handleRequest([
+			'jsonrpc' => '2.0',
+			'id' => 10,
+			'method' => 'tools/call',
+			'params' => [
+				'name' => 'pw_permission_delete',
+				'arguments' => ['name' => 'page-view'],
+			],
+		]);
+		$this->assertTrue($delSysPerm['result']['isError'] ?? false);
+		$this->assertStringContainsString('built-in ProcessWire permission', $delSysPerm['result']['content'][0]['text']);
+
+		// Zero or negative backup purge days is blocked
+		$purgeZero = $server->handleRequest([
+			'jsonrpc' => '2.0',
+			'id' => 11,
+			'method' => 'tools/call',
+			'params' => [
+				'name' => 'pw_system_backup_purge',
+				'arguments' => ['days' => 0],
+			],
+		]);
+		$this->assertTrue($purgeZero['result']['isError'] ?? false);
+
+		// Top-level selector limit detection & clamping ignores bracketed sub-selectors and clamps explicit > maxLimit
+		$this->assertFalse(McpServer::selectorHasTopLevelLimit('template=product, items=[limit=5]'));
+		$this->assertFalse(McpServer::selectorHasTopLevelLimit('template=product, limit=0'));
+		$this->assertTrue(McpServer::selectorHasTopLevelLimit('template=product, limit=25'));
+		$this->assertSame(
+			'template=basic-page, limit=500',
+			McpServer::enforceBoundedTopLevelLimit('template=basic-page, limit=5000', 100, 500)
+		);
+		$this->assertSame(
+			'template=basic-page, items=[limit=5000], limit=100',
+			McpServer::enforceBoundedTopLevelLimit('template=basic-page, items=[limit=5000], limit=0', 100, 500)
+		);
+
+		// Log name normalization strips .txt and rejects traversal
+		$this->assertSame('errors', McpServer::normalizeLogName('errors.txt'));
+		$this->assertSame('', McpServer::normalizeLogName('..'));
+		$this->assertSame('', McpServer::normalizeLogName('../errors'));
+		$this->assertSame('', McpServer::normalizeLogName('../errors.txt'));
+		$this->assertSame('', McpServer::normalizeLogName('bad$name'));
 	}
 }

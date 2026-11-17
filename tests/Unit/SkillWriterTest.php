@@ -133,4 +133,33 @@ final class SkillWriterTest extends TestCase
 		$this->assertFileExists($targetDir . '/skills/remote-custom-skill/SKILL.md');
 		$this->assertFileExists($projectRoot . '/.cursor/skills/remote-custom-skill/SKILL.md');
 	}
+
+	public function test_delete_tree_unlinks_directory_symlinks_without_deleting_external_targets(): void
+	{
+		$externalDir = $this->tempDir . '/external-keep';
+		mkdir($externalDir, 0755, true);
+		file_put_contents($externalDir . '/precious.txt', 'keep-me');
+
+		$skillDir = $this->tempDir . '/removable-skill';
+		mkdir($skillDir, 0755, true);
+		symlink($externalDir, $skillDir . '/linked-external');
+
+		SkillWriter::deleteTree($skillDir);
+
+		$this->assertDirectoryDoesNotExist($skillDir);
+		$this->assertFileExists($externalDir . '/precious.txt');
+	}
+
+	public function test_sanitize_skill_name_and_extract_frontmatter_description(): void
+	{
+		$this->assertSame('', SkillWriter::sanitizeSkillName('..'));
+		$this->assertSame('', SkillWriter::sanitizeSkillName('...'));
+		$this->assertSame('pw-pages', SkillWriter::sanitizeSkillName('../pw-pages/'));
+
+		$markdown = "---\nname: pw-demo\ndescription: \"Use when testing \\\"quoted\\\" YAML descriptions.\"\n---\n# Demo\n";
+		$this->assertSame(
+			'Use when testing "quoted" YAML descriptions.',
+			SkillWriter::extractFrontmatterDescription($markdown)
+		);
+	}
 }

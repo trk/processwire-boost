@@ -57,13 +57,13 @@ final class BoostManagerTest extends TestCase
 		$this->assertIsString($loaded['generated_at']);
 	}
 
-	public function test_discoverable_modules_supports_boost_and_agents_dirs_and_root_agents_md_without_bare_fallback(): void
+	public function test_discoverable_modules_supports_canonical_agents_dirs_and_root_agents_md(): void
 	{
 		$siteModules = $this->tempDir . '/site/modules';
 
-		// 1. Module with boost/guidelines
-		mkdir($siteModules . '/ModBoost/boost/guidelines', 0755, true);
-		file_put_contents($siteModules . '/ModBoost/boost/guidelines/rule.md', '# Rule');
+		// 1. Module with .agents/guidelines
+		mkdir($siteModules . '/ModGuidelines/.agents/guidelines', 0755, true);
+		file_put_contents($siteModules . '/ModGuidelines/.agents/guidelines/rule.md', '# Rule');
 
 		// 2. Module with .agents/skills
 		mkdir($siteModules . '/ModAgents/.agents/skills/my-skill', 0755, true);
@@ -73,16 +73,22 @@ final class BoostManagerTest extends TestCase
 		mkdir($siteModules . '/ModRootMd', 0755, true);
 		file_put_contents($siteModules . '/ModRootMd/AGENTS.md', "---\ndescription: Root MD module\n---\n# Docs");
 
-		// 4. Module with bare skills/ dir (must NOT be discovered)
-		mkdir($siteModules . '/ModBareFallback/skills/some-skill', 0755, true);
-		file_put_contents($siteModules . '/ModBareFallback/skills/some-skill/SKILL.md', '# Bare');
+		// 4. Module with non-canonical boost/ or bare skills/ dir (must NOT be discovered)
+		mkdir($siteModules . '/ModNonCanonicalBoost/boost/guidelines', 0755, true);
+		file_put_contents($siteModules . '/ModNonCanonicalBoost/boost/guidelines/rule.md', '# NonCanonical');
+		mkdir($siteModules . '/ModBareDir/skills/some-skill', 0755, true);
+		file_put_contents($siteModules . '/ModBareDir/skills/some-skill/SKILL.md', '# Bare');
+
+		// 5. Canonical site/.agents/ overrides
+		mkdir($this->tempDir . '/site/.agents/guidelines', 0755, true);
+		file_put_contents($this->tempDir . '/site/.agents/guidelines/site.md', '# Site');
 
 		$manager = new BoostManager($this->tempDir);
 		$discovered = $manager->getDiscoverableModules();
 
-		$this->assertArrayHasKey('ModBoost', $discovered);
-		$this->assertTrue($discovered['ModBoost']['has_guidelines']);
-		$this->assertFalse($discovered['ModBoost']['has_skills']);
+		$this->assertArrayHasKey('ModGuidelines', $discovered);
+		$this->assertTrue($discovered['ModGuidelines']['has_guidelines']);
+		$this->assertFalse($discovered['ModGuidelines']['has_skills']);
 
 		$this->assertArrayHasKey('ModAgents', $discovered);
 		$this->assertFalse($discovered['ModAgents']['has_guidelines']);
@@ -92,7 +98,11 @@ final class BoostManagerTest extends TestCase
 		$this->assertTrue($discovered['ModRootMd']['has_guidelines']);
 		$this->assertNull($discovered['ModRootMd']['guidelines_path']);
 
-		$this->assertArrayNotHasKey('ModBareFallback', $discovered);
+		$this->assertArrayHasKey('site-overrides', $discovered);
+		$this->assertTrue($discovered['site-overrides']['has_guidelines']);
+
+		$this->assertArrayNotHasKey('ModNonCanonicalBoost', $discovered);
+		$this->assertArrayNotHasKey('ModBareDir', $discovered);
 	}
 
 	public function test_uninstall_agent_cleans_up_agent_files_and_preserves_universal_agents_md(): void

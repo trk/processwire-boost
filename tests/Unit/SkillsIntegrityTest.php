@@ -129,7 +129,7 @@ final class SkillsIntegrityTest extends TestCase
 			$file = $this->skillsDir . '/' . $skill . '/SKILL.md';
 			$content = (string) file_get_contents($file);
 
-			$this->assertStringNotContainsString('## Copy-Paste Prompts', $content, "Deprecated 'Copy-Paste Prompts' found in {$skill}");
+			$this->assertStringNotContainsString('## Copy-Paste Prompts', $content, "Disallowed 'Copy-Paste Prompts' found in {$skill}");
 		}
 	}
 
@@ -228,6 +228,15 @@ final class SkillsIntegrityTest extends TestCase
 		$this->assertStringContainsString('outputJsonSuccess(OutputInterface $output, array $data = []): int', $expert);
 		$this->assertStringContainsString('outputJsonError(OutputInterface $output, string $code, string $message): int', $expert);
 		$this->assertStringContainsString('/^[A-Za-z][A-Za-z0-9_]*$/', $expert);
+
+		$pwTest = (string) file_get_contents($this->skillsDir . '/pw-test/SKILL.md');
+		$this->assertStringContainsString('wire test:e2e', $pwTest);
+		$this->assertStringContainsString('--e2e', $pwTest);
+		$this->assertStringContainsString('getAdminUrl', $pwTest);
+		$this->assertStringContainsString('attachRuntimeErrorTracker', $pwTest);
+
+		$boostGuideline = (string) file_get_contents(dirname(__DIR__, 2) . '/resources/boost/guidelines/boost.md');
+		$this->assertStringContainsString('`test:e2e`', $boostGuideline);
 
 		$guidelinesDir = dirname(__DIR__, 2) . '/resources/boost/guidelines';
 		foreach (scandir($guidelinesDir) ?: [] as $gFile) {
