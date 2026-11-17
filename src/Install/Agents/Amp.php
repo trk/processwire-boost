@@ -16,7 +16,7 @@ final class Amp extends Agent
 		return 'Amp';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.amp/settings.json';
 	}
@@ -44,10 +44,5 @@ final class Amp extends Agent
 	public function mcpConfigKey(): string
 	{
 		return 'amp.mcpServers';
-	}
-
-	public function guidelinesPath(): string
-	{
-		return 'AGENTS.md';
 	}
 }

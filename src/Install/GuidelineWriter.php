@@ -180,7 +180,12 @@ final class GuidelineWriter
 						continue;
 					}
 
-					$moduleContent .= (string) file_get_contents($module['guidelines_path'] . '/' . $file) . "\n\n";
+					$mdPath = $module['guidelines_path'] . '/' . $file;
+					if (!is_file($mdPath) || is_link($mdPath)) {
+						continue;
+					}
+
+					$moduleContent .= (string) file_get_contents($mdPath) . "\n\n";
 				}
 			}
 
@@ -194,22 +199,17 @@ final class GuidelineWriter
 			}
 
 			$agentContent = (string) file_get_contents($agentsPath);
-			$description = "Context and guidelines for {$moduleName}.";
-
-			if (preg_match('/^---\s*\ndescription:\s*(.*?)\n---/s', $agentContent, $matches)) {
-				$description = trim(trim($matches[1]), "\"'");
-			} elseif (preg_match('/description:\s*(.*)/', $agentContent, $matches)) {
-				$description = trim(trim($matches[1]), "\"'");
-			}
+			$extracted = SkillWriter::extractFrontmatterDescription($agentContent);
+			$description = $extracted !== '' ? $extracted : "Context and guidelines for {$moduleName}.";
 
 			$relPath = str_starts_with($agentsPath, $this->projectRoot . '/')
 				? substr($agentsPath, strlen($this->projectRoot) + 1)
 				: $agentsPath;
-			$moduleDirectories[] = "- **{$moduleName}**: {$description}\n  > Please use `view_file` on `{$relPath}` to read the full context when working on this module.";
+			$moduleDirectories[] = "- **{$moduleName}**: {$description}\n  > Read `{$relPath}` for full architectural context when working on this module.";
 		}
 
 		if ($moduleDirectories !== []) {
-			$instructions[] = "=== Module Context Index ===\n\nThe following modules provide extensive architectural guidelines. **DO NOT GUESS** their API. Use the `view_file` tool to read the corresponding path when your task explicitly involves them:\n\n" . implode("\n\n", $moduleDirectories);
+			$instructions[] = "=== Module Context Index ===\n\nThe following modules provide extensive architectural guidelines. **DO NOT GUESS** their API. Read the corresponding `AGENTS.md` file when your task involves them:\n\n" . implode("\n\n", $moduleDirectories);
 		}
 
 		return $instructions;
@@ -236,16 +236,13 @@ final class GuidelineWriter
 			}
 		}
 
-		$replacements = [
-			'{{ PHP_VERSION }}' => PHP_VERSION,
-			'{{ PW_VERSION }}' => $pwVersion,
-		];
-
 		$roster = '- php - ' . PHP_VERSION . "\n";
 		$roster .= '- processwire/core - v' . $pwVersion . "\n\n";
 		$roster .= "> [!TIP]\n";
 		$roster .= "> This system contains many other installed modules. You MUST use the `pw_module_list` MCP tool to discover installed ProcessWire modules before assuming existence of dependencies.\n";
-		$replacements['{{ ROSTER }}'] = $roster;
+		$replacements = [
+			'{{ ROSTER }}' => $roster,
+		];
 
 		$skillEntries = [];
 		$skillsDir = $this->targetDir . '/skills';
@@ -261,8 +258,8 @@ final class GuidelineWriter
 				}
 
 				$skillContent = (string) file_get_contents($skillFile);
-				if (preg_match('/description:\s*(.*)/', $skillContent, $matches)) {
-					$description = trim(trim($matches[1]), "\"'");
+				$description = SkillWriter::extractFrontmatterDescription($skillContent);
+				if ($description !== '') {
 					$skillEntries[$file->getFilename()] = "- `{$file->getFilename()}` — {$description}\n";
 				}
 			}

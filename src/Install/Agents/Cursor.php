@@ -16,7 +16,7 @@ final class Cursor extends Agent
 		return 'Cursor';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.cursor/mcp.json';
 	}

@@ -16,7 +16,7 @@ final class Zed extends Agent
 		return 'Zed';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.zed/settings.json';
 	}

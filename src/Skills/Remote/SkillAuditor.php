@@ -44,12 +44,15 @@ final class SkillAuditor
 			['pattern' => '/\bdrop\s+table\b/i', 'weight' => 5, 'signal' => 'Contains database drop commands'],
 			['pattern' => '/curl\b.*\|\s*(sh|bash)\b/i', 'weight' => 5, 'signal' => 'Contains curl-pipe-shell pattern'],
 			['pattern' => '/wget\b.*\|\s*(sh|bash)\b/i', 'weight' => 5, 'signal' => 'Contains wget-pipe-shell pattern'],
+			['pattern' => '/ignore\s+(all\s+)?(previous|prior)\s+instructions/i', 'weight' => 5, 'signal' => 'Contains prompt-injection override instructions'],
+			['pattern' => '/\bPW_MCP_ALLOW_(EXECUTE|RESTORE)\s*=\s*1\b/', 'weight' => 4, 'signal' => 'Attempts to enable guarded MCP execution/restore flags'],
+			['pattern' => '/\b(eval|shell_exec|passthru|proc_open|popen)\s*\(/i', 'weight' => 4, 'signal' => 'Contains dynamic code or shell execution calls'],
 			['pattern' => '/\bchmod\s+777\b/i', 'weight' => 4, 'signal' => 'Contains permissive chmod usage'],
 			['pattern' => '/\bsudo\b/i', 'weight' => 4, 'signal' => 'Requests sudo privileges'],
 			['pattern' => '/\b(kubectl\s+delete|docker\s+system\s+prune)\b/i', 'weight' => 4, 'signal' => 'Contains infra-destructive commands'],
 			['pattern' => '/\b(ssh|scp|rsync)\b/i', 'weight' => 3, 'signal' => 'Contains remote access commands'],
-			['pattern' => '/\b(api[_-]?key|secret|token)\b/i', 'weight' => 3, 'signal' => 'References sensitive credentials'],
 			['pattern' => '/\b(exfiltrate|upload\s+logs|send\s+to\s+external)\b/i', 'weight' => 3, 'signal' => 'Mentions potential data exfiltration'],
+			['pattern' => '/\b(api[_-]?key|secret|token)\b/i', 'weight' => 2, 'signal' => 'References credential or token identifiers'],
 		];
 
 		foreach ($files as $path => $content) {

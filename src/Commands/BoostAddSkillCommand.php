@@ -17,6 +17,7 @@ use Totoglu\Console\Boost\Skills\Remote\GitHubRepository;
 use Totoglu\Console\Boost\Skills\Remote\GitHubSkillProvider;
 use Totoglu\Console\Boost\Skills\Remote\RemoteSkill;
 use Totoglu\Console\Boost\Skills\Remote\SkillAuditor;
+use Totoglu\Console\Traits\InteractWithProcessWire;
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\multiselect;
@@ -27,6 +28,8 @@ use function Laravel\Prompts\text;
 
 final class BoostAddSkillCommand extends Command
 {
+	use InteractWithProcessWire;
+
 	private InputInterface $currentInput;
 
 	/** @var list<string> */
@@ -43,19 +46,23 @@ final class BoostAddSkillCommand extends Command
 			->addOption('skill', 's', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_OPTIONAL, 'Specific skills to install')
 			->addOption('force', 'f', InputOption::VALUE_NONE, 'Overwrite existing skills')
 			->addOption('skip-audit', null, InputOption::VALUE_NONE, 'Skip heuristic security audit')
-			->addOption('skip-update', null, InputOption::VALUE_NONE, 'Skip running boost:update after installation');
+			->addOption('skip-update', null, InputOption::VALUE_NONE, 'Skip running boost:update after installation')
+			->addOption('json', null, InputOption::VALUE_NONE, 'Output structured JSON');
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int
 	{
 		$this->currentInput = $input;
 		$this->skippedSkills = [];
+		$asJson = (bool) $input->getOption('json');
 
-		$this->displayHeader();
+		if (!$asJson) {
+			$output->writeln("<fg=cyan>ProcessWire Boost :: Add Skill</>\n");
+		}
 
 		$projectRoot = getcwd() ?: '.';
 
-		$repo = $this->parseRepository($input);
+		$repo = $this->parseRepository($input, $output, $asJson);
 		if ($repo === null) {
 			return Command::FAILURE;
 		}
@@ -64,54 +71,99 @@ final class BoostAddSkillCommand extends Command
 
 		$skills = [];
 		try {
-			info("Fetching skills from {$repo->fullName()}...");
+			if (!$asJson) {
+				info("Fetching skills from {$repo->fullName()}...");
+			}
 			$skills = $provider->discoverSkills();
 		} catch (\RuntimeException $e) {
+			if ($asJson) {
+				return $this->outputJsonError($output, 'FETCH_FAILED', $e->getMessage());
+			}
 			$output->writeln("<error>{$e->getMessage()}</error>");
 			return Command::FAILURE;
 		}
 
 		if ($skills === []) {
-			$output->writeln('<error>No valid skills are found in the repository.</error>');
+			$msg = 'No valid skills were found in the repository.';
+			if ($asJson) {
+				return $this->outputJsonError($output, 'NO_SKILLS_FOUND', $msg);
+			}
+			$output->writeln("<error>{$msg}</error>");
 			return Command::FAILURE;
 		}
 
 		if ($input->getOption('list')) {
-			note('Found ' . count($skills) . ' available skills:');
-			foreach (array_keys($skills) as $skillName) {
+			$skillNames = array_map('strval', array_keys($skills));
+			if ($asJson) {
+				return $this->outputJsonSuccess($output, [
+					'repository' => $repo->fullName(),
+					'skills' => $skillNames,
+				]);
+			}
+			note('Found ' . count($skillNames) . ' available skills:');
+			foreach ($skillNames as $skillName) {
 				$output->writeln("  • {$skillName}");
 			}
 			return Command::SUCCESS;
 		}
 
-		$selectedSkills = $this->selectSkills($skills, $input);
+		$requestedSkillNames = array_values(array_filter(array_map('strval', (array) $input->getOption('skill')), static fn(string $s): bool => trim($s) !== ''));
+		$selectedSkills = $this->selectSkills($skills, $input, $asJson);
 
 		if ($selectedSkills === []) {
-			$output->writeln('<comment>No skills are selected.</comment>');
+			if ($requestedSkillNames !== []) {
+				$missingList = implode(', ', $requestedSkillNames);
+				return $this->failCommand($output, $asJson, 'SKILL_NOT_FOUND', "Requested skill(s) not found in repository: {$missingList}");
+			}
+			if ($asJson || !$input->isInteractive()) {
+				return $this->failCommand($output, $asJson, 'NO_SKILLS_SELECTED', 'Specify --all or --skill=<name> when running non-interactively.');
+			}
+			$output->writeln('<comment>No skills were selected.</comment>');
 			return Command::SUCCESS;
 		}
 
-		$skillsToInstall = $this->skillsToInstall($selectedSkills, $projectRoot, (bool) $input->getOption('force'));
+		$skillsToInstall = $this->skillsToInstall($selectedSkills, $projectRoot, (bool) $input->getOption('force'), $asJson);
 		if ($skillsToInstall === []) {
+			if ($asJson) {
+				return $this->outputJsonSuccess($output, [
+					'installed' => [],
+					'skipped' => $this->skippedSkills,
+					'failed' => [],
+				]);
+			}
 			$output->writeln('<comment>No new skills were selected for installation.</comment>');
 			return Command::SUCCESS;
 		}
 
-		if (!$this->runAuditBeforeInstall($provider, $skillsToInstall)) {
+		if (!$this->runAuditBeforeInstall($provider, $skillsToInstall, $output, $asJson)) {
+			if ($asJson) {
+				return $this->outputJsonError($output, 'AUDIT_BLOCKED', 'Security audit detected medium or higher risk signals. Re-run interactively or pass --skip-audit if trusted.');
+			}
 			$output->writeln('<comment>Installation canceled.</comment>');
-			return Command::SUCCESS;
+			return Command::FAILURE;
 		}
 
 		$results = $this->downloadSkills($provider, $skillsToInstall, $projectRoot);
+
+		if ($results['installed'] !== [] && !$input->getOption('skip-update')) {
+			$this->runBoostUpdate();
+		}
+
+		if ($asJson) {
+			if ($results['installed'] === [] && $results['failed'] !== []) {
+				return $this->outputJsonError($output, 'INSTALL_FAILED', implode('; ', $results['failed']));
+			}
+			return $this->outputJsonSuccess($output, [
+				'installed' => $results['installed'],
+				'skipped' => $this->skippedSkills,
+				'failed' => $results['failed'],
+			]);
+		}
 
 		if ($results['installed'] !== []) {
 			$output->writeln("\n  <info>Skills installed:</info>");
 			foreach ($results['installed'] as $skillName) {
 				$output->writeln("  • {$skillName}");
-			}
-
-			if (!$input->getOption('skip-update')) {
-				$this->runBoostUpdate();
 			}
 		}
 
@@ -127,24 +179,30 @@ final class BoostAddSkillCommand extends Command
 			foreach ($results['failed'] as $skillName => $reason) {
 				$output->writeln("  • {$skillName}: {$reason}");
 			}
+			if ($results['installed'] === []) {
+				return Command::FAILURE;
+			}
 		}
 
 		outro('Done');
 		return Command::SUCCESS;
 	}
 
-	private function displayHeader(): void
-	{
-		echo "\033[36m";
-		echo "➕ ProcessWire Boost :: Add Skill\n";
-		echo "\033[0m\n";
-	}
-
-	private function parseRepository(InputInterface $input): ?GitHubRepository
+	private function parseRepository(InputInterface $input, OutputInterface $output, bool $asJson): ?GitHubRepository
 	{
 		$repoArg = $input->getArgument('repo');
 
 		if (!is_string($repoArg) || $repoArg === '') {
+			if (!$input->isInteractive() || $asJson) {
+				$msg = 'Repository argument is required (e.g. owner/repo).';
+				if ($asJson) {
+					$this->outputJsonError($output, 'INVALID_REPOSITORY', $msg);
+				} else {
+					$output->writeln("<error>{$msg}</error>");
+				}
+				return null;
+			}
+
 			$repoArg = text(
 				label: 'Which GitHub repository would you like to fetch skills from?',
 				placeholder: 'owner/repo or GitHub URL',
@@ -155,7 +213,11 @@ final class BoostAddSkillCommand extends Command
 		try {
 			return GitHubRepository::fromInput($repoArg);
 		} catch (\InvalidArgumentException $e) {
-			echo "<error>{$e->getMessage()}</error>\n";
+			if ($asJson) {
+				$this->outputJsonError($output, 'INVALID_REPOSITORY', $e->getMessage());
+			} else {
+				$output->writeln("<error>{$e->getMessage()}</error>");
+			}
 			return null;
 		}
 	}
@@ -164,7 +226,7 @@ final class BoostAddSkillCommand extends Command
 	 * @param array<string, RemoteSkill> $skills
 	 * @return array<string, RemoteSkill>
 	 */
-	private function selectSkills(array $skills, InputInterface $input): array
+	private function selectSkills(array $skills, InputInterface $input, bool $asJson): array
 	{
 		$skillOptions = $input->getOption('skill');
 
@@ -177,6 +239,10 @@ final class BoostAddSkillCommand extends Command
 				$skills,
 				static fn(RemoteSkill $skill): bool => in_array($skill->name, $skillOptions, true)
 			);
+		}
+
+		if (!$input->isInteractive() || $asJson) {
+			return [];
 		}
 
 		$selected = multiselect(
@@ -208,8 +274,8 @@ final class BoostAddSkillCommand extends Command
 		$results = ['installed' => [], 'failed' => []];
 
 		foreach ($skills as $skill) {
-			$safeSkillName = $this->sanitizeSkillName($skill->name);
-			if ($safeSkillName === '') {
+			$safeSkillName = SkillWriter::sanitizeSkillName(basename(str_replace('\\', '/', $skill->name)));
+			if ($safeSkillName === '' || $safeSkillName === '-' || $safeSkillName === '.') {
 				$results['failed'][$skill->name] = 'Invalid skill name';
 				continue;
 			}
@@ -225,7 +291,7 @@ final class BoostAddSkillCommand extends Command
 				} else {
 					$results['failed'][$skill->name] = 'Download failed';
 				}
-			} catch (\Exception $e) {
+			} catch (\Throwable $e) {
 				$results['failed'][$skill->name] = $e->getMessage();
 			}
 		}
@@ -237,22 +303,20 @@ final class BoostAddSkillCommand extends Command
 	 * @param array<string, RemoteSkill> $skills
 	 * @return array<string, RemoteSkill>
 	 */
-	private function skillsToInstall(array $skills, string $projectRoot, bool $force): array
+	private function skillsToInstall(array $skills, string $projectRoot, bool $force, bool $asJson): array
 	{
 		$existing = array_filter(
 			$skills,
-			fn(RemoteSkill $skill): bool => is_dir($projectRoot . '/.agents/skills/' . $this->sanitizeSkillName($skill->name))
+			static fn(RemoteSkill $skill): bool => is_dir(
+				$projectRoot . '/.agents/skills/' . SkillWriter::sanitizeSkillName(basename(str_replace('\\', '/', $skill->name)))
+			)
 		);
 
-		if ($existing === []) {
+		if ($existing === [] || $force) {
 			return $skills;
 		}
 
-		if ($force) {
-			return $skills;
-		}
-
-		if (!$this->currentInput->isInteractive()) {
+		if (!$this->currentInput->isInteractive() || $asJson) {
 			$this->skippedSkills = array_values(array_map(
 				static fn(RemoteSkill $skill): string => $skill->name,
 				$existing
@@ -280,24 +344,28 @@ final class BoostAddSkillCommand extends Command
 	/**
 	 * @param array<string, RemoteSkill> $skills
 	 */
-	private function runAuditBeforeInstall(GitHubSkillProvider $provider, array $skills): bool
+	private function runAuditBeforeInstall(GitHubSkillProvider $provider, array $skills, OutputInterface $output, bool $asJson): bool
 	{
 		if ((bool) $this->currentInput->getOption('skip-audit')) {
 			return true;
 		}
 
-		$auditResults = spin(
-			callback: static fn(): array => (new SkillAuditor())->audit($provider, $skills),
-			message: 'Running heuristic security audit...'
-		);
+		$auditResults = $asJson
+			? (new SkillAuditor())->audit($provider, $skills)
+			: spin(
+				callback: static fn(): array => (new SkillAuditor())->audit($provider, $skills),
+				message: 'Running heuristic security audit...'
+			);
 
 		if (!$this->hasRiskySkills($auditResults)) {
 			return true;
 		}
 
-		$this->displayAuditResults($auditResults);
+		if (!$asJson) {
+			$this->displayAuditResults($output, $auditResults);
+		}
 
-		if (!$this->currentInput->isInteractive()) {
+		if (!$this->currentInput->isInteractive() || $asJson) {
 			return false;
 		}
 
@@ -324,7 +392,7 @@ final class BoostAddSkillCommand extends Command
 	/**
 	 * @param array<string, AuditResult> $auditResults
 	 */
-	private function displayAuditResults(array $auditResults): void
+	private function displayAuditResults(OutputInterface $output, array $auditResults): void
 	{
 		note('Security Audit');
 
@@ -333,7 +401,7 @@ final class BoostAddSkillCommand extends Command
 				? 'No suspicious patterns detected'
 				: implode('; ', $result->signals);
 
-			echo "  • {$skillName} [{$result->risk->label()}] {$signals}\n";
+			$output->writeln("  • {$skillName} [{$result->risk->label()}] {$signals}");
 		}
 	}
 
@@ -345,14 +413,11 @@ final class BoostAddSkillCommand extends Command
 		}
 
 		$command = $application->find('boost:update');
-		$command->run(new ArrayInput([]), new NullOutput());
-	}
-
-	private function sanitizeSkillName(string $name): string
-	{
-		$name = basename(str_replace('\\', '/', $name));
-		$name = preg_replace('/[^a-z0-9_-]/i', '', $name) ?: '';
-
-		return $name;
+		$updateInput = new ArrayInput([
+			'--no-discover' => true,
+			'--json' => true,
+		]);
+		$updateInput->setInteractive(false);
+		$command->run($updateInput, new NullOutput());
 	}
 }

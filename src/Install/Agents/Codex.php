@@ -16,7 +16,7 @@ final class Codex extends Agent
 		return 'Codex';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.codex/config.toml';
 	}
@@ -39,15 +39,5 @@ final class Codex extends Agent
 	public function projectDetectionPaths(): array
 	{
 		return ['.codex', '.codex/config.toml'];
-	}
-
-	public function mcpConfigKey(): string
-	{
-		return 'mcp_servers';
-	}
-
-	public function guidelinesPath(): string
-	{
-		return 'AGENTS.md';
 	}
 }

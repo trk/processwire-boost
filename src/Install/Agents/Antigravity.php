@@ -16,7 +16,7 @@ final class Antigravity extends Agent
 		return 'Antigravity';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.agents/mcp_config.json';
 	}

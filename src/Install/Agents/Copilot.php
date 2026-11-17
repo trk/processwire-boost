@@ -16,7 +16,7 @@ final class Copilot extends Agent
 		return 'GitHub Copilot';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.vscode/mcp.json';
 	}

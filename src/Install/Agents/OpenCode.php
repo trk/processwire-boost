@@ -18,7 +18,7 @@ final class OpenCode extends Agent
 		return 'OpenCode';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return 'opencode.json';
 	}
@@ -77,15 +77,13 @@ final class OpenCode extends Agent
 		return $payload;
 	}
 
-	public function guidelinesPath(): string
-	{
-		return 'AGENTS.md';
-	}
-
 	public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
 	{
 		$skillDirName = str_replace('_', '-', $skillName);
 		$skillDir = $targetDir . '/' . $skillDirName;
+		if (is_dir($skillDir) && realpath($skillPath) !== realpath($skillDir)) {
+			SkillWriter::deleteTree($skillDir);
+		}
 		if (!is_dir($skillDir)) {
 			mkdir($skillDir, 0755, true);
 		}
@@ -116,29 +114,35 @@ final class OpenCode extends Agent
 
 	private function extractDescription(string $content): string
 	{
+		$frontmatterDesc = SkillWriter::extractFrontmatterDescription($content);
+		if ($frontmatterDesc !== '') {
+			return substr($frontmatterDesc, 0, 1024);
+		}
+
 		$lines = explode("\n", trim($content));
 		$description = '';
 		foreach ($lines as $line) {
 			$line = trim($line);
-			if (empty($line) || str_starts_with($line, '#')) {
+			if ($line === '' || str_starts_with($line, '#')) {
 				continue;
 			}
 			$description = trim(ltrim($line, '- '));
-			$description = preg_replace('/^description:\s*/i', '', $description);
+			$description = preg_replace('/^description:\s*/i', '', $description) ?? '';
 			break;
 		}
 		$description = str_replace(["\n", '*', '`'], '', $description);
-		$description = preg_replace('/\s+/', ' ', $description);
+		$description = preg_replace('/\s+/', ' ', $description) ?? '';
 
 		return substr($description, 0, 1024);
 	}
 
 	private function buildFrontmatter(string $name, string $description): string
 	{
+		$escapedDesc = addcslashes($description, "\\\"");
 		return <<<YAML
 ---
 name: {$name}
-description: {$description}
+description: "{$escapedDesc}"
 license: MIT
 compatibility: opencode
 ---

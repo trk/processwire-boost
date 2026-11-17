@@ -10,6 +10,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Totoglu\Console\Boost\BoostManager;
 use Totoglu\Console\Boost\Install\Agents\Agent;
+use Totoglu\Console\Traits\InteractWithProcessWire;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\intro;
 use function Laravel\Prompts\multiselect;
@@ -17,6 +18,8 @@ use function Laravel\Prompts\note;
 
 final class BoostInstallCommand extends Command
 {
+	use InteractWithProcessWire;
+
 	private const FEATURES = [
 		'guidelines' => 'AI Guidelines',
 		'skills' => 'Agent Skills',
@@ -32,14 +35,21 @@ final class BoostInstallCommand extends Command
 			->addOption('skills', null, InputOption::VALUE_NONE, 'Install Agent Skills')
 			->addOption('mcp', null, InputOption::VALUE_NONE, 'Install MCP Server Configuration')
 			->addOption('modules', 'm', InputOption::VALUE_OPTIONAL, 'Comma-separated modules to install')
-			->addOption('agents', 'a', InputOption::VALUE_OPTIONAL, 'Comma-separated agents to configure');
+			->addOption('agents', 'a', InputOption::VALUE_OPTIONAL, 'Comma-separated agents to configure')
+			->addOption('json', null, InputOption::VALUE_NONE, 'Output structured JSON');
 	}
 
-	private function isExplicitFlagMode(InputInterface $input): bool
+	private function hasExplicitFeatureFlags(InputInterface $input): bool
 	{
 		return (bool) $input->getOption('guidelines')
 			|| (bool) $input->getOption('skills')
-			|| (bool) $input->getOption('mcp')
+			|| (bool) $input->getOption('mcp');
+	}
+
+	private function isExplicitFlagMode(InputInterface $input, bool $asJson): bool
+	{
+		return $asJson
+			|| $this->hasExplicitFeatureFlags($input)
 			|| $input->getOption('modules') !== null
 			|| $input->getOption('agents') !== null
 			|| !$input->isInteractive();
@@ -47,9 +57,12 @@ final class BoostInstallCommand extends Command
 
 	protected function execute(InputInterface $input, OutputInterface $output): int
 	{
-		$this->displayBanner();
+		$asJson = (bool) $input->getOption('json');
 
-		intro('Managing ProcessWire Boost installation...');
+		if (!$asJson) {
+			$this->displayBanner($output);
+			intro('Managing ProcessWire Boost installation...');
+		}
 
 		$projectRoot = getcwd() ?: '.';
 		$manager = new BoostManager($projectRoot);
@@ -63,13 +76,24 @@ final class BoostInstallCommand extends Command
 		$installedModules = $config['modules'];
 		$installedAgents = $config['agents'];
 
-		$explicitMode = $this->isExplicitFlagMode($input);
+		$explicitMode = $this->isExplicitFlagMode($input, $asJson);
 
 		if ($explicitMode) {
 			$selectedFeatures = [];
-			foreach (array_keys(self::FEATURES) as $key) {
-				if ($installedFeatures[$key] || (bool) $input->getOption($key)) {
-					$selectedFeatures[] = $key;
+			if ($this->hasExplicitFeatureFlags($input)) {
+				foreach (array_keys(self::FEATURES) as $key) {
+					if ((bool) $input->getOption($key)) {
+						$selectedFeatures[] = $key;
+					}
+				}
+			} else {
+				foreach (array_keys(self::FEATURES) as $key) {
+					if ($installedFeatures[$key]) {
+						$selectedFeatures[] = $key;
+					}
+				}
+				if ($selectedFeatures === [] && !$manager->hasConfig()) {
+					$selectedFeatures = array_keys(self::FEATURES);
 				}
 			}
 		} else {
@@ -96,8 +120,8 @@ final class BoostInstallCommand extends Command
 
 		$selectedModules = [];
 		$modulesOpt = $input->getOption('modules');
-		if (is_string($modulesOpt) && $modulesOpt !== '') {
-			$selectedModules = array_values(array_filter(array_map('trim', explode(',', $modulesOpt))));
+		if ($modulesOpt !== null) {
+			$selectedModules = array_values(array_filter(array_map('trim', explode(',', (string) $modulesOpt))));
 		} elseif ($explicitMode) {
 			$selectedModules = $installedModules;
 		} elseif ($moduleChoices !== []) {
@@ -120,10 +144,12 @@ final class BoostInstallCommand extends Command
 		$agentOptions = $manager->agentOptions($selectedFeatures);
 		$selectedAgents = [];
 		$agentsOpt = $input->getOption('agents');
-		if (is_string($agentsOpt) && $agentsOpt !== '') {
-			$selectedAgents = $manager->normalizeAgentNames(
-				array_values(array_filter(array_map('trim', explode(',', $agentsOpt))))
-			);
+		if ($agentsOpt !== null) {
+			$rawAgentNames = array_values(array_filter(array_map('trim', explode(',', (string) $agentsOpt))));
+			$selectedAgents = $manager->normalizeAgentNames($rawAgentNames);
+			if ($rawAgentNames !== [] && $selectedAgents === []) {
+				return $this->failCommand($output, $asJson, 'INVALID_AGENTS', "No valid agent names provided in --agents: {$agentsOpt}");
+			}
 		} elseif ($explicitMode) {
 			$selectedAgents = $installedAgents !== []
 				? $installedAgents
@@ -152,73 +178,42 @@ final class BoostInstallCommand extends Command
 			));
 		}
 
-		$output->writeln("\n  <fg=yellow>Processing changes...</>\n");
-
-		$toInstall = [];
-		$toRemove = [];
-		foreach (self::FEATURES as $key => $_label) {
-			$isSelected = in_array($key, $selectedFeatures, true);
-			$isInstalled = $installedFeatures[$key];
-			if ($isSelected && !$isInstalled) {
-				$toInstall[] = $key;
-			} elseif (!$isSelected && $isInstalled) {
-				$toRemove[] = $key;
-			}
+		if (!$asJson) {
+			$output->writeln("\n  <fg=yellow>Processing changes...</>\n");
 		}
 
-		$modulesToInstall = array_diff($selectedModules, $installedModules);
-		$modulesToRemove = array_diff($installedModules, $selectedModules);
-		$agentsToInstall = array_values(array_diff($selectedAgents, $installedAgents));
-		$agentsToRemove = array_values(array_diff($installedAgents, $selectedAgents));
+		$transition = $manager->applyConfiguration($selectedFeatures, $selectedModules, $selectedAgents);
+		$savedConfig = $manager->loadConfig();
 
-		$installedAgentInstances = $manager->resolveConfiguredAgents($installedAgents);
-
-		foreach ($toRemove as $featureKey) {
-			$output->writeln('  <fg=red>✗ Removing ' . self::FEATURES[$featureKey] . '...</>');
-			$manager->uninstallFeature($featureKey, $installedAgentInstances);
+		if ($asJson) {
+			return $this->outputJsonSuccess($output, [
+				'config' => $savedConfig,
+				'changes' => $transition,
+			]);
 		}
 
-		foreach ($toInstall as $featureKey) {
-			$output->writeln('  <fg=green>✓ Installing ' . self::FEATURES[$featureKey] . '...</>');
+		foreach ($transition['featuresRemoved'] as $featureKey) {
+			$output->writeln('  <fg=red>✗ Removed ' . self::FEATURES[$featureKey] . '</>');
 		}
-
-		$shouldSync = $toInstall !== []
-			|| $toRemove !== []
-			|| $modulesToInstall !== []
-			|| $modulesToRemove !== []
-			|| $selectedFeatures !== [];
-
-		if ($shouldSync) {
+		foreach ($transition['featuresInstalled'] as $featureKey) {
+			$output->writeln('  <fg=green>✓ Installed ' . self::FEATURES[$featureKey] . '</>');
+		}
+		if ($transition['synced']) {
 			info('Syncing Boost configuration...');
-			$agents = $manager->resolveConfiguredAgents($selectedAgents);
-			$manager->install($selectedFeatures, $selectedModules, $agents);
 			$output->writeln("  <fg=green>✓ Sync complete</>\n");
 		}
-
-		foreach ($manager->resolveConfiguredAgents($agentsToInstall) as $agent) {
+		foreach ($manager->resolveConfiguredAgents($transition['agentsInstalled']) as $agent) {
 			$output->writeln("  <fg=green>✓ Configured {$agent->displayName()} ({$agent->guidelinesPath()})</>");
 		}
-
-		foreach ($manager->resolveConfiguredAgents($agentsToRemove) as $agent) {
-			$manager->uninstallAgent($agent);
+		foreach ($manager->resolveConfiguredAgents($transition['agentsRemoved']) as $agent) {
 			$output->writeln("  <fg=red>✗ Removed {$agent->displayName()} ({$agent->guidelinesPath()})</>");
 		}
 
-		$manager->saveConfig([
-			'version' => BoostManager::VERSION,
-			'guidelines' => in_array('guidelines', $selectedFeatures, true),
-			'skills' => in_array('skills', $selectedFeatures, true),
-			'mcp' => in_array('mcp', $selectedFeatures, true),
-			'modules' => array_values($selectedModules),
-			'agents' => array_values($selectedAgents),
-			'generated_at' => date('Y-m-d H:i:s'),
-		]);
-
-		$this->displaySummary($output, $manager, $projectRoot, $selectedFeatures, $selectedAgents, $selectedModules);
+		$this->displaySummary($output, $manager, $projectRoot, $selectedFeatures, $savedConfig['agents'], $savedConfig['modules']);
 
 		$output->writeln("\n  ┌─────────────────────────────────────────────────────────────────┐");
-		$output->writeln("  │  Enjoy the boost 🚀 Check your AI agent's MD file in root.      │");
-		$output->writeln("  │  📦 https://github.com/trk/processwire-boost/                  │");
+		$output->writeln("  │  Enjoy the boost. Check your AI agent's MD file in project root.│");
+		$output->writeln("  │  https://github.com/trk/processwire-boost/                      │");
 		$output->writeln("  └─────────────────────────────────────────────────────────────────┘\n");
 		return Command::SUCCESS;
 	}
@@ -254,22 +249,22 @@ final class BoostInstallCommand extends Command
 				$featureLabels[] = self::FEATURES[$key];
 			}
 		}
-		$output->writeln('  📋 <fg=yellow>Installed Features:</> ' . implode(', ', $featureLabels) . "\n");
+		$output->writeln('  <fg=yellow>Installed Features:</> ' . implode(', ', $featureLabels) . "\n");
 
 		if (in_array('guidelines', $selectedFeatures, true)) {
-			$output->writeln("  ✅ <fg=green>{$guidelineCount}</> guidelines installed");
+			$output->writeln("  <fg=green>✓ {$guidelineCount}</> guidelines installed");
 		}
 
 		if (in_array('skills', $selectedFeatures, true)) {
-			$output->writeln("  ✅ <fg=green>{$skillCount}</> skills synced");
+			$output->writeln("  <fg=green>✓ {$skillCount}</> skills synced");
 		}
 
 		if (in_array('mcp', $selectedFeatures, true)) {
-			$output->writeln('  ✅ MCP servers configured');
+			$output->writeln('  <fg=green>✓</> MCP servers configured');
 		}
 
 		if ($selectedModules !== []) {
-			$output->writeln("\n  📦 <fg=yellow>Third-party modules:</> " . implode(', ', $selectedModules));
+			$output->writeln("\n  <fg=yellow>Third-party modules:</> " . implode(', ', $selectedModules));
 		}
 
 		if ($resolvedAgents !== []) {
@@ -278,29 +273,20 @@ final class BoostInstallCommand extends Command
 				$resolvedAgents
 			);
 
-			$output->writeln("\n  🤖 <fg=yellow>AI Agents:</> " . implode(', ', $agents));
+			$output->writeln("\n  <fg=yellow>AI Agents:</> " . implode(', ', $agents));
 		}
 
 		$output->writeln('');
 	}
 
-	private function displayBanner(): void
+	private function displayBanner(OutputInterface $output): void
 	{
-		$gradient = [
-			"\033[38;5;90m",
-			"\033[38;5;90m",
-			"\033[38;5;96m",
-			"\033[38;5;102m",
-			"\033[38;5;109m",
-			"\033[38;5;109m",
-		];
-		echo $gradient[0] . "██████╗  ██████╗  ██████╗ ███████╗████████╗\n";
-		echo $gradient[1] . "██╔══██╗██╔═══██╗██╔═══██╗██╔════╝╚══██╔══╝\n";
-		echo $gradient[2] . "██████╔╝██║   ██║██║   ██║███████╗   ██║   \n";
-		echo $gradient[3] . "██╔══██╗██║   ██║██║   ██║╚════██║   ██║   \n";
-		echo $gradient[4] . "██████╔╝╚██████╔╝╚██████╔╝███████║   ██║   \n";
-		echo $gradient[5] . "╚═════╝  ╚═════╝  ╚═════╝ ╚══════╝   ╚═╝   \n";
-		echo "\033[0m";
-		echo "\n \033[38;5;109m✦ ProcessWire Boost :: Install :: We Must Ship ✦\033[0m\n\n";
+		$output->writeln('<fg=cyan>██████╗  ██████╗  ██████╗ ███████╗████████╗</>');
+		$output->writeln('<fg=cyan>██╔══██╗██╔═══██╗██╔═══██╗██╔════╝╚══██╔══╝</>');
+		$output->writeln('<fg=cyan>██████╔╝██║   ██║██║   ██║███████╗   ██║   </>');
+		$output->writeln('<fg=cyan>██╔══██╗██║   ██║██║   ██║╚════██║   ██║   </>');
+		$output->writeln('<fg=cyan>██████╔╝╚██████╔╝╚██████╔╝███████║   ██║   </>');
+		$output->writeln("<fg=cyan>╚═════╝  ╚═════╝  ╚═════╝ ╚══════╝   ╚═╝   </>\n");
+		$output->writeln(" <fg=cyan>ProcessWire Boost :: Install</>\n");
 	}
 }

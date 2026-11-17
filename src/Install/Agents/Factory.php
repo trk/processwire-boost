@@ -16,7 +16,7 @@ final class Factory extends Agent
 		return 'Factory Droid';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.factory/mcp.json';
 	}

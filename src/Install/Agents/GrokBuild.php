@@ -16,14 +16,9 @@ final class GrokBuild extends Agent
 		return 'Grok Build';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.grok/config.toml';
-	}
-
-	public function mcpConfigKey(): string
-	{
-		return 'mcp_servers';
 	}
 
 	public function skillsPath(): string

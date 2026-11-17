@@ -28,25 +28,26 @@ final readonly class GitHubRepository
 
 	private static function normalizeUrl(string $input): string
 	{
-		$isUrl = str_starts_with($input, 'http://') || str_starts_with($input, 'https://');
+		if (str_starts_with($input, 'http://')) {
+			throw new InvalidArgumentException('Insecure HTTP GitHub URLs are not supported; use https://.');
+		}
 
-		if (!$isUrl) {
+		if (!str_starts_with($input, 'https://')) {
 			return $input;
 		}
 
 		$parsed = parse_url($input);
+		$host = strtolower((string) ($parsed['host'] ?? ''));
 
-		$host = $parsed['host'] ?? '';
-		$isGitHubUrl = $host === 'github.com' || str_ends_with($host, '.github.com');
-
-		if (!$isGitHubUrl) {
-			throw new InvalidArgumentException('Only GitHub URLs are supported.');
+		if ($host !== 'github.com' && $host !== 'www.github.com') {
+			throw new InvalidArgumentException('Only github.com repository URLs are supported.');
 		}
 
-		$path = trim($parsed['path'] ?? '', '/');
+		$path = trim((string) ($parsed['path'] ?? ''), '/');
 
-		if (str_contains($path, '/tree/')) {
-			$path = preg_replace('#/tree/[^/]+#', '', $path) ?? $path;
+		if (preg_match('#^([^/]+/[^/]+)/(?:tree|blob)/[^/]+(?:/(.*))?$#', $path, $matches)) {
+			$subPath = $matches[2] ?? '';
+			return $subPath !== '' ? $matches[1] . '/' . $subPath : $matches[1];
 		}
 
 		return $path;
@@ -54,7 +55,11 @@ final readonly class GitHubRepository
 
 	private static function parseOwnerRepoPath(string $input): self
 	{
-		$parts = explode('/', $input);
+		if (str_contains($input, '\\') || str_contains($input, "\0")) {
+			throw new InvalidArgumentException('Invalid characters in repository path.');
+		}
+
+		$parts = explode('/', trim($input, '/'));
 
 		if (count($parts) < 2 || $parts[0] === '' || $parts[1] === '') {
 			throw new InvalidArgumentException('Invalid repository format. Expected: owner/repo, owner/repo/path, or GitHub URL');
@@ -74,10 +79,17 @@ final readonly class GitHubRepository
 			throw new InvalidArgumentException('Invalid repository owner or name.');
 		}
 
+		$subSegments = array_slice($parts, 2);
+		foreach ($subSegments as $segment) {
+			if ($segment === '' || $segment === '.' || $segment === '..') {
+				throw new InvalidArgumentException('Invalid repository subpath.');
+			}
+		}
+
 		return new self(
 			owner: $owner,
 			repo: $repo,
-			path: implode('/', array_slice($parts, 2))
+			path: implode('/', $subSegments)
 		);
 	}
 }

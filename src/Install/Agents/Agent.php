@@ -246,6 +246,9 @@ abstract class Agent
 	public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
 	{
 		$skillDir = $targetDir . '/' . $skillName;
+		if (is_dir($skillDir) && realpath($skillPath) !== realpath($skillDir)) {
+			SkillWriter::deleteTree($skillDir);
+		}
 		if (!is_dir($skillDir)) {
 			mkdir($skillDir, 0755, true);
 		}

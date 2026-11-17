@@ -9,6 +9,10 @@ use RuntimeException;
 
 final class GitHubSkillProvider
 {
+	private const MAX_SKILL_FILES = 100;
+	private const MAX_FILE_BYTES = 524288;
+	private const MAX_TOTAL_BYTES = 5242880;
+
 	private ?string $defaultBranch = null;
 
 	/** @var ?array<string, mixed> */
@@ -32,16 +36,13 @@ final class GitHubSkillProvider
 	public function discoverSkills(): array
 	{
 		$tree = $this->fetchRepositoryTree();
-
-		if ($tree === null) {
-			return [];
-		}
-
 		$basePath = $this->repository->path;
 
 		$skillMarkers = array_filter(
 			$tree['tree'],
-			static fn(array $item): bool => ($item['type'] ?? null) === 'blob' && basename((string) ($item['path'] ?? '')) === 'SKILL.md'
+			static fn(array $item): bool => ($item['type'] ?? null) === 'blob'
+				&& str_contains((string) ($item['path'] ?? ''), '/')
+				&& basename((string) ($item['path'] ?? '')) === 'SKILL.md'
 		);
 
 		if ($basePath !== '') {
@@ -102,11 +103,6 @@ final class GitHubSkillProvider
 		}
 
 		$tree = $this->fetchRepositoryTree();
-
-		if ($tree === null) {
-			return [];
-		}
-
 		$skillFiles = $this->extractSkillFilesFromTree($tree['tree'], $skill->path);
 
 		if ($skillFiles === []) {
@@ -114,10 +110,21 @@ final class GitHubSkillProvider
 		}
 
 		$files = [];
+		$blobCount = 0;
+		$totalBytes = 0;
 
 		foreach ($skillFiles as $item) {
 			if (($item['type'] ?? null) !== 'blob') {
 				continue;
+			}
+
+			$blobCount++;
+			if ($blobCount > self::MAX_SKILL_FILES) {
+				throw new RuntimeException(sprintf('Skill "%s" exceeds maximum file count (%d).', $skill->name, self::MAX_SKILL_FILES));
+			}
+
+			if (isset($item['size']) && (int) $item['size'] > self::MAX_FILE_BYTES) {
+				throw new RuntimeException(sprintf('File "%s" exceeds maximum allowed size (%d bytes).', (string) ($item['path'] ?? ''), self::MAX_FILE_BYTES));
 			}
 
 			$relativePath = $this->getRelativePath((string) $item['path'], $skill->path);
@@ -127,8 +134,13 @@ final class GitHubSkillProvider
 
 			$url = $this->buildRawFileUrl((string) $item['path']);
 			$content = $this->httpGet($url, 30, false);
-			if ($content === false) {
+			if ($content === false || strlen($content) > self::MAX_FILE_BYTES) {
 				return [];
+			}
+
+			$totalBytes += strlen($content);
+			if ($totalBytes > self::MAX_TOTAL_BYTES) {
+				throw new RuntimeException(sprintf('Skill "%s" exceeds maximum total size (%d bytes).', $skill->name, self::MAX_TOTAL_BYTES));
 			}
 
 			$files[$relativePath] = $content;
@@ -140,9 +152,9 @@ final class GitHubSkillProvider
 	}
 
 	/**
-	 * @return ?array<string, mixed>
+	 * @return array<string, mixed>
 	 */
-	private function fetchRepositoryTree(): ?array
+	private function fetchRepositoryTree(): array
 	{
 		if ($this->cachedTree !== null) {
 			return $this->cachedTree;
@@ -164,7 +176,8 @@ final class GitHubSkillProvider
 		$tree = json_decode($response, true);
 
 		if (!is_array($tree) || !isset($tree['tree']) || !is_array($tree['tree'])) {
-			throw new RuntimeException('Invalid response structure from GitHub Tree API');
+			$apiMessage = is_array($tree) && isset($tree['message']) ? ': ' . (string) $tree['message'] : '';
+			throw new RuntimeException('Invalid response structure from GitHub Tree API' . $apiMessage);
 		}
 
 		$this->cachedTree = $tree;
@@ -263,7 +276,7 @@ final class GitHubSkillProvider
 		}
 
 		$token = getenv('GITHUB_TOKEN') ?: getenv('GH_TOKEN') ?: '';
-		if (is_string($token) && $token !== '') {
+		if ($token !== '') {
 			$headers[] = 'Authorization: Bearer ' . $token;
 		}
 
@@ -279,6 +292,11 @@ final class GitHubSkillProvider
 				'method' => 'GET',
 				'header' => $headers,
 				'timeout' => $timeout,
+				'follow_location' => 0,
+			],
+			'ssl' => [
+				'verify_peer' => true,
+				'verify_peer_name' => true,
 			],
 		]);
 

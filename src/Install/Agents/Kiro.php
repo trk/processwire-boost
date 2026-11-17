@@ -16,7 +16,7 @@ final class Kiro extends Agent
 		return 'Kiro';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.kiro/settings/mcp.json';
 	}

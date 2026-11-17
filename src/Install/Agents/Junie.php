@@ -18,7 +18,7 @@ final class Junie extends Agent
 		return 'Junie';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.junie/mcp/mcp.json';
 	}
@@ -36,11 +36,6 @@ final class Junie extends Agent
 	public function projectDetectionPaths(): array
 	{
 		return ['.junie', '.junie/mcp/mcp.json'];
-	}
-
-	public function guidelinesPath(): string
-	{
-		return 'AGENTS.md';
 	}
 
 	/**

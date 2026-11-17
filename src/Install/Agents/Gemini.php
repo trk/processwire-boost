@@ -18,7 +18,7 @@ final class Gemini extends Agent
 		return 'Gemini CLI';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.gemini/settings.json';
 	}

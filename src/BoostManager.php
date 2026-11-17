@@ -66,10 +66,10 @@ final class BoostManager
 		$candidates = [
 			is_dir($projectRoot . '/site/modules')
 				? $projectRoot . '/site/modules'
-				: (string) ($config?->paths?->siteModules ?? ''),
+				: (is_object($config) && isset($config->paths->siteModules) ? (string) $config->paths->siteModules : ''),
 			is_dir($projectRoot . '/wire/modules')
 				? $projectRoot . '/wire/modules'
-				: (string) ($config?->paths?->modules ?? ''),
+				: (is_object($config) && isset($config->paths->modules) ? (string) $config->paths->modules : ''),
 		];
 
 		return array_values(array_filter(
@@ -100,7 +100,6 @@ final class BoostManager
 
 				$modulePath = $file->getPathname();
 
-				// Priority chain for each resource type: boost/{type} > .agents/{type}
 				$guidelinesDir = $this->resolveResourceDir($modulePath, 'guidelines');
 				$skillsDir = $this->resolveResourceDir($modulePath, 'skills');
 				$hasAgentsMd = is_file($modulePath . '/AGENTS.md');
@@ -117,16 +116,16 @@ final class BoostManager
 			}
 		}
 
-		// Special site/boost/ check
-		$siteBoostPath = $this->projectRoot . '/site/boost';
-		if (is_dir($siteBoostPath)) {
-			$hasSiteGuidelines = is_dir($siteBoostPath . '/guidelines');
-			$hasSiteSkills = is_dir($siteBoostPath . '/skills');
+		// Canonical site/.agents/ overrides
+		$siteAgentsPath = $this->projectRoot . '/site/.agents';
+		if (is_dir($siteAgentsPath)) {
+			$hasSiteGuidelines = is_dir($siteAgentsPath . '/guidelines');
+			$hasSiteSkills = is_dir($siteAgentsPath . '/skills');
 			if ($hasSiteGuidelines || $hasSiteSkills) {
 				$discoveries['site-overrides'] = [
-					'path' => $siteBoostPath,
-					'guidelines_path' => $hasSiteGuidelines ? $siteBoostPath . '/guidelines' : null,
-					'skills_path' => $hasSiteSkills ? $siteBoostPath . '/skills' : null,
+					'path' => $siteAgentsPath,
+					'guidelines_path' => $hasSiteGuidelines ? $siteAgentsPath . '/guidelines' : null,
+					'skills_path' => $hasSiteSkills ? $siteAgentsPath . '/skills' : null,
 					'has_guidelines' => $hasSiteGuidelines,
 					'has_skills' => $hasSiteSkills,
 				];
@@ -263,10 +262,10 @@ final class BoostManager
 	 */
 	public function normalizeAgentNames(array $agentNames): array
 	{
-		return array_values(array_map(
+		return array_map(
 			static fn(Agent $agent): string => $agent->name(),
 			$this->resolveConfiguredAgents($agentNames)
-		));
+		);
 	}
 
 	public function hasConfig(): bool
@@ -315,7 +314,7 @@ final class BoostManager
 
 		file_put_contents(
 			$this->targetDir . '/boost.json',
-			json_encode($normalized, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+			json_encode($normalized, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
 		);
 	}
 
@@ -340,23 +339,92 @@ final class BoostManager
 	}
 
 	/**
-	 * Resolve resource directory for a module with priority chain:
-	 *   {module}/boost/{type} > {module}/.agents/{type}
+	 * Resolve canonical `.agents/{type}` resource directory for a module.
 	 */
 	private function resolveResourceDir(string $modulePath, string $resourceType): ?string
 	{
-		$candidates = [
-			$modulePath . '/boost/' . $resourceType,
-			$modulePath . '/.agents/' . $resourceType,
-		];
+		$path = $modulePath . '/.agents/' . $resourceType;
+		return is_dir($path) ? $path : null;
+	}
 
-		foreach ($candidates as $path) {
-			if (is_dir($path)) {
-				return $path;
+	/**
+	 * Apply a complete Boost configuration transition atomically:
+	 * 1. Remove deselected features and agents first.
+	 * 2. Install/sync active features, modules, and agents.
+	 * 3. Persist normalized `.agents/boost.json`.
+	 *
+	 * @param list<string> $selectedFeatures
+	 * @param list<string> $selectedModules
+	 * @param list<string> $selectedAgentNames
+	 * @return array{featuresInstalled: list<string>, featuresRemoved: list<string>, agentsInstalled: list<string>, agentsRemoved: list<string>, synced: bool}
+	 */
+	public function applyConfiguration(array $selectedFeatures, array $selectedModules, array $selectedAgentNames): array
+	{
+		$previous = $this->loadConfig();
+		$previousFeatures = [
+			'guidelines' => $previous['guidelines'],
+			'skills' => $previous['skills'],
+			'mcp' => $previous['mcp'],
+		];
+		$previousModules = $previous['modules'];
+		$previousAgents = $previous['agents'];
+
+		$normalizedAgents = $this->normalizeAgentNames($selectedAgentNames);
+		$normalizedModules = array_values(array_unique(array_filter($selectedModules, 'is_string')));
+
+		$featuresInstalled = [];
+		$featuresRemoved = [];
+		foreach (['guidelines', 'skills', 'mcp'] as $featureKey) {
+			$isSelected = in_array($featureKey, $selectedFeatures, true);
+			$wasInstalled = $previousFeatures[$featureKey];
+			if ($isSelected && !$wasInstalled) {
+				$featuresInstalled[] = $featureKey;
+			} elseif (!$isSelected && $wasInstalled) {
+				$featuresRemoved[] = $featureKey;
 			}
 		}
 
-		return null;
+		$agentsInstalled = array_values(array_diff($normalizedAgents, $previousAgents));
+		$agentsRemoved = array_values(array_diff($previousAgents, $normalizedAgents));
+		$modulesChanged = array_diff($normalizedModules, $previousModules) !== []
+			|| array_diff($previousModules, $normalizedModules) !== [];
+
+		$previousAgentInstances = $this->resolveConfiguredAgents($previousAgents);
+		foreach ($featuresRemoved as $featureKey) {
+			$this->uninstallFeature($featureKey, $previousAgentInstances);
+		}
+
+		foreach ($this->resolveConfiguredAgents($agentsRemoved) as $removedAgent) {
+			$this->uninstallAgent($removedAgent);
+		}
+
+		$shouldSync = $featuresInstalled !== []
+			|| $featuresRemoved !== []
+			|| $modulesChanged
+			|| $selectedFeatures !== [];
+
+		if ($shouldSync) {
+			$activeAgentInstances = $this->resolveConfiguredAgents($normalizedAgents);
+			$this->install($selectedFeatures, $normalizedModules, $activeAgentInstances);
+		}
+
+		$this->saveConfig([
+			'version' => self::VERSION,
+			'guidelines' => in_array('guidelines', $selectedFeatures, true),
+			'skills' => in_array('skills', $selectedFeatures, true),
+			'mcp' => in_array('mcp', $selectedFeatures, true),
+			'modules' => $normalizedModules,
+			'agents' => $normalizedAgents,
+			'generated_at' => date('Y-m-d H:i:s'),
+		]);
+
+		return [
+			'featuresInstalled' => $featuresInstalled,
+			'featuresRemoved' => $featuresRemoved,
+			'agentsInstalled' => $agentsInstalled,
+			'agentsRemoved' => $agentsRemoved,
+			'synced' => $shouldSync,
+		];
 	}
 
 	/**
@@ -465,7 +533,10 @@ final class BoostManager
 
 	private function generateMap(string $path): void
 	{
-		file_put_contents($path, json_encode($this->buildSchemaMap(), JSON_PRETTY_PRINT));
+		file_put_contents(
+			$path,
+			json_encode($this->buildSchemaMap(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
+		);
 	}
 
 	/**
@@ -489,7 +560,10 @@ final class BoostManager
 				$fieldgroup = $template->fieldgroup;
 				$map['templates'][$template->name] = [
 					'id' => $template->id,
-					'fields' => array_map(static fn(object $f): string => (string) $f->name, $fieldgroup ? iterator_to_array($fieldgroup) : []),
+					'fields' => array_map(
+						static fn(object $f): string => method_exists($f, 'get') ? (string) $f->get('name') : (property_exists($f, 'name') ? (string) $f->name : ''),
+						$fieldgroup ? iterator_to_array($fieldgroup) : []
+					),
 				];
 			}
 		}
@@ -519,13 +593,16 @@ final class BoostManager
 		}
 
 		$modules = $this->wireApi('modules');
-		if (is_iterable($modules)) {
+		if (is_object($modules) && is_iterable($modules) && method_exists($modules, 'getModuleInfo')) {
 			foreach ($modules as $module) {
+				if (!is_object($module) || !method_exists($module, 'className')) {
+					continue;
+				}
 				$info = $modules->getModuleInfo($module);
 				if (!is_array($info)) {
 					$info = [];
 				}
-				$map['modules'][$module->className()] = [
+				$map['modules'][(string) $module->className()] = [
 					'title' => $info['title'] ?? '',
 					'version' => $info['version'] ?? '',
 					'summary' => $info['summary'] ?? '',
@@ -538,7 +615,10 @@ final class BoostManager
 			foreach ($roles as $role) {
 				$map['roles'][$role->name] = [
 					'id' => $role->id,
-					'permissions' => array_map(static fn(object $p): string => (string) $p->name, iterator_to_array($role->permissions)),
+					'permissions' => array_map(
+						static fn(object $p): string => method_exists($p, 'get') ? (string) $p->get('name') : (property_exists($p, 'name') ? (string) $p->name : ''),
+						iterator_to_array($role->permissions)
+					),
 				];
 			}
 		}
@@ -627,7 +707,7 @@ final class BoostManager
 	private function resolveExtenderManifestPaths(): array
 	{
 		$paths = [];
-		$siteManifest = $this->projectRoot . '/site/boost/schema/field-extenders.php';
+		$siteManifest = $this->projectRoot . '/site/.agents/schema/field-extenders.php';
 		if (is_file($siteManifest)) {
 			$paths[] = $siteManifest;
 		}
@@ -638,12 +718,9 @@ final class BoostManager
 					continue;
 				}
 
-				$base = $moduleDir->getPathname();
-				foreach ([$base . '/boost/schema/field-extenders.php', $base . '/.agents/schema/field-extenders.php'] as $manifest) {
-					if (is_file($manifest)) {
-						$paths[] = $manifest;
-						break;
-					}
+				$manifest = $moduleDir->getPathname() . '/.agents/schema/field-extenders.php';
+				if (is_file($manifest)) {
+					$paths[] = $manifest;
 				}
 			}
 		}

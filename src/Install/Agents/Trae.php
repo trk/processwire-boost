@@ -19,7 +19,7 @@ final class Trae extends Agent
 		return 'Trae';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.trae/mcp.json';
 	}
@@ -32,11 +32,6 @@ final class Trae extends Agent
 	public function projectDetectionPaths(): array
 	{
 		return ['.trae', '.trae/mcp.json'];
-	}
-
-	public function guidelinesPath(): string
-	{
-		return 'AGENTS.md';
 	}
 
 	public function skillsPath(): string
@@ -59,6 +54,9 @@ final class Trae extends Agent
 		}
 
 		$skillDir = $targetDir . '/' . $skillName;
+		if (is_dir($skillDir) && realpath($skillPath) !== realpath($skillDir)) {
+			SkillWriter::deleteTree($skillDir);
+		}
 		if (!is_dir($skillDir)) {
 			mkdir($skillDir, 0755, true);
 		}
@@ -78,17 +76,14 @@ final class Trae extends Agent
 
 		$lines = preg_split('/\R/', $raw) ?: [];
 		$title = '';
-		$desc = '';
 		foreach ($lines as $i => $line) {
 			if ($i === 0 && str_starts_with(trim($line), '#')) {
 				$title = trim(ltrim(trim($line), '# '));
 			}
-			if (str_starts_with(trim($line), 'description:')) {
-				$desc = trim(substr(trim($line), strlen('description:')));
-			}
 		}
+		$desc = SkillWriter::extractFrontmatterDescription($raw);
 
-		$frontmatter = "---\nname: \"{$skillName}\"\ndescription: \"" . addcslashes($desc !== '' ? $desc : $title, '"') . "\"\n---\n\n";
+		$frontmatter = "---\nname: \"{$skillName}\"\ndescription: \"" . addcslashes($desc !== '' ? $desc : $title, "\\\"") . "\"\n---\n\n";
 		$body = $raw;
 		if (!str_starts_with(ltrim($body), '#')) {
 			$body = "# {$title}\n\n" . $body;

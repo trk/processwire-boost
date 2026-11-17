@@ -70,9 +70,15 @@ final class SkillWriter
 			}
 
 			foreach (array_diff_key($allModuleSkills, $skillSources) as $deselectedSkillName => $_path) {
-				$staleAgentSkillPath = $agentTargetDir . '/' . $deselectedSkillName;
-				if (is_dir($staleAgentSkillPath)) {
-					self::deleteTree($staleAgentSkillPath);
+				$candidates = array_unique([
+					$deselectedSkillName,
+					str_replace('_', '-', $deselectedSkillName),
+				]);
+				foreach ($candidates as $dirName) {
+					$staleAgentSkillPath = $agentTargetDir . '/' . $dirName;
+					if (is_dir($staleAgentSkillPath)) {
+						self::deleteTree($staleAgentSkillPath);
+					}
 				}
 			}
 
@@ -166,6 +172,37 @@ final class SkillWriter
 		return $sources;
 	}
 
+	public static function sanitizeSkillName(string $name): string
+	{
+		return trim((string) preg_replace('/[^a-z0-9_-]/i', '-', trim($name)), '.-');
+	}
+
+	public static function extractFrontmatterDescription(string $markdown): string
+	{
+		$searchTarget = $markdown;
+		if (preg_match('/\A---\s*\R(.*?)\R---/s', $markdown, $fmMatches)) {
+			$searchTarget = $fmMatches[1];
+		}
+
+		if (!preg_match('/^description:\s*(.+)$/m', $searchTarget, $matches)) {
+			return '';
+		}
+
+		$raw = trim($matches[1]);
+		if ((str_starts_with($raw, '"') && str_ends_with($raw, '"')) || (str_starts_with($raw, "'") && str_ends_with($raw, "'"))) {
+			$quote = $raw[0];
+			$inner = substr($raw, 1, -1);
+			if ($quote === '"') {
+				$inner = str_replace(['\\\\', '\\"'], ['\\', '"'], $inner);
+			} else {
+				$inner = str_replace("''", "'", $inner);
+			}
+			return trim($inner);
+		}
+
+		return $raw;
+	}
+
 	public static function copyDirectory(string $source, string $target): void
 	{
 		if (!is_dir($target)) {
@@ -178,6 +215,10 @@ final class SkillWriter
 			}
 
 			$srcFile = $source . '/' . $file;
+			if (is_link($srcFile)) {
+				continue;
+			}
+
 			$dstFile = $target . '/' . $file;
 
 			if (is_dir($srcFile)) {
@@ -191,13 +232,21 @@ final class SkillWriter
 
 	public static function deleteTree(string $dir): bool
 	{
+		if (is_link($dir)) {
+			return @unlink($dir);
+		}
+
 		if (!is_dir($dir)) {
 			return false;
 		}
 
 		foreach (array_diff(scandir($dir) ?: [], ['.', '..']) as $file) {
 			$path = $dir . '/' . $file;
-			is_dir($path) ? self::deleteTree($path) : @unlink($path);
+			if (!is_link($path) && is_dir($path)) {
+				self::deleteTree($path);
+			} else {
+				@unlink($path);
+			}
 		}
 
 		return @rmdir($dir);

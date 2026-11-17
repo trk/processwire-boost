@@ -16,7 +16,7 @@ final class ClaudeCode extends Agent
 		return 'Claude Code';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.mcp.json';
 	}
