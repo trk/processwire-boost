@@ -11,6 +11,9 @@ use Totoglu\Console\Boost\Mcp\McpServer;
 
 final class McpCommand extends Command
 {
+	private const MAX_LINE_BYTES = 1048576;
+	private const MAX_JSON_DEPTH = 64;
+
 	protected function configure(): void
 	{
 		$this
@@ -24,22 +27,36 @@ final class McpCommand extends Command
 		$buffer = '';
 
 		while (!feof(STDIN)) {
-			$chunk = fgets(STDIN);
+			$chunk = fgets(STDIN, 65536);
 			if ($chunk === false) {
 				break;
 			}
 			$buffer .= $chunk;
 
+			if (strlen($buffer) > self::MAX_LINE_BYTES && !str_contains($buffer, "\n")) {
+				$buffer = '';
+				$this->writePayload($server->parseError());
+				continue;
+			}
+
 			while (str_contains($buffer, "\n")) {
 				[$line, $buffer] = explode("\n", $buffer, 2);
+				if (strlen($line) > self::MAX_LINE_BYTES) {
+					$this->writePayload($server->parseError());
+					continue;
+				}
 				$line = trim($line);
 				if ($line === '') {
 					continue;
 				}
 
-				$request = json_decode($line, true);
-				if (!is_array($request)) {
+				$request = json_decode($line, true, self::MAX_JSON_DEPTH);
+				if (json_last_error() !== JSON_ERROR_NONE) {
 					$this->writePayload($server->parseError());
+					continue;
+				}
+				if (!is_array($request) || $request === [] || array_is_list($request)) {
+					$this->writePayload($server->invalidRequest());
 					continue;
 				}
 
