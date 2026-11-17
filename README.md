@@ -108,7 +108,7 @@ php vendor/bin/wire boost:install
 php vendor/bin/wire boost:install \
   --guidelines --skills --mcp \
   --agents="Cursor,Claude Code,Gemini CLI" \
-  --modules="Htmx,FieldtypeAiAssistant"
+  --modules="Htmx,Inertia"
 ```
 
 ### 2. What Gets Generated
@@ -118,9 +118,9 @@ project-root/
 ├── AGENTS.md                    # Universal guidelines block for AGENTS-based agents
 ├── CLAUDE.md                    # Claude Code specific guidelines
 ├── GEMINI.md                    # Gemini CLI specific guidelines
-├── .cursorrules                 # Cursor specific guideline stub
+├── .cursorrules                 # Cursor guidelines block
 ├── .github/
-│   ├── copilot-instructions.md  # GitHub Copilot specific guideline stub
+│   ├── copilot-instructions.md  # GitHub Copilot guidelines block
 │   └── skills/                  # GitHub Copilot exported skills
 ├── .mcp.json                    # Claude Code MCP config
 ├── .claude/
@@ -183,8 +183,9 @@ Every time the agent processes a prompt, it reads these rules. This is where con
 #### Source Priority
 
 1. **Core** — `resources/boost/guidelines/*.md` (7 files)
-2. **Module** — `{module}/boost/guidelines/*.md` or `{module}/.agents/guidelines/*.md` (third-party modules)
-3. **Module Context Index** — `{module}/AGENTS.md` (indexed for on-demand inspection when present in the module root)
+2. **Module** — `{module}/.agents/guidelines/*.md` (third-party modules)
+3. **Site Overrides** — `site/.agents/guidelines/*.md`
+4. **Module Context Index** — `{module}/AGENTS.md` (indexed for on-demand inspection when present in the module root)
 
 #### Merge Strategy
 
@@ -227,7 +228,7 @@ Unlike guidelines (which are always present), skills are loaded only when releva
 | `pw-security-audit`              | Security audits for modules/hooks/templates: OWASP, sanitization, RBAC, CSRF                           |
 | `pw-seeder`                      | Database seeding patterns using file-based seeders                                                     |
 | `pw-systematic-debugging`        | A disciplined approach to diagnosing bugs and unexpected behavior                                      |
-| `pw-test`                        | Writing and running Pest tests in ProcessWire projects/modules                                         |
+| `pw-test`                        | Writing and running Pest PHP and Playwright E2E tests in ProcessWire projects/modules                  |
 | `pw-url-routing`                 | URL/Path hooks for REST APIs, virtual pages, and custom endpoints                                      |
 | `pw-writing-plans`               | Turning specs into safe implementation plans (ProcessWire-native)                                      |
 | `pw-writing-skills`              | Creating and improving Boost skills (formatting, testing requirements, conventions)                    |
@@ -291,16 +292,16 @@ Boost supports optional field schema extenders so non-core or complex fieldtypes
 
 Discovery paths:
 
-- `site/boost/schema/field-extenders.php`
-- `site/modules/*/boost/schema/field-extenders.php` or `site/modules/*/.agents/schema/field-extenders.php`
-- `wire/modules/*/boost/schema/field-extenders.php` or `wire/modules/*/.agents/schema/field-extenders.php`
+- `site/.agents/schema/field-extenders.php`
+- `site/modules/*/.agents/schema/field-extenders.php`
+- `wire/modules/*/.agents/schema/field-extenders.php`
 
 Each manifest should return an array of extender class names (or instances) implementing `Totoglu\Console\Boost\Schema\FieldSchemaExtender`. Extenders run in discovery order; if multiple extenders return the same key, the later value wins.
 
 ```php
 <?php
 
-use Totoglu\Console\Boost\Schema\FieldSchemaExtender;
+declare(strict_types=1);
 
 return [
 	\Site\Boost\Schema\RepeaterMatrixSchemaExtender::class,
@@ -447,14 +448,9 @@ final class MyAgent extends Agent
 		return 'My Agent';
 	}
 
-	public function mcpConfigPath(): ?string
+	public function mcpConfigPath(): string
 	{
 		return '.my-agent/mcp.json';
-	}
-
-	public function guidelinesPath(): string
-	{
-		return 'AGENTS.md';
 	}
 }
 ```
@@ -470,9 +466,11 @@ Third-party ProcessWire modules can expose their own guidelines and skills to Bo
 ```
 site/modules/YourModule/
 ├── AGENTS.md                  # Optional root module context index
-└── .agents/                   # or boost/ (boost/ takes priority over .agents/)
+└── .agents/
     ├── guidelines/
     │   └── your-module-rules.md
+    ├── schema/
+    │   └── field-extenders.php
     └── skills/
         └── your-module-skill/
             └── SKILL.md
@@ -480,9 +478,9 @@ site/modules/YourModule/
 
 ### Discovery
 
-1. Boost scans `site/modules/` and `wire/modules/` for `boost/` and `.agents/` resource directories, or a root `AGENTS.md` file
-2. Guidelines from `boost/guidelines/*.md` (or `.agents/guidelines/*.md`) are compiled into the agent instruction file
-3. Skills from `boost/skills/*/SKILL.md` (or `.agents/skills/*/SKILL.md`) are synchronized into `.agents/skills` and exported to configured agent skill directories
+1. Boost scans `site/modules/` and `wire/modules/` for `.agents/` resource directories or a root `AGENTS.md` file
+2. Guidelines from `.agents/guidelines/*.md` are compiled into the agent instruction file
+3. Skills from `.agents/skills/*/SKILL.md` are synchronized into `.agents/skills` and exported to configured agent skill directories
 4. Modules with a root `AGENTS.md` file are indexed in the `Module Context Index` section of compiled guidelines
 
 > **Tip:** After installing a new module that provides Boost skills, run `php vendor/bin/wire boost:update` to sync the new guidelines and skills into your workspace.
@@ -490,8 +488,9 @@ site/modules/YourModule/
 ### Site-Level Overrides
 
 ```
-site/boost/
+site/.agents/
 ├── guidelines/    # Project-specific guidelines
+├── schema/        # Project-specific field-extenders.php
 └── skills/        # Project-specific skills
 ```
 
@@ -506,7 +505,7 @@ Manage AI helper setup (ProcessWire Boost). Select features to install/update, d
 **Usage:**
 
 ```bash
-wire boost:install [options]
+php vendor/bin/wire boost:install [options]
 ```
 
 **Options:**
@@ -517,15 +516,16 @@ wire boost:install [options]
 | `--mcp` | | `false` | Install MCP Server Configuration |
 | `--modules` | `-m` | `null` | Comma-separated modules to install |
 | `--agents` | `-a` | `null` | Comma-separated agents to configure |
+| `--json` | | `false` | Output structured JSON |
 
 **Examples:**
 
 ```bash
 # Interactive installation
-wire boost:install
+php vendor/bin/wire boost:install
 
 # Flag-based non-interactive installation
-wire boost:install --guidelines --skills -a "Cursor,Claude Code" -m "Htmx"
+php vendor/bin/wire boost:install --guidelines --skills -a "Cursor,Claude Code" -m "Htmx"
 ```
 
 ### `boost:update`
@@ -538,30 +538,31 @@ Re-sync ProcessWire Boost guidelines & skills from saved configuration.
 **Usage:**
 
 ```bash
-wire boost:update [options]
+php vendor/bin/wire boost:update [options]
 ```
 
 **Options:**
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--discover` | `false` | In non-interactive runs, auto-add newly discovered modules to saved config |
-| `--no-discover` | `false` | Skip discovery of newly available modules |
+| `--discover` | `false` | Auto-add newly discovered module resources in non-interactive mode |
+| `--no-discover` | `false` | Skip discovering newly available module resources |
 | `--ignore-skills` | `false` | Skip updating `.agents/skills` during the update run |
+| `--json` | `false` | Output structured JSON |
 
 **Examples:**
 
 ```bash
 # Update resources from .agents/boost.json
-wire boost:update
+php vendor/bin/wire boost:update
 
 # Skip skill re-sync
-wire boost:update --ignore-skills
+php vendor/bin/wire boost:update --ignore-skills
 
 # Update without prompting for newly discovered modules
-wire boost:update --no-discover
+php vendor/bin/wire boost:update --no-discover
 
 # Non-interactive discovery: persist newly discovered modules automatically
-wire boost:update --discover
+php vendor/bin/wire boost:update --discover
 ```
 
 ### `boost:mcp`
@@ -571,14 +572,14 @@ Start the ProcessWire MCP server (JSON-RPC over stdio).
 **Usage:**
 
 ```bash
-wire boost:mcp
+php vendor/bin/wire boost:mcp
 ```
 
 **Examples:**
 
 ```bash
 # Start the MCP server (Typically invoked by AI agents, not manually)
-wire boost:mcp
+php vendor/bin/wire boost:mcp
 ```
 
 ### `boost:add-skill`
@@ -592,7 +593,7 @@ Add skills from a remote GitHub repository.
 **Usage:**
 
 ```bash
-wire boost:add-skill [options] [repo]
+php vendor/bin/wire boost:add-skill [options] [repo]
 ```
 
 **Arguments:**
@@ -609,24 +610,25 @@ wire boost:add-skill [options] [repo]
 | `--force` | `-f` | `false` | Overwrite existing skills |
 | `--skip-audit` |  | `false` | Skip heuristic audit before installing remote skills |
 | `--skip-update` |  | `false` | Skip automatic `boost:update` after installing skills |
+| `--json` |  | `false` | Output structured JSON |
 
 **Examples:**
 
 ```bash
 # Interactive selection
-wire boost:add-skill owner/repo
+php vendor/bin/wire boost:add-skill owner/repo
 
 # List available skills from a repo
-wire boost:add-skill owner/repo --list
+php vendor/bin/wire boost:add-skill owner/repo --list
 
 # Install specific skills
-wire boost:add-skill owner/repo -s "skill-1" -s "skill-2"
+php vendor/bin/wire boost:add-skill owner/repo -s "skill-1" -s "skill-2"
 
 # Install skills without re-syncing Boost resources
-wire boost:add-skill owner/repo --skip-update
+php vendor/bin/wire boost:add-skill owner/repo --skip-update
 
 # Install skills without heuristic audit
-wire boost:add-skill owner/repo --skip-audit
+php vendor/bin/wire boost:add-skill owner/repo --skip-audit
 ```
 
 ---
@@ -643,7 +645,7 @@ The installer stores its state in `.agents/boost.json`:
   "guidelines": true,
   "skills": true,
   "mcp": true,
-  "modules": ["Htmx", "FieldtypeAiAssistant"],
+  "modules": ["Htmx", "Inertia"],
   "agents": ["cursor", "claude_code", "gemini"],
   "generated_at": "2026-04-08 12:00:00"
 }
@@ -704,9 +706,9 @@ All code, documentation, comments, and variable names must be written in English
 ## Contributing
 
 1. Open an issue describing the change
-2. Follow existing code style (strict types, PHPDoc, camelCase)
-3. Ensure all PHP files pass `php -l` linting
-4. Test with at least two different agents
+2. Follow code standards (`declare(strict_types=1);`, tab indentation, curly braces on all control structures, explicit types)
+3. Run static analysis (`vendor/bin/phpstan analyse`) and unit tests (`vendor/bin/phpunit`)
+4. Test generated guidelines, skills, and MCP configuration with at least two agents
 
 ---
 

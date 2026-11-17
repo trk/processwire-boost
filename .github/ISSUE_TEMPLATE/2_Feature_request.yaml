@@ -1,11 +1,11 @@
 name: 🚀 Feature Request
-description: RFCs and ideas (English only) for Boost (CLI builders and MCP tools)
+description: RFCs and ideas (English only) for ProcessWire Boost (CLI commands, skills, guidelines, and MCP tools)
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Please use English. Describe CLI UX (builders) and/or MCP JSON‑RPC methods you propose.
+        Please use English. Describe CLI commands/options and/or MCP tools you propose.
   - type: textarea
     id: summary
     attributes:
@@ -25,11 +25,11 @@ body:
   - type: textarea
     id: mcp-method
     attributes:
-      label: Proposed MCP method (if applicable)
-      description: JSON‑RPC method name, params schema and example request/response
+      label: Proposed MCP tool (if applicable)
+      description: MCP tool name, inputSchema, and example tools/call request/response
       value: |
         ```json
-        { "method": "pw_schema_read", "params": {}, "id": 1 }
+        { "jsonrpc": "2.0", "method": "tools/call", "params": { "name": "pw_schema_read", "arguments": {} }, "id": 1 }
         ```
   - type: textarea
     id: use-cases

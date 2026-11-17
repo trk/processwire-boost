@@ -18,7 +18,7 @@ body:
     id: pw-version
     attributes:
       label: ProcessWire version
-      placeholder: 3.0.xxx
+      placeholder: 3.0.210
     validations:
       required: true
   - type: input
@@ -61,11 +61,11 @@ body:
       description: |
         Include exact commands and/or JSON‑RPC request, e.g.:
         ```bash
-        php vendor/bin/wire boost:build:all
+        php vendor/bin/wire boost:install
         ```
         or
         ```json
-        { "jsonrpc": "2.0", "method": "pw_query", "params": {"selector":"template=basic-page, limit=1"}, "id":1 }
+        { "jsonrpc": "2.0", "method": "tools/call", "params": { "name": "pw_query", "arguments": { "selector": "template=basic-page, limit=1" } }, "id": 1 }
         ```
     validations:
       required: true
