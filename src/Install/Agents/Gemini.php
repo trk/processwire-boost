@@ -49,7 +49,7 @@ final class Gemini extends Agent
 	}
 
 	/**
-	 * Gemini CLI / Antigravity requires absolute paths for MCP server resolution.
+	 * Gemini CLI requires absolute paths for MCP server resolution.
 	 */
 	public function mcpPathStrategy(): McpPathStrategy
 	{

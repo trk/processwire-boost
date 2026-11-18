@@ -81,6 +81,9 @@ final class OpenCode extends Agent
 	{
 		$skillDirName = str_replace('_', '-', $skillName);
 		$skillDir = $targetDir . '/' . $skillDirName;
+		if (is_link($targetDir) || is_link($skillDir)) {
+			throw new \RuntimeException("Refusing to export skill through a symbolic link: {$skillDir}");
+		}
 		if (is_dir($skillDir) && realpath($skillPath) !== realpath($skillDir)) {
 			SkillWriter::deleteTree($skillDir);
 		}
@@ -96,11 +99,12 @@ final class OpenCode extends Agent
 		$content = is_file($skillMdPath) ? (string) file_get_contents($skillMdPath) : '';
 		$targetPath = $skillDir . '/SKILL.md';
 
-		if (str_starts_with(trim($content), '---')) {
-			if (!str_contains($content, 'compatibility: opencode')) {
-				$content = preg_replace('/^---\R/', "---\ncompatibility: opencode\n", $content, 1) ?? $content;
+		$trimmedContent = ltrim($content);
+		if (preg_match('/\A---\s*\R(.*?)\R---/s', $trimmedContent, $fmMatch) === 1) {
+			if (!preg_match('/^\s*compatibility\s*:\s*opencode\s*$/m', $fmMatch[1])) {
+				$trimmedContent = preg_replace('/\A---\s*\R/', "---\ncompatibility: opencode\n", $trimmedContent, 1) ?? $trimmedContent;
 			}
-			file_put_contents($targetPath, $content);
+			file_put_contents($targetPath, $trimmedContent);
 			return $targetPath;
 		}
 

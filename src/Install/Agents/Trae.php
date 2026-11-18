@@ -49,11 +49,13 @@ final class Trae extends Agent
 
 	public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
 	{
+		$skillDir = $targetDir . '/' . $skillName;
+		if (is_link($targetDir) || is_link($skillDir)) {
+			throw new \RuntimeException("Refusing to export skill through a symbolic link: {$skillDir}");
+		}
 		if (!is_dir($targetDir)) {
 			mkdir($targetDir, 0755, true);
 		}
-
-		$skillDir = $targetDir . '/' . $skillName;
 		if (is_dir($skillDir) && realpath($skillPath) !== realpath($skillDir)) {
 			SkillWriter::deleteTree($skillDir);
 		}
@@ -83,10 +85,11 @@ final class Trae extends Agent
 		}
 		$desc = SkillWriter::extractFrontmatterDescription($raw);
 
-		$frontmatter = "---\nname: \"{$skillName}\"\ndescription: \"" . addcslashes($desc !== '' ? $desc : $title, "\\\"") . "\"\n---\n\n";
+		$effectiveTitle = $title !== '' ? $title : $skillName;
+		$frontmatter = "---\nname: \"{$skillName}\"\ndescription: \"" . addcslashes($desc !== '' ? $desc : $effectiveTitle, "\\\"") . "\"\n---\n\n";
 		$body = $raw;
 		if (!str_starts_with(ltrim($body), '#')) {
-			$body = "# {$title}\n\n" . $body;
+			$body = "# {$effectiveTitle}\n\n" . $body;
 		}
 		file_put_contents($targetPath, $frontmatter . $body);
 

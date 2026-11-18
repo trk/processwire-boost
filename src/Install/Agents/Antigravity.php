@@ -28,6 +28,6 @@ final class Antigravity extends Agent
 
 	public function projectDetectionPaths(): array
 	{
-		return ['.agents', '.agents/mcp_config.json'];
+		return ['.agents/mcp_config.json'];
 	}
 }

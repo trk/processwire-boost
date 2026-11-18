@@ -43,15 +43,28 @@ final class BoostManager
 	public function __construct(?string $projectRoot = null)
 	{
 		if ($projectRoot === null || $projectRoot === '') {
-			$config = $this->wireApi('config');
-			$projectRoot = is_object($config) && isset($config->paths->root)
-				? rtrim((string) $config->paths->root, '/')
+			$pwRoot = self::readConfigPath('root');
+			$projectRoot = $pwRoot !== ''
+				? rtrim($pwRoot, '/')
 				: (getcwd() ?: '');
 		}
 
 		$this->projectRoot = $projectRoot;
 		$this->targetDir = $this->projectRoot . '/.agents';
 		$this->registerBuiltInAgents();
+	}
+
+	private static function readConfigPath(string $key): string
+	{
+		$config = self::wireApi('config');
+		$paths = is_object($config) ? ($config->paths ?? null) : null;
+		if (!is_object($paths) || !method_exists($paths, 'get')) {
+			return '';
+		}
+
+		$value = $paths->get($key);
+
+		return is_string($value) ? $value : '';
 	}
 
 	/**
@@ -61,15 +74,13 @@ final class BoostManager
 	 */
 	public static function resolveModuleRootPaths(string $projectRoot): array
 	{
-		$config = self::wireApi('config');
-
 		$candidates = [
 			is_dir($projectRoot . '/site/modules')
 				? $projectRoot . '/site/modules'
-				: (is_object($config) && isset($config->paths->siteModules) ? (string) $config->paths->siteModules : ''),
+				: self::readConfigPath('siteModules'),
 			is_dir($projectRoot . '/wire/modules')
 				? $projectRoot . '/wire/modules'
-				: (is_object($config) && isset($config->paths->modules) ? (string) $config->paths->modules : ''),
+				: self::readConfigPath('modules'),
 		];
 
 		return array_values(array_filter(
@@ -118,9 +129,9 @@ final class BoostManager
 
 		// Canonical site/.agents/ overrides
 		$siteAgentsPath = $this->projectRoot . '/site/.agents';
-		if (is_dir($siteAgentsPath)) {
-			$hasSiteGuidelines = is_dir($siteAgentsPath . '/guidelines');
-			$hasSiteSkills = is_dir($siteAgentsPath . '/skills');
+		if (!is_link($siteAgentsPath) && is_dir($siteAgentsPath)) {
+			$hasSiteGuidelines = !is_link($siteAgentsPath . '/guidelines') && is_dir($siteAgentsPath . '/guidelines');
+			$hasSiteSkills = !is_link($siteAgentsPath . '/skills') && is_dir($siteAgentsPath . '/skills');
 			if ($hasSiteGuidelines || $hasSiteSkills) {
 				$discoveries['site-overrides'] = [
 					'path' => $siteAgentsPath,
@@ -289,7 +300,7 @@ final class BoostManager
 		];
 
 		$configPath = $this->targetDir . '/boost.json';
-		if (!is_file($configPath)) {
+		if (is_link($this->targetDir) || is_link($configPath) || !is_file($configPath)) {
 			return $defaults;
 		}
 
@@ -306,6 +317,11 @@ final class BoostManager
 	 */
 	public function saveConfig(array $config): void
 	{
+		$configPath = $this->targetDir . '/boost.json';
+		if (is_link($this->targetDir) || is_link($configPath)) {
+			throw new \RuntimeException('Refusing to write Boost configuration through a symbolic link.');
+		}
+
 		if (!is_dir($this->targetDir)) {
 			mkdir($this->targetDir, 0755, true);
 		}
@@ -313,8 +329,11 @@ final class BoostManager
 		$normalized = $this->normalizeConfig($config, date('Y-m-d H:i:s'), false);
 
 		file_put_contents(
-			$this->targetDir . '/boost.json',
-			json_encode($normalized, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
+			$configPath,
+			json_encode(
+				$normalized,
+				JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR
+			) ?: '{}'
 		);
 	}
 
@@ -493,8 +512,12 @@ final class BoostManager
 					->remove($guidelineAgents);
 				break;
 			case 'skills':
+				$skillAgents = array_values(array_filter(
+					$agents ?? array_values($this->instantiateAgents()),
+					static fn(Agent $agent): bool => $agent->supportsSkills()
+				));
 				(new SkillWriter($this->targetDir, $discoverableModules))
-					->removeCoreSkills($agents);
+					->removeCoreSkills($skillAgents);
 				break;
 			case 'mcp':
 				$mcpAgents = array_values(array_filter(
@@ -533,9 +556,15 @@ final class BoostManager
 
 	private function generateMap(string $path): void
 	{
+		if (is_link(dirname($path)) || is_link($path)) {
+			throw new \RuntimeException('Refusing to write Boost schema map through a symbolic link.');
+		}
 		file_put_contents(
 			$path,
-			json_encode($this->buildSchemaMap(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)
+			json_encode(
+				$this->buildSchemaMap(),
+				JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR
+			) ?: '{}'
 		);
 	}
 
@@ -557,13 +586,24 @@ final class BoostManager
 		$templates = $this->wireApi('templates');
 		if (is_iterable($templates)) {
 			foreach ($templates as $template) {
-				$fieldgroup = $template->fieldgroup;
-				$map['templates'][$template->name] = [
-					'id' => $template->id,
-					'fields' => array_map(
+				if (!is_object($template)) {
+					continue;
+				}
+				$fieldgroup = method_exists($template, 'get')
+					? $template->get('fieldgroup')
+					: (property_exists($template, 'fieldgroup') ? $template->fieldgroup : null);
+				$tplName = method_exists($template, 'get')
+					? (string) $template->get('name')
+					: (property_exists($template, 'name') ? (string) $template->name : '');
+				if ($tplName === '') {
+					continue;
+				}
+				$map['templates'][$tplName] = [
+					'id' => method_exists($template, 'get') ? $template->get('id') : ($template->id ?? 0),
+					'fields' => array_values(array_map(
 						static fn(object $f): string => method_exists($f, 'get') ? (string) $f->get('name') : (property_exists($f, 'name') ? (string) $f->name : ''),
-						$fieldgroup ? iterator_to_array($fieldgroup) : []
-					),
+						$fieldgroup instanceof \Traversable ? iterator_to_array($fieldgroup, false) : []
+					)),
 				];
 			}
 		}
@@ -573,9 +613,14 @@ final class BoostManager
 			$extenders = $this->resolveFieldSchemaExtenders();
 
 			foreach ($fields as $field) {
+				if (!is_object($field)) {
+					continue;
+				}
 				$base = self::buildFieldBaseSchema($field, 'Unknown');
 
-				$extensions = $this->collectFieldSchemaExtra($field, $base, $extenders);
+				$extensions = $field instanceof \ProcessWire\Field
+					? $this->collectFieldSchemaExtra($field, $base, $extenders)
+					: [];
 
 				// `fields` is a reserved extension key promoted to top-level so
 				// nested schemas stay ergonomic for agents and future extenders.
@@ -588,7 +633,10 @@ final class BoostManager
 					$base['extra'] = $extensions;
 				}
 
-				$map['fields'][$field->name] = $base;
+				$fieldName = method_exists($field, 'get') ? (string) $field->get('name') : (property_exists($field, 'name') ? (string) $field->name : '');
+				if ($fieldName !== '') {
+					$map['fields'][$fieldName] = $base;
+				}
 			}
 		}
 
@@ -598,14 +646,20 @@ final class BoostManager
 				if (!is_object($module) || !method_exists($module, 'className')) {
 					continue;
 				}
-				$info = $modules->getModuleInfo($module);
+				$info = method_exists($modules, 'getModuleInfoVerbose')
+					? $modules->getModuleInfoVerbose($module)
+					: $modules->getModuleInfo($module);
 				if (!is_array($info)) {
 					$info = [];
 				}
+				$rawVersion = $info['version'] ?? '';
+				$formattedVersion = method_exists($modules, 'formatVersion') && $rawVersion !== ''
+					? (string) $modules->formatVersion($rawVersion)
+					: (string) $rawVersion;
 				$map['modules'][(string) $module->className()] = [
-					'title' => $info['title'] ?? '',
-					'version' => $info['version'] ?? '',
-					'summary' => $info['summary'] ?? '',
+					'title' => (string) ($info['title'] ?? ''),
+					'version' => $formattedVersion,
+					'summary' => (string) ($info['summary'] ?? ''),
 				];
 			}
 		}
@@ -613,12 +667,24 @@ final class BoostManager
 		$roles = $this->wireApi('roles');
 		if (is_iterable($roles)) {
 			foreach ($roles as $role) {
-				$map['roles'][$role->name] = [
-					'id' => $role->id,
-					'permissions' => array_map(
+				if (!is_object($role)) {
+					continue;
+				}
+				$rolePerms = method_exists($role, 'get')
+					? $role->get('permissions')
+					: (property_exists($role, 'permissions') ? $role->permissions : null);
+				$roleName = method_exists($role, 'get')
+					? (string) $role->get('name')
+					: (property_exists($role, 'name') ? (string) $role->name : '');
+				if ($roleName === '') {
+					continue;
+				}
+				$map['roles'][$roleName] = [
+					'id' => method_exists($role, 'get') ? $role->get('id') : ($role->id ?? 0),
+					'permissions' => array_values(array_map(
 						static fn(object $p): string => method_exists($p, 'get') ? (string) $p->get('name') : (property_exists($p, 'name') ? (string) $p->name : ''),
-						iterator_to_array($role->permissions)
-					),
+						$rolePerms instanceof \Traversable ? iterator_to_array($rolePerms, false) : []
+					)),
 				];
 			}
 		}
@@ -626,9 +692,21 @@ final class BoostManager
 		$permissions = $this->wireApi('permissions');
 		if (is_iterable($permissions)) {
 			foreach ($permissions as $permission) {
-				$map['permissions'][$permission->name] = [
-					'id' => $permission->id,
-					'title' => $permission->title,
+				if (!is_object($permission)) {
+					continue;
+				}
+				$permName = method_exists($permission, 'get')
+					? (string) $permission->get('name')
+					: (property_exists($permission, 'name') ? (string) $permission->name : '');
+				if ($permName === '') {
+					continue;
+				}
+				$permTitle = method_exists($permission, 'get')
+					? $permission->get('title')
+					: (property_exists($permission, 'title') ? $permission->title : '');
+				$map['permissions'][$permName] = [
+					'id' => method_exists($permission, 'get') ? $permission->get('id') : ($permission->id ?? 0),
+					'title' => is_scalar($permTitle) || $permTitle instanceof \Stringable ? (string) $permTitle : '',
 				];
 			}
 		}
@@ -708,18 +786,18 @@ final class BoostManager
 	{
 		$paths = [];
 		$siteManifest = $this->projectRoot . '/site/.agents/schema/field-extenders.php';
-		if (is_file($siteManifest)) {
+		if (is_file($siteManifest) && !is_link($siteManifest)) {
 			$paths[] = $siteManifest;
 		}
 
 		foreach (self::resolveModuleRootPaths($this->projectRoot) as $moduleRoot) {
 			foreach (new \DirectoryIterator($moduleRoot) as $moduleDir) {
-				if ($moduleDir->isDot() || !$moduleDir->isDir()) {
+				if ($moduleDir->isDot() || !$moduleDir->isDir() || $moduleDir->isLink()) {
 					continue;
 				}
 
 				$manifest = $moduleDir->getPathname() . '/.agents/schema/field-extenders.php';
-				if (is_file($manifest)) {
+				if (is_file($manifest) && !is_link($manifest)) {
 					$paths[] = $manifest;
 				}
 			}
@@ -817,6 +895,9 @@ final class BoostManager
 
 	private function sanitizeFieldSchemaValue(mixed $value, mixed &$sanitized): bool
 	{
+		if (is_float($value) && !is_finite($value)) {
+			return false;
+		}
 		if (is_scalar($value) || $value === null) {
 			$sanitized = $value;
 			return true;

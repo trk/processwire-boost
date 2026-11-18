@@ -45,4 +45,14 @@ final class Zed extends Agent
 	{
 		return '.zed/skills';
 	}
+
+	/**
+	 * @param list<string> $args
+	 * @param array<string, string> $env
+	 * @return array<string, mixed>
+	 */
+	public function mcpServerConfig(string $command, array $args = [], array $env = [], string $cwd = ''): array
+	{
+		return ['command' => $command, 'args' => $args, 'env' => $env];
+	}
 }

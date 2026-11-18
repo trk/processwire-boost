@@ -36,7 +36,7 @@ final class Copilot extends Agent
 
 	public function projectDetectionPaths(): array
 	{
-		return ['.vscode', '.github/copilot-instructions.md'];
+		return ['.vscode', '.github/copilot-instructions.md', '.github/skills'];
 	}
 
 	public function mcpConfigKey(): string

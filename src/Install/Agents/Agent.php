@@ -246,6 +246,9 @@ abstract class Agent
 	public function exportSkill(string $skillName, string $skillPath, string $targetDir): string
 	{
 		$skillDir = $targetDir . '/' . $skillName;
+		if (is_link($targetDir) || is_link($skillDir)) {
+			throw new \RuntimeException("Refusing to export skill through a symbolic link: {$skillDir}");
+		}
 		if (is_dir($skillDir) && realpath($skillPath) !== realpath($skillDir)) {
 			SkillWriter::deleteTree($skillDir);
 		}

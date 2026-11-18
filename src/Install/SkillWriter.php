@@ -24,6 +24,9 @@ final class SkillWriter
 	public function sync(array $modules, array $agents = []): void
 	{
 		$target = $this->targetDir . '/skills';
+		if (is_link($this->targetDir) || is_link($target)) {
+			throw new \RuntimeException('Refusing to sync skills through a symbolic link.');
+		}
 		if (!is_dir($target)) {
 			mkdir($target, 0755, true);
 		}
@@ -33,7 +36,7 @@ final class SkillWriter
 
 		foreach (array_diff_key($allModuleSkills, $skillSources) as $deselectedSkillName => $_path) {
 			$staleTargetPath = $target . '/' . $deselectedSkillName;
-			if (is_dir($staleTargetPath)) {
+			if (is_dir($staleTargetPath) || is_link($staleTargetPath)) {
 				self::deleteTree($staleTargetPath);
 			}
 		}
@@ -45,7 +48,9 @@ final class SkillWriter
 				continue;
 			}
 
-			if (is_dir($targetPath)) {
+			if (is_link($targetPath)) {
+				@unlink($targetPath);
+			} elseif (is_dir($targetPath)) {
 				self::deleteTree($targetPath);
 			} elseif (is_file($targetPath)) {
 				unlink($targetPath);
@@ -65,6 +70,9 @@ final class SkillWriter
 			}
 
 			$agentTargetDir = $projectRoot . '/' . ltrim($agentSkillsPath, '/');
+			if (is_link($agentTargetDir)) {
+				throw new \RuntimeException("Refusing to sync agent skills through a symbolic link: {$agentTargetDir}");
+			}
 			if (!is_dir($agentTargetDir)) {
 				mkdir($agentTargetDir, 0755, true);
 			}
@@ -117,8 +125,51 @@ final class SkillWriter
 
 		$projectRoot = dirname($this->targetDir);
 		$skillsFullPath = $projectRoot . '/' . ltrim($skillsPath, '/');
-		if (is_dir($skillsFullPath)) {
-			self::deleteTree($skillsFullPath);
+		if (is_link(dirname($skillsFullPath)) || is_link($skillsFullPath) || !is_dir($skillsFullPath)) {
+			return;
+		}
+
+		$managedNames = array_keys($this->collectDesiredSkillSources(array_keys($this->discoverableModules)));
+		$canonicalSkillsDir = $this->targetDir . '/skills';
+		if (!is_link($canonicalSkillsDir) && is_dir($canonicalSkillsDir)) {
+			foreach (scandir($canonicalSkillsDir) ?: [] as $entry) {
+				if ($entry !== '.' && $entry !== '..') {
+					$managedNames[] = $entry;
+				}
+			}
+		}
+
+		$candidateDirs = [];
+		foreach (array_unique($managedNames) as $skillName) {
+			$candidateDirs[$skillName] = true;
+			$sanitized = self::sanitizeSkillName($skillName);
+			if ($sanitized !== '') {
+				$candidateDirs[$sanitized] = true;
+				$candidateDirs[str_replace('_', '-', $sanitized)] = true;
+			}
+		}
+
+		foreach (array_keys($candidateDirs) as $dirName) {
+			$targetSkillDir = $skillsFullPath . '/' . $dirName;
+			if (is_link($targetSkillDir)) {
+				@unlink($targetSkillDir);
+			} elseif (is_dir($targetSkillDir)) {
+				self::deleteTree($targetSkillDir);
+			}
+		}
+
+		$remaining = array_diff(scandir($skillsFullPath) ?: [], ['.', '..']);
+		if ($remaining === []) {
+			@rmdir($skillsFullPath);
+			$parentDir = dirname($skillsFullPath);
+			if (
+				$parentDir !== $projectRoot
+				&& !is_link($parentDir)
+				&& is_dir($parentDir)
+				&& array_diff(scandir($parentDir) ?: [], ['.', '..']) === []
+			) {
+				@rmdir($parentDir);
+			}
 		}
 	}
 
@@ -157,12 +208,12 @@ final class SkillWriter
 
 		$sources = [];
 		foreach (new \DirectoryIterator($sourceDir) as $file) {
-			if ($file->isDot() || !$file->isDir()) {
+			if ($file->isDot() || $file->isLink() || !$file->isDir()) {
 				continue;
 			}
 
 			$skillPath = $file->getPathname();
-			if (!is_file($skillPath . '/SKILL.md')) {
+			if (is_link($skillPath . '/SKILL.md') || !is_file($skillPath . '/SKILL.md')) {
 				continue;
 			}
 

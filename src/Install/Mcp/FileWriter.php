@@ -36,7 +36,7 @@ final class FileWriter
 	{
 		$filtered = [];
 		foreach ($config as $k => $v) {
-			if ($k === 'env' && is_array($v)) {
+			if (in_array($k, ['env', 'environment'], true) && is_array($v)) {
 				$ev = [];
 				foreach ($v as $ek => $evv) {
 					if ($evv !== '' && $evv !== null) {
@@ -57,6 +57,9 @@ final class FileWriter
 	public function save(): bool
 	{
 		$dir = dirname($this->filePath);
+		if (is_link($this->filePath) || is_link($dir)) {
+			return false;
+		}
 		if (!is_dir($dir)) {
 			mkdir($dir, 0755, true);
 		}
@@ -67,21 +70,24 @@ final class FileWriter
 			return $this->createNewJsonFile();
 		}
 		$content = @file_get_contents($this->filePath) ?: '';
-		$decoded = json_decode($content, true);
-		if (!is_array($decoded)) {
+		$decoded = json_decode($content, false);
+		if (!($decoded instanceof \stdClass)) {
 			@trigger_error(sprintf(
 				'ProcessWire Boost: skipping MCP JSON merge for "%s"; existing file is not valid JSON.',
 				$this->filePath
 			), E_USER_WARNING);
 			return false;
 		}
-		$this->addServersToConfig($decoded);
-		return $this->writeJsonConfig($decoded);
+		$this->addServersToObject($decoded);
+		return $this->writeJsonObject($decoded);
 	}
 
 	public function remove(string $key): bool
 	{
 		$this->serversToRemove = [$key];
+		if (is_link($this->filePath) || is_link(dirname($this->filePath))) {
+			return false;
+		}
 		if (!file_exists($this->filePath)) {
 			return true;
 		}
@@ -89,12 +95,12 @@ final class FileWriter
 			return $this->removeToml($key);
 		}
 		$content = @file_get_contents($this->filePath) ?: '';
-		$decoded = json_decode($content, true);
-		if (!is_array($decoded)) {
+		$decoded = json_decode($content, false);
+		if (!($decoded instanceof \stdClass)) {
 			return false;
 		}
-		$this->removeServersFromConfig($decoded);
-		return $this->writeJsonConfig($decoded);
+		$this->removeServersFromObject($decoded);
+		return $this->writeJsonObject($decoded);
 	}
 
 	private function isToml(): bool
@@ -112,41 +118,66 @@ final class FileWriter
 
 	private function createNewJsonFile(): bool
 	{
-		$config = $this->baseConfig;
-		$this->addServersToConfig($config);
-		return $this->writeJsonConfig($config);
+		$root = new \stdClass();
+		foreach ($this->baseConfig as $k => $v) {
+			$root->{$k} = $k === $this->configKey ? new \stdClass() : self::toJsonValue($v);
+		}
+		$this->addServersToObject($root);
+		return $this->writeJsonObject($root);
 	}
 
-	/**
-	 * @param array<string, mixed> $config
-	 */
-	private function addServersToConfig(array &$config): void
+	private function addServersToObject(\stdClass $config): void
 	{
-		if (!isset($config[$this->configKey]) || !is_array($config[$this->configKey])) {
-			$config[$this->configKey] = [];
+		$key = $this->configKey;
+		if (!isset($config->{$key}) || !($config->{$key} instanceof \stdClass)) {
+			$config->{$key} = new \stdClass();
 		}
 
-		foreach ($this->serversToAdd as $key => $serverConfig) {
-			$config[$this->configKey][$key] = $serverConfig;
+		/** @var \stdClass $container */
+		$container = $config->{$key};
+		foreach ($this->serversToAdd as $serverKey => $serverConfig) {
+			$container->{$serverKey} = self::toJsonValue($serverConfig);
 		}
 	}
 
-	/**
-	 * @param array<string, mixed> $config
-	 */
-	private function removeServersFromConfig(array &$config): void
+	private function removeServersFromObject(\stdClass $config): void
 	{
-		if (isset($config[$this->configKey]) && is_array($config[$this->configKey])) {
-			foreach ($this->serversToRemove as $key) {
-				unset($config[$this->configKey][$key]);
+		$key = $this->configKey;
+		if (!isset($config->{$key})) {
+			return;
+		}
+		if (is_array($config->{$key})) {
+			$config->{$key} = new \stdClass();
+			return;
+		}
+		if ($config->{$key} instanceof \stdClass) {
+			foreach ($this->serversToRemove as $serverKey) {
+				unset($config->{$key}->{$serverKey});
 			}
 		}
 	}
 
-	/**
-	 * @param array<string, mixed> $config
-	 */
-	private function writeJsonConfig(array $config): bool
+	private static function toJsonValue(mixed $value): mixed
+	{
+		if (!is_array($value)) {
+			return $value;
+		}
+		if ($value === []) {
+			return [];
+		}
+		if (array_is_list($value)) {
+			return array_map(static fn(mixed $item): mixed => self::toJsonValue($item), $value);
+		}
+
+		$obj = new \stdClass();
+		foreach ($value as $k => $v) {
+			$obj->{(string) $k} = self::toJsonValue($v);
+		}
+
+		return $obj;
+	}
+
+	private function writeJsonObject(\stdClass $config): bool
 	{
 		$json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 		if ($json === false) {
@@ -202,17 +233,17 @@ final class FileWriter
 
 	private function tomlServerExists(string $content, string $key): bool
 	{
-		return (bool) preg_match('/^\[' . preg_quote($this->configKey, '/') . '\.' . preg_quote($key, '/') . '\]/m', $content);
+		return (bool) preg_match('/^\h*\[\h*' . preg_quote($this->configKey, '/') . '\h*\.\h*' . preg_quote($key, '/') . '\h*\]/m', $content);
 	}
 
 	private function removeExistingTomlServer(string $content, string $key): string
 	{
 		$ck = preg_quote($this->configKey, '/');
 		$ek = preg_quote($key, '/');
-		$envPattern = '/(\r?\n)*\[' . $ck . '\.' . $ek . '\.env\].*?(?=\r?\n\[|$)/s';
-		$content = preg_replace($envPattern, '', $content) ?? $content;
-		$mainPattern = '/(\r?\n)*\[' . $ck . '\.' . $ek . '\].*?(?=\r?\n\[|$)/s';
-		return preg_replace($mainPattern, '', $content) ?? $content;
+		$tomlKeySeg = '(?:[A-Za-z0-9_-]+|"(?:\\\\.|[^"\\\\\r\n])*"|\'[^\'\r\n]*\')';
+		$nextHeader = '\r?\n\h*\[\[?\h*' . $tomlKeySeg . '(?:\h*\.\h*' . $tomlKeySeg . ')*\h*\]\]?\h*(?:#[^\r\n]*)?(?:\r?\n|\z)';
+		$tablePattern = '/(?:\A|(?:\r?\n)+)\h*\[\h*' . $ck . '\h*\.\h*' . $ek . '(?:\h*\.\h*' . $tomlKeySeg . ')*\h*\]\h*(?:#[^\r\n]*)?(?:\r?\n.*?)?(?=' . $nextHeader . '|\z)/s';
+		return preg_replace($tablePattern, '', $content) ?? $content;
 	}
 
 	/**

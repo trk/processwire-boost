@@ -102,16 +102,25 @@ final class GuidelineWriter
 
 	private function removeBoostBlockFromFile(string $fullPath): void
 	{
-		if (!is_file($fullPath)) {
+		if (is_link($fullPath) || !is_file($fullPath)) {
 			return;
 		}
 
 		$content = (string) file_get_contents($fullPath);
-		$updated = preg_replace('/\n*<processwire-boost-guidelines>.*?<\/processwire-boost-guidelines>\n*/s', "\n", $content);
+		$updated = preg_replace('/\R*<processwire-boost-guidelines>.*?<\/processwire-boost-guidelines>\R*/s', "\n", $content);
 		$updated = is_string($updated) ? trim($updated) : trim($content);
 
-		if ($updated === '' || preg_match('/^(?:---\s*\ndescription:[^\n]+\n---\s*\n+)?# [^\n]+ Instructions\n\nGenerated for ProcessWire AI Ecosystem\.\s*$/', $updated)) {
+		if ($updated === '' || preg_match('/^(?:---\s*\Rdescription:[^\r\n]+\R---\s*\R+)?# [^\r\n]+ Instructions\R\RGenerated for ProcessWire AI Ecosystem\.\s*$/', $updated)) {
 			unlink($fullPath);
+			$parentDir = dirname($fullPath);
+			if (
+				$parentDir !== rtrim($this->projectRoot, '/')
+				&& !is_link($parentDir)
+				&& is_dir($parentDir)
+				&& array_diff(scandir($parentDir) ?: [], ['.', '..']) === []
+			) {
+				@rmdir($parentDir);
+			}
 		} else {
 			file_put_contents($fullPath, $updated . "\n");
 		}
@@ -194,7 +203,7 @@ final class GuidelineWriter
 			}
 
 			$agentsPath = $module['path'] . '/AGENTS.md';
-			if (!is_file($agentsPath)) {
+			if (is_link($agentsPath) || !is_file($agentsPath)) {
 				continue;
 			}
 
@@ -253,7 +262,7 @@ final class GuidelineWriter
 				}
 
 				$skillFile = $file->getPathname() . '/SKILL.md';
-				if (!is_file($skillFile)) {
+				if ($file->isLink() || is_link($skillFile) || !is_file($skillFile)) {
 					continue;
 				}
 
@@ -273,6 +282,9 @@ final class GuidelineWriter
 	private function writeBoostBlock(string $filePath, string $boostBlock, string $defaultHeader): void
 	{
 		$directory = dirname($filePath);
+		if (is_link($directory) || is_link($filePath)) {
+			throw new \RuntimeException("Refusing to write Boost guidelines through a symbolic link: {$filePath}");
+		}
 		if (!is_dir($directory)) {
 			mkdir($directory, 0755, true);
 		}
