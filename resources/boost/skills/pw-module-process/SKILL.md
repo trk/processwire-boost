@@ -37,7 +37,7 @@ Before writing or modifying any Process module, consult the core documentation:
    - `$this->browserTitle('Browser Tab Title')`
    - `$this->breadcrumb('path/', 'Label')`
 
-## Implementation Pattern (PHP 8.4+)
+## Implementation Pattern (PHP 8.3+)
 
 ```php
 <?php
@@ -162,4 +162,4 @@ class ProcessReportManager extends Process
 - ❌ **Do not** manually insert pages into the page tree in `init()`. Use `'page' => [...]` in `getModuleInfo()`; ProcessWire automatically installs and manages the admin page.
 - ❌ **Do not** omit the `permission` definition. Admin modules must always enforce RBAC.
 - ❌ **Do not** return raw HTML with hardcoded themes or colors. Use `AdminThemeUikit` CSS classes (`uk-button`, `uk-table`) and CSS variables (`var(--pw-*)`). See `pw-admin-ui`.
-- ❌ **Do not** mix HTMX partials with full admin executions. For partial responses without admin chrome, use explicit exit headers (see `pw-admin-ui`).
+- ❌ **Do not** mix AJAX/partial fragment responses with full admin executions. For partial responses without admin chrome, output headers/body and exit cleanly (see `pw-admin-ui`).

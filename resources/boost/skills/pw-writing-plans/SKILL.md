@@ -54,7 +54,7 @@ Start every plan with this exact structure:
 ### Task 1: Create Summary Field and Attach to Article Template
 
 **Files:**
-- Create: `site/migrations/YYYY_MM_DD_HHMMSS_create_summary_field.php`
+- Create: `site/migrations/YYYYMMDDHHMMSS_create_summary_field.php`
 - Test: `site/tests/Feature/ArticleSchemaTest.php`
 
 **Interfaces:**

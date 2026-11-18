@@ -25,11 +25,11 @@ Before writing or modifying any Textformatter module, inspect the core files:
 1. **Inheritance:** Class must extend `ProcessWire\Textformatter`.
 2. **Passing By Reference:** Value arguments (`&$str`, `&$value`) are modified directly **by reference**. Do not return a string; the method signature returns `void`.
 3. **Primary Methods:**
-   - `format(&$str)`: Formats generic string without page/field context (e.g. when called via `$sanitizer->format()`).
+   - `format(&$str)`: Formats generic string without page/field context (e.g. when called directly via `$formatter->format($str)`).
    - `formatValue(Page $page, Field $field, &$value)`: Formats within a page field render cycle. By default, core calls `$this->format($value)`.
 4. **Configurable (Optional):** Implement `ProcessWire\ConfigurableModule` if options should be editable from the admin interface.
 
-## Implementation Pattern (PHP 8.4+)
+## Implementation Pattern (PHP 8.3+)
 
 ```php
 <?php
@@ -50,7 +50,7 @@ class TextformatterHighlightTag extends Textformatter implements ConfigurableMod
 			'summary' => 'Replaces [[keyword]] tags with HTML <mark> tags prior to rendering.',
 			'requires' => [
 				'ProcessWire>=3.0.0',
-				'PHP>=8.4.0',
+				'PHP>=8.3.0',
 			],
 		];
 	}
@@ -66,8 +66,13 @@ class TextformatterHighlightTag extends Textformatter implements ConfigurableMod
 			return;
 		}
 
-		$class = $this->wire()->sanitizer->entities($this->cssClass);
-		$str = preg_replace('/\[\[(.*?)\]\]/s', "<mark class=\"{$class}\">\\1</mark>", $str);
+		$sanitizer = $this->wire()->sanitizer;
+		$class = $sanitizer->entities($this->cssClass);
+		$str = preg_replace_callback(
+			'/\[\[(.*?)\]\]/s',
+			static fn(array $matches): string => "<mark class=\"{$class}\">" . $sanitizer->entities($matches[1]) . '</mark>',
+			$str
+		) ?? $str;
 	}
 
 	/**

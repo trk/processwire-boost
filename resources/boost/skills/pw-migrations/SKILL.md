@@ -25,9 +25,9 @@ All migration commands support `--json` for structured output (`migrate:rollback
 | `php vendor/bin/wire migrate [--step=N] [--dry-run] [--json]` | Run all pending migrations |
 | `php vendor/bin/wire migrate:status [--json]` | List applied and pending migrations with batch numbers |
 | `php vendor/bin/wire migrate:rollback [--step=N] [--dry-run] [--force] [--json]` | Roll back the last batch (or last `N` migrations) |
-| `php vendor/bin/wire migrate:reset [--force] [--json]` | Roll back all applied migrations |
-| `php vendor/bin/wire migrate:refresh [--force] [--json]` | Roll back all migrations and re-run them |
-| `php vendor/bin/wire migrate:fresh [--force] [--json]` | Drop `wire_migrations` tracking table and re-run all migrations |
+| `php vendor/bin/wire migrate:reset [--dry-run] [--force] [--json]` | Roll back all applied migrations |
+| `php vendor/bin/wire migrate:refresh [--dry-run] [--force] [--json]` | Roll back all migrations and re-run them |
+| `php vendor/bin/wire migrate:fresh [--dry-run] [--force] [--json]` | Drop `wire_migrations` tracking table and re-run all migrations |
 | `php vendor/bin/wire migrate:install [--json]` | Explicitly ensure the `wire_migrations` table exists |
 
 ## Scaffolding Migrations (`make:migration`)
@@ -52,7 +52,7 @@ php vendor/bin/wire make:migration create_blog_root --type=create-page --templat
 php vendor/bin/wire make:migration create_editor_role --type=create-role --label="Editor"
 
 # Install a module
-php vendor/bin/wire make:migration install_seo_module --type=install-module --module=SeoMaestro
+php vendor/bin/wire make:migration install_logger_module --type=install-module --module=ProcessLogger
 ```
 
 ## Migration File Anatomy (`site/migrations/{timestamp}_{name}.php`)

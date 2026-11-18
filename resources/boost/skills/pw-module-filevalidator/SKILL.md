@@ -28,7 +28,7 @@ Before writing or modifying any FileValidator module, inspect the core API:
    - Return `false` if the file fails validation.
    - Record user-facing failure reasons with `$this->error($this->_('Your message'))`.
 
-## Implementation Pattern (PHP 8.4+)
+## Implementation Pattern (PHP 8.3+)
 
 ```php
 <?php
@@ -53,7 +53,7 @@ class FileValidatorCSV extends FileValidatorModule
 			'autoload' => false,
 			'requires' => [
 				'ProcessWire>=3.0.0',
-				'PHP>=8.4.0',
+				'PHP>=8.3.0',
 			],
 		];
 	}

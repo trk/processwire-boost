@@ -102,7 +102,7 @@ class MyCustomField extends Field
 ### 4. Module `README.md` Structure
 Organize module `README.md` files in this exact order:
 1. **Title & Summary:** One-paragraph explanation of what problem the module solves.
-2. **Requirements:** PHP version (`>= 8.4`), ProcessWire version (`>= 3.0.210`), required modules.
+2. **Requirements:** PHP version (`>= 8.3`), ProcessWire version (`>= 3.0.210`), required modules.
 3. **Installation:** `composer require ...` and `php vendor/bin/wire module:install --name=ModuleName`.
 4. **Quick Start:** Copy-paste runnable example using valid ProcessWire API (`$this->wire()->modules->get(...)`, tabs, `declare(strict_types=1);`, curly braces).
 5. **Configuration:** Markdown table of configurable settings (`Setting | Type | Default | Description`).

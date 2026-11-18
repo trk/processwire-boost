@@ -82,7 +82,7 @@ Here is a brief outline of how an AI works under the hood at runtime with these 
 | ----------------------------------------------------------------- | ---------------------------- |
 | PHP                                                               | `>= 8.3`                     |
 | ProcessWire                                                       | `3.x`                        |
-| [processwire-console](https://github.com/trk/processwire-console) | `>= 0.2` (peer dependency)   |
+| [processwire-console](https://github.com/trk/processwire-console) | `^0.2.2` (peer dependency)   |
 
 ---
 
@@ -108,7 +108,7 @@ php vendor/bin/wire boost:install
 php vendor/bin/wire boost:install \
   --guidelines --skills --mcp \
   --agents="Cursor,Claude Code,Gemini CLI" \
-  --modules="Htmx,Inertia"
+  --modules="ShopCatalog,CustomAnalytics"
 ```
 
 ### 2. What Gets Generated
@@ -119,23 +119,14 @@ project-root/
 ├── CLAUDE.md                    # Claude Code specific guidelines
 ├── GEMINI.md                    # Gemini CLI specific guidelines
 ├── .cursorrules                 # Cursor guidelines block
-├── .github/
-│   ├── copilot-instructions.md  # GitHub Copilot guidelines block
-│   └── skills/                  # GitHub Copilot exported skills
 ├── .mcp.json                    # Claude Code MCP config
 ├── .claude/
 │   └── skills/                  # Claude Code exported skills
 ├── .cursor/
 │   ├── mcp.json                 # Cursor MCP config
 │   └── skills/                  # Cursor exported skills
-├── .junie/
-│   ├── mcp/mcp.json             # Junie MCP config (absolute paths)
-│   └── skills/                  # Junie exported skills
-├── .trae/
-│   ├── mcp.json                 # Trae MCP config (${workspaceFolder} paths)
-│   └── skills/                  # Trae exported skills
-├── .vscode/
-│   └── mcp.json                 # GitHub Copilot MCP config
+├── .gemini/
+│   └── settings.json            # Gemini CLI MCP config
 └── .agents/
     ├── boost.json               # Installation state
     ├── map.json                 # Schema snapshot (templates, fields, roles)
@@ -237,9 +228,9 @@ Unlike guidelines (which are always present), skills are loaded only when releva
 
 Third-party ProcessWire modules can ship their own Boost skills. When selected during `boost:install`, these are merged alongside the built-in skills:
 
-| Module | Skill     | What It Teaches the Agent                                   |
-| ------ | --------- | ----------------------------------------------------------- |
-| `Htmx` | `pw-htmx` | HTMX components, swaps, OOB fragments, and state management |
+| Module        | Skill             | What It Teaches the Agent                                    |
+| ------------- | ----------------- | ------------------------------------------------------------ |
+| `ShopCatalog` | `pw-shop-catalog` | Product schemas, price selectors, and catalog hook workflows |
 
 #### How Skills Guide Agents
 
@@ -328,13 +319,17 @@ Every tool exposes a full JSON Schema (`inputSchema`) with typed `properties` an
 | **Modules** | `pw_module_list`, `pw_module_info`, `pw_module_install`, `pw_module_uninstall`, `pw_module_refresh`, `pw_module_upgrade`                                                                           | Read + ⚠️ Write   |
 | **Access**  | `pw_access_user_list`, `pw_access_user_create`, `pw_access_user_update`, `pw_access_user_delete`, `pw_access_role_create`, `pw_access_role_grant`, `pw_access_role_revoke`, `pw_permission_delete` | Read + ⚠️ Write   |
 | **System**  | `pw_system_get_logs`, `pw_system_logs_tail_last`, `pw_system_logs_clear`, `pw_system_cache_clear`, `pw_system_cache_wire_clear`                                                                    | Read + ⚠️ Write   |
-| **Backup**  | `pw_system_backup`, `pw_system_backup_list`, `pw_system_backup_purge`, `pw_system_restore`                                                                                                         | ⚠️ Write          |
+| **Backup**  | `pw_system_backup`, `pw_system_backup_list`, `pw_system_backup_purge`, `pw_system_restore`                                                                                                         | ⚠️ Write / Guarded |
+
+> **Environment Guards:** High-impact runtime tools are disabled by default:
+> - Set `PW_MCP_ALLOW_EXECUTE=1` in the MCP server `"env"` block to enable `pw_execute`.
+> - Set `PW_MCP_ALLOW_RESTORE=1` in the MCP server `"env"` block to enable `pw_system_restore`.
 
 #### MCP Config Formats
 
 Boost auto-generates MCP configuration in each agent's native format during `boost:install`:
 
-**JSON — Standard Context (Claude Code, Cursor, Antigravity, Factory, Kiro):**
+**JSON — Standard Context (Cursor, Antigravity, Factory, Kiro; Claude Code & Zed use the same format without `"cwd"`):**
 
 ```json
 {
@@ -525,7 +520,7 @@ php vendor/bin/wire boost:install [options]
 php vendor/bin/wire boost:install
 
 # Flag-based non-interactive installation
-php vendor/bin/wire boost:install --guidelines --skills -a "Cursor,Claude Code" -m "Htmx"
+php vendor/bin/wire boost:install --guidelines --skills -a "Cursor,Claude Code" -m "ShopCatalog"
 ```
 
 ### `boost:update`
@@ -645,7 +640,7 @@ The installer stores its state in `.agents/boost.json`:
   "guidelines": true,
   "skills": true,
   "mcp": true,
-  "modules": ["Htmx", "Inertia"],
+  "modules": ["ShopCatalog", "CustomAnalytics"],
   "agents": ["cursor", "claude_code", "gemini"],
   "generated_at": "2026-04-08 12:00:00"
 }

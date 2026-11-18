@@ -53,21 +53,23 @@ final class ExampleActionCommand extends Command
 		$force = (bool) $input->getOption('force');
 		$dryRun = (bool) $input->getOption('dry-run');
 
-		if ($asJson && !$force && !$dryRun) {
-			return $this->outputJsonError(
-				$output,
-				'CONFIRMATION_REQUIRED',
-				'Use --force when running this destructive command with --json.'
-			);
-		}
-
 		$name = (string) ($input->getArgument('name') ?? '');
 		if ($name === '' || !$this->isValidIdentifier($name)) {
-			return $this->outputJsonError($output, 'INVALID_NAME', 'A valid identifier is required.');
+			return $this->failCommand($output, $asJson, 'INVALID_NAME', 'A valid identifier is required.');
 		}
 
-		if (!$asJson && !$force && !confirm("Apply changes to {$name}?", default: false)) {
-			return Command::SUCCESS;
+		if (!$dryRun && !$force) {
+			if ($asJson || !$input->isInteractive()) {
+				return $this->failCommand(
+					$output,
+					$asJson,
+					'CONFIRMATION_REQUIRED',
+					'Use --force when running this destructive command non-interactively or with --json.'
+				);
+			}
+			if (!confirm("Apply changes to {$name}?", default: false)) {
+				return Command::SUCCESS;
+			}
 		}
 
 		if (!$dryRun) {

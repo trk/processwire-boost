@@ -47,7 +47,7 @@ class FieldtypeCustom extends Fieldtype
 			'installs' => 'InputfieldCustom',
 			'requires' => [
 				'ProcessWire>=3.0.0',
-				'PHP>=8.4.0',
+				'PHP>=8.3.0',
 			],
 		];
 	}

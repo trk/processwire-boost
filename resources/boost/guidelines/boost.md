@@ -29,7 +29,7 @@ When the `processwire` MCP server is connected, use its 28 JSON-RPC tools direct
 - **Schema Mutation:** `pw_schema_field_create`, `pw_schema_template_create`
 - **Modules:** `pw_module_list`, `pw_module_info`, `pw_module_install`, `pw_module_uninstall`, `pw_module_refresh`, `pw_module_upgrade`
 - **Access Control (RBAC):** `pw_access_user_list`, `pw_access_user_create`, `pw_access_user_update`, `pw_access_user_delete`, `pw_access_role_create`, `pw_access_role_grant`, `pw_access_role_revoke`, `pw_permission_delete`
-- **Logs, Cache & Backups:** `pw_system_get_logs`, `pw_system_logs_tail_last`, `pw_system_logs_clear`, `pw_system_cache_clear`, `pw_system_cache_wire_clear`, `pw_system_backup`, `pw_system_backup_list`, `pw_system_backup_purge`, `pw_system_restore`
+- **Logs, Cache & Backups:** `pw_system_get_logs`, `pw_system_logs_tail_last`, `pw_system_logs_clear`, `pw_system_cache_clear`, `pw_system_cache_wire_clear`, `pw_system_backup`, `pw_system_backup_list`, `pw_system_backup_purge`, `pw_system_restore` (when `PW_MCP_ALLOW_RESTORE=1` is set)
 
 > [!IMPORTANT]
 > Run `pw_schema_read` before writing selectors, templates, or migrations to verify that target templates and fields exist in this deployment.

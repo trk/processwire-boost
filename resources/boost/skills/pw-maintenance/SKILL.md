@@ -32,18 +32,22 @@ declare(strict_types=1);
 namespace ProcessWire;
 
 $downFile = $config->paths->site . 'down.json';
-if (is_file($downFile) && PHP_SAPI !== 'cli') {
-	/** @var array{redirect?: ?string, retry?: ?string, secret?: ?string, status?: int, time?: int}|null $down */
+$reqPath = (string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
+if (!$config->cli && is_file($downFile) && !is_link($downFile) && !str_starts_with($reqPath, $config->urls->admin)) {
+	/** @var array{redirect?: ?string, retry?: ?int, secret?: ?string, status?: int, time?: int}|null $down */
 	$down = json_decode((string) file_get_contents($downFile), true);
 	if (is_array($down)) {
 		$secret = (string) ($down['secret'] ?? '');
-		$providedSecret = (string) ($input->get('secret') ?: $session->get('maintenance_secret'));
+		$querySecret = $input->get->text('secret');
+		$providedSecret = $querySecret !== '' ? $querySecret : (string) $session->get('maintenance_secret');
 
 		if ($secret !== '' && hash_equals($secret, $providedSecret)) {
 			$session->set('maintenance_secret', $secret);
 		} else {
-			if (!empty($down['redirect'])) {
-				$session->redirect((string) $down['redirect']);
+			$redirect = (string) ($down['redirect'] ?? '');
+			$redirectPath = (string) (parse_url($redirect, PHP_URL_PATH) ?: '');
+			if ($redirect !== '' && $reqPath !== $redirectPath) {
+				$session->redirect($redirect, false);
 			}
 			if (!empty($down['retry'])) {
 				header('Retry-After: ' . (int) $down['retry']);

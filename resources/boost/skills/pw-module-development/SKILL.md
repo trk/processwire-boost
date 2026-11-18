@@ -1,6 +1,6 @@
 ---
 name: pw-module-development
-description: "Use when building, scaffolding, structuring, or refactoring native ProcessWire backend modules (WireData, Module, ConfigurableModule) using PHP 8.4+ and strict typing."
+description: "Use when building, scaffolding, structuring, or refactoring native ProcessWire backend modules (WireData, Module, ConfigurableModule) using PHP 8.3+ and strict typing."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
@@ -37,7 +37,7 @@ Before writing or modifying any ProcessWire module, inspect the core documentati
    - `autoload => 'template=admin'`: Loaded only within the admin interface.
    - `singular => true`: Only one instance of the class exists in memory.
 
-## Implementation Pattern (PHP 8.4+)
+## Implementation Pattern (PHP 8.3+)
 
 ```php
 <?php
@@ -61,7 +61,7 @@ class CustomLogger extends WireData implements Module
 			'singular' => true,
 			'requires' => [
 				'ProcessWire>=3.0.210',
-				'PHP>=8.4.0',
+				'PHP>=8.3.0',
 			],
 			'icon' => 'history',
 		];

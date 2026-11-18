@@ -58,7 +58,7 @@ ProcessWire implements auto-theming natively using CSS `light-dark()`. **Never u
 
 ### Domain A: `Process` Modules (Dashboards, Tools & Workspaces)
 
-For custom admin applications, consoles, and dashboards extending `Process`, use the **Native Module Workspace** composition (`.pw-module-workspace`):
+For custom admin applications, consoles, and dashboards extending `Process`, combine UIkit 3 utilities with a module-scoped workspace layout (`.pw-module-workspace` — note that `.pw-module-*`, `.pw-stat-*`, `.pw-filter-*`, `.pw-bulk-bar`, `.pw-table-*`, and `.pw-empty-state` are recommended module-stylesheet layout classes built on `--pw-*` tokens, whereas `uk-*`, `pw-button-dropdown-wrap`, `pw-notes`, and `PageListActions` come directly from `AdminThemeUikit`):
 
 ```html
 <div class="ProcessReportManager pw-wrap pw-module-workspace">
@@ -292,26 +292,28 @@ Whenever writing module-specific CSS:
 
 ## 5. Headline & Breadcrumb Control in Process Modules
 
-AdminThemeUikit renders headline/breadcrumb from `AdminThemeFramework::getHeadline()` and falls back to the page title.
+`AdminThemeUikit` renders the page headline inside `_content-head.php` via `AdminThemeFramework::renderFile()` (`___renderFile` is hookable; `getHeadline()` is not hookable).
 
-To completely hide both headline and breadcrumbs for a custom Process module:
+To completely hide both headline and breadcrumbs for a custom `Process` module:
 ```php
 public function init(): void
 {
 	parent::init();
 	$wire = $this->wire();
-	$isThis = fn(): bool => $wire->process instanceof self;
 
-	$wire->addHookBefore('AdminThemeFramework::getHeadline', function(HookEvent $event) use ($isThis): void {
-		if (!$isThis()) {
+	$wire->addHookBefore('AdminThemeFramework::renderFile', function (HookEvent $event): void {
+		if (!($event->wire()->process instanceof self)) {
+			return;
+		}
+		if (basename((string) $event->arguments(0)) !== '_content-head.php') {
 			return;
 		}
 		$event->replace = true;
 		$event->return = '';
 	});
 
-	$wire->addHookBefore('AdminThemeUikit::renderBreadcrumbs', function(HookEvent $event) use ($isThis): void {
-		if (!$isThis()) {
+	$wire->addHookBefore('AdminThemeUikit::renderBreadcrumbs', function (HookEvent $event): void {
+		if (!($event->wire()->process instanceof self)) {
 			return;
 		}
 		$event->replace = true;
@@ -327,16 +329,15 @@ public function init(): void
 When building dynamic partial updates inside `Process` modules:
 1. **Separate Full Page vs Partial Endpoint:**
    - Full page (`___execute`): Renders complete layout within admin chrome.
-   - Partial endpoint (`___executePartial`): Verifies an AJAX/partial request and returns fragment HTML or JSON directly without admin masthead/breadcrumbs:
+   - Partial endpoint (`___executePartial`): Verifies `$config->ajax` and returns fragment HTML or JSON directly without admin masthead/breadcrumbs:
 
 ```php
 public function ___executePartial(): string
 {
 	$config = $this->wire()->config;
 	$sanitizer = $this->wire()->sanitizer;
-	$isPartial = $config->ajax || !empty($_SERVER['HTTP_HX_REQUEST']);
 
-	if (!$isPartial) {
+	if (!$config->ajax) {
 		$this->wire()->session->redirect('./');
 		return '';
 	}

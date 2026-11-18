@@ -27,7 +27,7 @@ Before creating or editing Markup modules, consult the core documentation:
 3. **Escaping & Security:** All dynamic values must be escaped using `$this->wire()->sanitizer->entities()` or `htmlspecialchars()` to prevent XSS vulnerabilities.
 4. **Caching Support (Optional):** Integrate with ProcessWire's `$this->wire()->cache` (`WireCache`) for expensive DOM generation.
 
-## Implementation Pattern (PHP 8.4+)
+## Implementation Pattern (PHP 8.3+)
 
 ```php
 <?php
@@ -46,7 +46,7 @@ class MarkupPricingTable extends WireData implements Module
 			'summary' => 'Renders responsive pricing table components from PageArray datasets.',
 			'requires' => [
 				'ProcessWire>=3.0.0',
-				'PHP>=8.4.0',
+				'PHP>=8.3.0',
 			],
 		];
 	}
@@ -73,7 +73,7 @@ class MarkupPricingTable extends WireData implements Module
 			<div>
 				<div class='uk-card uk-card-default uk-card-body uk-text-center'>
 					<h3 class='uk-card-title'>{$title}</h3>
-					<div class='uk-text-large uk-text-primary'>₺{$price}</div>
+					<div class='uk-text-large uk-text-primary'>\${$price}</div>
 					<p class='uk-text-meta'>{$summary}</p>
 					<a href='{$url}' class='uk-button uk-button-secondary'>" . $this->_('Select Plan') . "</a>
 				</div>
