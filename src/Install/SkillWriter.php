@@ -9,7 +9,7 @@ use Totoglu\Console\Boost\Install\Agents\Agent;
 final class SkillWriter
 {
 	/**
-	 * @param array<string, array{path: string, guidelines_path: ?string, skills_path: ?string, has_guidelines: bool, has_skills: bool}> $discoverableModules
+	 * @param array<string, array{path: string, guidelines_path: ?string, skills_path: ?string, agents_path?: ?string, api_path?: ?string, has_guidelines: bool, has_skills: bool}> $discoverableModules
 	 */
 	public function __construct(
 		private readonly string $targetDir,
@@ -179,6 +179,10 @@ final class SkillWriter
 	 */
 	private function collectDesiredSkillSources(array $modules): array
 	{
+		if (isset($this->discoverableModules['site-overrides']) && !in_array('site-overrides', $modules, true)) {
+			$modules[] = 'site-overrides';
+		}
+
 		$sources = $this->collectSkillSourcesFromDirectory(dirname(__DIR__, 2) . '/resources/boost/skills');
 
 		foreach ($modules as $moduleName) {

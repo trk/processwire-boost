@@ -6,9 +6,11 @@ namespace Totoglu\Console\Boost\Tests\Unit;
 
 use Totoglu\Console\Boost\Install\Agents\Antigravity;
 use Totoglu\Console\Boost\Install\Agents\ClaudeCode;
+use Totoglu\Console\Boost\Install\Agents\Codex;
 use Totoglu\Console\Boost\Install\Agents\Copilot;
 use Totoglu\Console\Boost\Install\Agents\Cursor;
 use Totoglu\Console\Boost\Install\Agents\Factory;
+use Totoglu\Console\Boost\Install\Agents\Gemini;
 use Totoglu\Console\Boost\Install\Agents\GrokBuild;
 use Totoglu\Console\Boost\Install\Agents\Junie;
 use Totoglu\Console\Boost\Install\Agents\Kiro;
@@ -25,9 +27,11 @@ final class AgentSkillsTest extends TestCase
 		$expectations = [
 			Antigravity::class => '.agents/skills',
 			ClaudeCode::class => '.claude/skills',
+			Codex::class => '.agents/skills',
 			Copilot::class => '.github/skills',
 			Cursor::class => '.cursor/skills',
 			Factory::class => '.factory/skills',
+			Gemini::class => '.gemini/skills',
 			GrokBuild::class => '.grok/skills',
 			Junie::class => '.junie/skills',
 			Kiro::class => '.kiro/skills',
@@ -121,5 +125,16 @@ final class AgentSkillsTest extends TestCase
 		$this->assertSame(2, substr_count($content, '---'), 'Should contain exactly opening and closing frontmatter markers');
 		$this->assertStringContainsString('compatibility: opencode', $content);
 		$this->assertStringContainsString('name: existing-skill', $content);
+
+		$underscoredSource = $this->tempDir . '/source-underscored-opencode';
+		mkdir($underscoredSource, 0755, true);
+		file_put_contents($underscoredSource . '/SKILL.md', "---\nname: my_custom_skill\ndescription: Underscore test\n---\n\n# Body");
+
+		$underscoredExport = $agent->exportSkill('my_custom_skill', $underscoredSource, $targetBase);
+		$underscoredContent = (string) file_get_contents($underscoredExport);
+		$this->assertStringEndsWith('/my-custom-skill/SKILL.md', $underscoredExport);
+		$this->assertStringContainsString('name: my-custom-skill', $underscoredContent);
+		$this->assertStringNotContainsString('name: my_custom_skill', $underscoredContent);
+		$this->assertStringContainsString('compatibility: opencode', $underscoredContent);
 	}
 }

@@ -187,4 +187,36 @@ final class SkillWriterTest extends TestCase
 		$this->assertDirectoryDoesNotExist($projectRoot . '/.claude/skills/pw-pages');
 		$this->assertFileExists($projectRoot . '/.claude/skills/my-team-custom-skill/SKILL.md');
 	}
+
+	public function test_sync_always_includes_site_overrides_without_pruning_when_not_in_modules_list(): void
+	{
+		$projectRoot = $this->tempDir;
+		$targetDir = $projectRoot . '/.agents';
+		$siteSkillsDir = $projectRoot . '/site/.agents/skills';
+		mkdir($targetDir, 0755, true);
+		mkdir($siteSkillsDir . '/pw-local-checkout', 0755, true);
+		file_put_contents(
+			$siteSkillsDir . '/pw-local-checkout/SKILL.md',
+			"---\nname: pw-local-checkout\ndescription: \"Use when modifying project-local checkout flows.\"\n---\n# Local Checkout\n"
+		);
+
+		$discoverable = [
+			'site-overrides' => [
+				'path' => $projectRoot . '/site/.agents',
+				'guidelines_path' => null,
+				'skills_path' => $siteSkillsDir,
+				'has_guidelines' => false,
+				'has_skills' => true,
+			],
+		];
+
+		$writer = new SkillWriter($targetDir, $discoverable);
+		$cursor = new Cursor();
+
+		// Passing empty $modules simulates `boost:update --json` after `site/.agents/skills/` is added later
+		$writer->sync([], [$cursor]);
+
+		$this->assertFileExists($targetDir . '/skills/pw-local-checkout/SKILL.md');
+		$this->assertFileExists($projectRoot . '/.cursor/skills/pw-local-checkout/SKILL.md');
+	}
 }

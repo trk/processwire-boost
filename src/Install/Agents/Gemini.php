@@ -25,7 +25,7 @@ final class Gemini extends Agent
 
 	public function skillsPath(): string
 	{
-		return '';
+		return '.gemini/skills';
 	}
 
 	public function systemDetectionPaths(): array
@@ -40,7 +40,7 @@ final class Gemini extends Agent
 
 	public function projectDetectionPaths(): array
 	{
-		return ['GEMINI.md', '.gemini', '.gemini/settings.json'];
+		return ['GEMINI.md', '.gemini', '.gemini/settings.json', '.gemini/skills'];
 	}
 
 	public function guidelinesPath(): string

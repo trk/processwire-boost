@@ -498,8 +498,9 @@ final class BoostManager
 		// 3. Write guidelines
 		if (in_array('guidelines', $features, true)) {
 			$guidelineAgents = array_values(array_filter($agents, static fn(Agent $agent): bool => $agent->supportsGuidelines()));
+			$mcpEnabled = in_array('mcp', $features, true);
 			(new GuidelineWriter($this->projectRoot, $this->targetDir, $discoverableModules))
-				->write($guidelineAgents, $modules);
+				->write($guidelineAgents, $modules, $mcpEnabled);
 		}
 
 		// 4. Write MCP configuration

@@ -85,6 +85,17 @@ abstract class Agent
 		return false;
 	}
 
+	public function defaultGuidelinesHeader(): string
+	{
+		$name = $this->displayName();
+		$header = "# {$name} Instructions\n\nGenerated for ProcessWire AI Ecosystem.\n\n";
+		if ($this->frontmatter()) {
+			return "---\ndescription: {$name} Instructions\nalwaysApply: true\n---\n\n" . $header;
+		}
+
+		return $header;
+	}
+
 	public function transformGuidelines(string $markdown): string
 	{
 		return $markdown;

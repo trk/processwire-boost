@@ -117,6 +117,7 @@ final class BoostInstallCommand extends Command
 
 		$availableModules = $manager->getDiscoverableModules();
 		$moduleChoices = array_keys($availableModules);
+		$interactiveModuleChoices = array_values(array_diff($moduleChoices, ['site-overrides']));
 
 		$selectedModules = [];
 		$modulesOpt = $input->getOption('modules');
@@ -133,16 +134,16 @@ final class BoostInstallCommand extends Command
 			}
 		} elseif ($explicitMode) {
 			$selectedModules = $installedModules;
-		} elseif ($moduleChoices !== []) {
+		} elseif ($interactiveModuleChoices !== []) {
 			$moduleOptions = [];
-			foreach ($moduleChoices as $m) {
+			foreach ($interactiveModuleChoices as $m) {
 				$moduleOptions[$m] = $m;
 			}
 			/** @var list<string> $selectedModules */
 			$selectedModules = array_values(multiselect(
 				label: 'Which third-party AI guidelines/skills would you like to install?',
 				options: $moduleOptions,
-				default: $installedModules,
+				default: array_values(array_intersect($installedModules, $interactiveModuleChoices)),
 				hint: 'Select to install, deselect to remove.',
 				required: false
 			));
@@ -260,11 +261,14 @@ final class BoostInstallCommand extends Command
 		$output->writeln("  └─────────────────────────────────────────────────────────────┘\n");
 
 		$resolvedAgents = $manager->resolveConfiguredAgents($selectedAgents);
-		$guidelineCount = (is_file($projectRoot . '/AGENTS.md') ? 1 : 0)
-			+ count(array_unique(array_filter(array_map(
-				static fn(Agent $agent): ?string => $agent->guidelinesPath() !== 'AGENTS.md' ? $agent->guidelinesPath() : null,
-				$resolvedAgents
-			))));
+		$uniqueGuidelinePaths = array_values(array_unique(array_filter(array_map(
+			static fn(Agent $agent): string => $agent->guidelinesPath(),
+			$resolvedAgents
+		))));
+		$guidelineCount = count(array_filter(
+			$uniqueGuidelinePaths,
+			static fn(string $relPath): bool => is_file($projectRoot . '/' . $relPath)
+		));
 		$skillCount = count(glob($projectRoot . '/.agents/skills/*/SKILL.md') ?: []);
 
 		$featureLabels = [];

@@ -117,7 +117,7 @@ final class BoostSecurityAndCommandsTest extends TestCase
 
 		$threwOnAgentsMd = false;
 		try {
-			$guidelineWriter->write([new Cursor()], []);
+			$guidelineWriter->write([new \Totoglu\Console\Boost\Install\Agents\Antigravity()], []);
 		} catch (RuntimeException $e) {
 			$threwOnAgentsMd = true;
 			$this->assertStringContainsString('symbolic link', $e->getMessage());
@@ -189,7 +189,8 @@ final class BoostSecurityAndCommandsTest extends TestCase
 			$this->assertIsArray($decodedInstall);
 			$this->assertTrue($decodedInstall['ok']);
 			$this->assertFileExists($this->tempDir . '/.agents/boost.json');
-			$this->assertFileExists($this->tempDir . '/AGENTS.md');
+			$this->assertFileExists($this->tempDir . '/.cursor/rules/processwire-boost.mdc');
+			$this->assertFileDoesNotExist($this->tempDir . '/AGENTS.md');
 		} finally {
 			chdir($previousCwd);
 		}

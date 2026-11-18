@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Totoglu\Console\Boost\Tests\Unit;
 
 use Totoglu\Console\Boost\BoostManager;
+use Totoglu\Console\Boost\Install\Agents\Antigravity;
 use Totoglu\Console\Boost\Install\Agents\ClaudeCode;
 use Totoglu\Console\Boost\Install\Agents\Cursor;
+use Totoglu\Console\Boost\Install\Agents\Gemini;
 use Totoglu\Console\Boost\Tests\TestCase;
 
 final class BoostManagerTest extends TestCase
@@ -14,7 +16,7 @@ final class BoostManagerTest extends TestCase
 	public function test_install_syncs_skills_before_guidelines_so_skills_menu_is_populated_on_fresh_install(): void
 	{
 		$manager = new BoostManager($this->tempDir);
-		$agents = [new Cursor(), new ClaudeCode()];
+		$agents = [new Antigravity(), new Cursor(), new ClaudeCode(), new Gemini()];
 
 		$manager->install(['guidelines', 'skills'], [], $agents);
 
@@ -22,9 +24,13 @@ final class BoostManagerTest extends TestCase
 		$this->assertFileExists($agentsMdPath);
 
 		$content = (string) file_get_contents($agentsMdPath);
-		$this->assertStringContainsString('- `pw-pages` —', $content);
-		$this->assertStringContainsString('- `pw-module-development` —', $content);
-		$this->assertStringNotContainsString('{{ SKILLS_MENU }}', $content);
+		$this->assertStringContainsString('`pw-pages`', $content);
+		$this->assertStringContainsString('`pw-module-development`', $content);
+		$this->assertStringNotContainsString('{{ SKILLS_SECTION }}', $content);
+
+		$geminiContent = (string) file_get_contents($this->tempDir . '/GEMINI.md');
+		$this->assertStringContainsString('## Skills Activation (`.gemini/skills`)', $geminiContent);
+		$this->assertFileExists($this->tempDir . '/.gemini/skills/pw-pages/SKILL.md');
 	}
 
 	public function test_load_and_save_config_roundtrip(): void
@@ -105,16 +111,17 @@ final class BoostManagerTest extends TestCase
 		$this->assertArrayNotHasKey('ModBareDir', $discovered);
 	}
 
-	public function test_uninstall_agent_cleans_up_agent_files_and_preserves_universal_agents_md(): void
+	public function test_uninstall_agent_cleans_up_agent_files_and_preserves_other_agents(): void
 	{
 		$manager = new BoostManager($this->tempDir);
+		$antigravity = new Antigravity();
 		$cursor = new Cursor();
 		$claude = new ClaudeCode();
 
-		$manager->install(['guidelines', 'skills', 'mcp'], [], [$cursor, $claude]);
+		$manager->install(['guidelines', 'skills', 'mcp'], [], [$antigravity, $cursor, $claude]);
 
 		$this->assertFileExists($this->tempDir . '/AGENTS.md');
-		$this->assertFileExists($this->tempDir . '/.cursorrules');
+		$this->assertFileExists($this->tempDir . '/.cursor/rules/processwire-boost.mdc');
 		$this->assertFileExists($this->tempDir . '/CLAUDE.md');
 		$this->assertDirectoryExists($this->tempDir . '/.cursor/skills/pw-pages');
 		$this->assertFileExists($this->tempDir . '/.cursor/mcp.json');
@@ -123,7 +130,8 @@ final class BoostManagerTest extends TestCase
 
 		$this->assertFileExists($this->tempDir . '/AGENTS.md');
 		$this->assertFileExists($this->tempDir . '/CLAUDE.md');
-		$this->assertFileDoesNotExist($this->tempDir . '/.cursorrules');
+		$this->assertFileDoesNotExist($this->tempDir . '/.cursor/rules/processwire-boost.mdc');
+		$this->assertDirectoryDoesNotExist($this->tempDir . '/.cursor/rules');
 		$this->assertDirectoryDoesNotExist($this->tempDir . '/.cursor/skills');
 
 		$cursorMcp = json_decode((string) file_get_contents($this->tempDir . '/.cursor/mcp.json'), true);

@@ -21,11 +21,6 @@ final class Codex extends Agent
 		return '.codex/config.toml';
 	}
 
-	public function skillsPath(): string
-	{
-		return '';
-	}
-
 	public function systemDetectionPaths(): array
 	{
 		return ['~/.codex'];

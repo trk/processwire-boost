@@ -111,6 +111,11 @@ final class BoostUpdateCommand extends Command
 		$discoverable = array_keys($manager->getDiscoverableModules());
 		$newModules = array_values(array_diff($discoverable, $configuredModules));
 
+		if (in_array('site-overrides', $newModules, true)) {
+			$configuredModules[] = 'site-overrides';
+			$newModules = array_values(array_diff($newModules, ['site-overrides']));
+		}
+
 		if ($newModules === []) {
 			return $configuredModules;
 		}

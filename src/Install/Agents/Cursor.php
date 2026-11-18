@@ -28,12 +28,17 @@ final class Cursor extends Agent
 
 	public function projectDetectionPaths(): array
 	{
-		return ['.cursor', '.cursorrules'];
+		return ['.cursor', '.cursor/rules', '.cursorrules'];
 	}
 
 	public function guidelinesPath(): string
 	{
-		return '.cursorrules';
+		return '.cursor/rules/processwire-boost.mdc';
+	}
+
+	public function frontmatter(): bool
+	{
+		return true;
 	}
 
 	public function skillsPath(): string

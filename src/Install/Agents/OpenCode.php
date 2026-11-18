@@ -101,10 +101,17 @@ final class OpenCode extends Agent
 
 		$trimmedContent = ltrim($content);
 		if (preg_match('/\A---\s*\R(.*?)\R---/s', $trimmedContent, $fmMatch) === 1) {
-			if (!preg_match('/^\s*compatibility\s*:\s*opencode\s*$/m', $fmMatch[1])) {
-				$trimmedContent = preg_replace('/\A---\s*\R/', "---\ncompatibility: opencode\n", $trimmedContent, 1) ?? $trimmedContent;
+			$frontmatterBody = $fmMatch[1];
+			if (preg_match('/^name:\s*.+$/m', $frontmatterBody) === 1) {
+				$frontmatterBody = preg_replace('/^name:\s*.+$/m', 'name: ' . $skillDirName, $frontmatterBody, 1) ?? $frontmatterBody;
+			} else {
+				$frontmatterBody = 'name: ' . $skillDirName . "\n" . $frontmatterBody;
 			}
-			file_put_contents($targetPath, $trimmedContent);
+			if (!preg_match('/^\s*compatibility\s*:\s*opencode\s*$/m', $frontmatterBody)) {
+				$frontmatterBody .= "\ncompatibility: opencode";
+			}
+			$rest = substr($trimmedContent, strlen($fmMatch[0]));
+			file_put_contents($targetPath, "---\n" . trim($frontmatterBody) . "\n---" . $rest);
 			return $targetPath;
 		}
 
