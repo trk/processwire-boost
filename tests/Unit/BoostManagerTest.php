@@ -227,4 +227,22 @@ final class BoostManagerTest extends TestCase
 		$this->assertStringContainsString('"image": {"id":612,"type":"FieldtypeImage"', $encoded);
 	}
 
+	public function test_sync_exports_skill_references_and_prunes_retired_module_skills(): void
+	{
+		$manager = new BoostManager($this->tempDir);
+		$cursor = new Cursor();
+
+		mkdir($this->tempDir . '/.agents/skills/pw-module-process', 0755, true);
+		file_put_contents($this->tempDir . '/.agents/skills/pw-module-process/SKILL.md', "---\nname: pw-module-process\n---\n");
+		mkdir($this->tempDir . '/.cursor/skills/pw-module-process', 0755, true);
+		file_put_contents($this->tempDir . '/.cursor/skills/pw-module-process/SKILL.md', "---\nname: pw-module-process\n---\n");
+
+		$manager->install(['skills'], [], [$cursor]);
+
+		$this->assertDirectoryDoesNotExist($this->tempDir . '/.agents/skills/pw-module-process');
+		$this->assertDirectoryDoesNotExist($this->tempDir . '/.cursor/skills/pw-module-process');
+		$this->assertFileExists($this->tempDir . '/.agents/skills/pw-module-development/SKILL.md');
+		$this->assertFileExists($this->tempDir . '/.agents/skills/pw-module-development/references/fieldtype-inputfield.md');
+		$this->assertFileExists($this->tempDir . '/.cursor/skills/pw-module-development/references/process.md');
+	}
 }

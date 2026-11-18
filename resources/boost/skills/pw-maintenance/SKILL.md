@@ -82,7 +82,7 @@ php vendor/bin/wire up --json
 
 - ❌ **Reading `down.json` from web-accessible `site/assets/`:** `wire down` writes strictly to `$config->paths->site . 'down.json'` (`site/down.json`) so the secret token is never publicly downloadable. Always read `$config->paths->site . 'down.json'`.
 - ❌ **Editing `index.php`:** ProcessWire core upgrades replace `index.php`. Always place request interception in `site/init.php`.
-- ❌ **Omitting `PHP_SAPI !== 'cli'`:** Without the CLI guard in `site/init.php`, running `vendor/bin/wire up` or `vendor/bin/wire migrate` will terminate with the maintenance message and lock out CLI administration.
+- ❌ **Omitting `!$config->cli`:** Without the CLI guard in `site/init.php`, running `vendor/bin/wire up` or `vendor/bin/wire migrate` will terminate with the maintenance message and lock out CLI administration.
 
 ## Related Skills
 - `pw-expert`

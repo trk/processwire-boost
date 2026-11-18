@@ -8,6 +8,14 @@ use Totoglu\Console\Boost\Install\Agents\Agent;
 
 final class SkillWriter
 {
+	private const RETIRED_CORE_SKILLS = [
+		'pw-module-fieldtype-inputfield',
+		'pw-module-filevalidator',
+		'pw-module-markup',
+		'pw-module-process',
+		'pw-module-textformatter',
+	];
+
 	/**
 	 * @param array<string, array{path: string, guidelines_path: ?string, skills_path: ?string, agents_path?: ?string, api_path?: ?string, has_guidelines: bool, has_skills: bool}> $discoverableModules
 	 */
@@ -33,8 +41,15 @@ final class SkillWriter
 
 		$skillSources = $this->collectDesiredSkillSources($modules);
 		$allModuleSkills = $this->collectDesiredSkillSources(array_keys($this->discoverableModules));
+		$prunableNames = array_unique(array_merge(
+			array_keys(array_diff_key($allModuleSkills, $skillSources)),
+			array_values(array_filter(
+				self::RETIRED_CORE_SKILLS,
+				static fn(string $name): bool => !isset($skillSources[$name])
+			))
+		));
 
-		foreach (array_diff_key($allModuleSkills, $skillSources) as $deselectedSkillName => $_path) {
+		foreach ($prunableNames as $deselectedSkillName) {
 			$staleTargetPath = $target . '/' . $deselectedSkillName;
 			if (is_dir($staleTargetPath) || is_link($staleTargetPath)) {
 				self::deleteTree($staleTargetPath);
@@ -77,14 +92,14 @@ final class SkillWriter
 				mkdir($agentTargetDir, 0755, true);
 			}
 
-			foreach (array_diff_key($allModuleSkills, $skillSources) as $deselectedSkillName => $_path) {
+			foreach ($prunableNames as $deselectedSkillName) {
 				$candidates = array_unique([
 					$deselectedSkillName,
 					str_replace('_', '-', $deselectedSkillName),
 				]);
 				foreach ($candidates as $dirName) {
 					$staleAgentSkillPath = $agentTargetDir . '/' . $dirName;
-					if (is_dir($staleAgentSkillPath)) {
+					if (is_dir($staleAgentSkillPath) || is_link($staleAgentSkillPath)) {
 						self::deleteTree($staleAgentSkillPath);
 					}
 				}
@@ -101,10 +116,13 @@ final class SkillWriter
 	 */
 	public function removeCoreSkills(?array $agents = null): void
 	{
-		$managedSkills = $this->collectDesiredSkillSources(array_keys($this->discoverableModules));
-		foreach (array_keys($managedSkills) as $skillName) {
+		$managedSkills = array_unique(array_merge(
+			array_keys($this->collectDesiredSkillSources(array_keys($this->discoverableModules))),
+			self::RETIRED_CORE_SKILLS
+		));
+		foreach ($managedSkills as $skillName) {
 			$skillPath = $this->targetDir . '/skills/' . $skillName;
-			if (is_dir($skillPath)) {
+			if (is_dir($skillPath) || is_link($skillPath)) {
 				self::deleteTree($skillPath);
 			}
 		}
@@ -129,7 +147,10 @@ final class SkillWriter
 			return;
 		}
 
-		$managedNames = array_keys($this->collectDesiredSkillSources(array_keys($this->discoverableModules)));
+		$managedNames = array_merge(
+			array_keys($this->collectDesiredSkillSources(array_keys($this->discoverableModules))),
+			self::RETIRED_CORE_SKILLS
+		);
 		$canonicalSkillsDir = $this->targetDir . '/skills';
 		if (!is_link($canonicalSkillsDir) && is_dir($canonicalSkillsDir)) {
 			foreach (scandir($canonicalSkillsDir) ?: [] as $entry) {

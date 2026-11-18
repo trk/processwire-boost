@@ -13,6 +13,7 @@ ProcessWire's backend (`AdminThemeUikit` with the Konkat theme) is a native, tok
 ## Design System References (Sources of Truth)
 
 - **Admin Theme Module:** `wire/modules/AdminTheme/AdminThemeUikit/AdminThemeUikit.module`
+- **Konkat Default Theme Guide:** `wire/modules/AdminTheme/AdminThemeUikit/themes/default/KONKAT_THEME.md`
 - **Theme Styles & CSS Variables:** `wire/modules/AdminTheme/AdminThemeUikit/uikit-pw/pw/`
 - **Inputfield & Form Wrappers:** `wire/core/Inputfield/InputfieldWrapper.php`, `wire/modules/Inputfield/InputfieldForm/InputfieldForm.module`
 
@@ -33,8 +34,8 @@ ProcessWire implements auto-theming natively using CSS `light-dark()`. **Never u
 | `--pw-main-background` | Canvas / page background outside panels |
 | `--pw-blocks-background` | Panel, card, dropdown, and form block backgrounds |
 | `--pw-inputs-background` | Input fields, striping, inactive icon buttons |
-| `--pw-button-background` | Default button fill (`uk-button-primary`, `uk-button-default`) |
-| `--pw-button-color` | Text color on default buttons |
+| `--pw-button-background` | Solid primary button fill (`uk-button-primary` / plain `uk-button`; note `uk-button-default` is bordered/transparent in Konkat) |
+| `--pw-button-color` | Text color on solid primary buttons |
 | `--pw-button-muted-background` | Muted button fill (`uk-button-secondary`) |
 | `--pw-button-hover-background` | Hover background for action buttons |
 | `--pw-button-hover-color` | Hover text color for action buttons |
@@ -58,7 +59,9 @@ ProcessWire implements auto-theming natively using CSS `light-dark()`. **Never u
 
 ### Domain A: `Process` Modules (Dashboards, Tools & Workspaces)
 
-For custom admin applications, consoles, and dashboards extending `Process`, combine UIkit 3 utilities with a module-scoped workspace layout (`.pw-module-workspace` — note that `.pw-module-*`, `.pw-stat-*`, `.pw-filter-*`, `.pw-bulk-bar`, `.pw-table-*`, and `.pw-empty-state` are recommended module-stylesheet layout classes built on `--pw-*` tokens, whereas `uk-*`, `pw-button-dropdown-wrap`, `pw-notes`, and `PageListActions` come directly from `AdminThemeUikit`):
+For custom admin applications, consoles, and dashboards extending `Process`:
+- **Button hierarchy in Konkat (`KONKAT_THEME.md`):** Unlike stock UIkit, `.uk-button-primary` (or plain `.uk-button`) is the solid filled primary button (`--pw-button-background`), whereas `.uk-button-default` is the bordered/transparent secondary ("ghost") button.
+- **Core vs. Module classes:** `uk-*`, `pw-wrap`, `pw-button-dropdown-wrap`, `pw-notes`, and `PageListActions actions` come directly from `AdminThemeUikit`. Pair `.pw-module-workspace` layout hooks with standard UIkit 3 utilities (`uk-flex`, `uk-grid-small`, `uk-overflow-auto`) and include the minimal module-scoped CSS in Section 4 when custom spacing/panels are needed:
 
 ```html
 <div class="ProcessReportManager pw-wrap pw-module-workspace">
@@ -71,12 +74,12 @@ For custom admin applications, consoles, and dashboards extending `Process`, com
   </ul>
 
   <!-- 2. Header & Top Actions -->
-  <div class="pw-module-head">
+  <div class="pw-module-head uk-flex uk-flex-between uk-flex-middle uk-flex-wrap uk-margin-bottom">
     <div>
-      <h3 class="uk-h3">Entries Management</h3>
-      <p class="uk-text-muted">Review content, system state, and recent activity.</p>
+      <h3 class="uk-h3 uk-margin-remove-bottom">Entries Management</h3>
+      <p class="uk-text-muted uk-margin-remove-top">Review content, system state, and recent activity.</p>
     </div>
-    <div class="pw-module-actions">
+    <div class="pw-module-actions uk-flex uk-flex-middle">
       <a href="./export/" class="uk-button uk-button-default">Export CSV</a>
       <a href="./add/" class="uk-button uk-button-primary">Create Entry</a>
     </div>
@@ -87,82 +90,88 @@ For custom admin applications, consoles, and dashboards extending `Process`, com
     <div>
       <div class="uk-card uk-card-default uk-card-small uk-card-body">
         <span class="uk-text-meta">Published</span>
-        <strong class="pw-stat-value">128</strong>
+        <strong class="pw-stat-value uk-display-block uk-h3 uk-margin-remove">128</strong>
       </div>
     </div>
     <div>
       <div class="uk-card uk-card-default uk-card-small uk-card-body">
         <span class="uk-text-meta">Pending</span>
-        <strong class="pw-stat-value">3</strong>
+        <strong class="pw-stat-value uk-display-block uk-h3 uk-margin-remove">3</strong>
       </div>
     </div>
     <div>
       <div class="uk-card uk-card-default uk-card-small uk-card-body">
         <span class="uk-text-meta">This Month</span>
-        <strong class="pw-stat-value">24</strong>
+        <strong class="pw-stat-value uk-display-block uk-h3 uk-margin-remove">24</strong>
       </div>
     </div>
   </div>
 
   <!-- 4. Filter Panel -->
-  <form class="pw-filter-panel uk-margin" method="get">
-    <div class="pw-filter-row">
-      <input class="uk-input" type="search" name="q" placeholder="Search entries...">
-      <select class="uk-select" name="status">
-        <option value="">Any status</option>
-        <option value="published">Published</option>
-        <option value="pending">Pending</option>
-      </select>
-      <button class="uk-button uk-button-primary" type="submit">Filter</button>
-      <a href="./" class="uk-button uk-button-default">Clear</a>
+  <form class="pw-filter-panel uk-margin" method="get" action="./">
+    <div class="pw-filter-row uk-grid-small uk-flex-middle" uk-grid>
+      <div class="uk-width-expand@s">
+        <input class="uk-input" type="search" name="q" placeholder="Search entries...">
+      </div>
+      <div class="uk-width-auto@s">
+        <select class="uk-select" name="status">
+          <option value="">Any status</option>
+          <option value="published">Published</option>
+          <option value="pending">Pending</option>
+        </select>
+      </div>
+      <div class="uk-width-auto@s">
+        <button class="uk-button uk-button-primary" type="submit">Filter</button>
+        <a href="./" class="uk-button uk-button-default">Clear</a>
+      </div>
     </div>
   </form>
 
-  <!-- 5. Bulk Action Bar (Only visible upon selection) -->
-  <div class="pw-bulk-bar uk-margin-small-bottom">
-    <span><span class="uk-label">2 selected</span></span>
-    <button class="uk-button uk-button-default uk-button-small" type="submit" name="action" value="publish">Publish</button>
-    <button class="uk-button uk-button-danger uk-button-small" type="submit" name="action" value="delete">Delete</button>
-  </div>
+  <!-- 5. Bulk Action Form + Responsive Data Table Panel (Include $this->wire()->session->CSRF->renderInput()) -->
+  <form method="post" action="./">
+    <!-- <?= $this->wire()->session->CSRF->renderInput() ?> -->
+    <div class="pw-bulk-bar uk-flex uk-flex-middle uk-margin-small-bottom">
+      <span class="uk-label uk-margin-small-right">2 selected</span>
+      <button class="uk-button uk-button-default uk-button-small" type="submit" name="action" value="publish">Publish</button>
+      <button class="uk-button uk-button-danger uk-button-small" type="submit" name="action" value="delete">Delete</button>
+    </div>
 
-  <!-- 6. Responsive Data Table Panel -->
-  <div class="pw-table-panel">
-    <table class="uk-table uk-table-divider uk-table-hover uk-table-middle uk-table-small">
-      <thead>
-        <tr>
-          <th class="uk-table-shrink"><input class="uk-checkbox" type="checkbox" aria-label="Select all"></th>
-          <th>Title</th>
-          <th>Type</th>
-          <th>Status</th>
-          <th>Modified</th>
-          <th class="uk-text-right">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><input class="uk-checkbox" type="checkbox"></td>
-          <td>
-            <a href="./edit/?id=101">Welcome Guide</a>
-            <div class="uk-text-small uk-text-muted">Started by admin</div>
-          </td>
-          <td><span class="uk-label">Article</span></td>
-          <td><span class="uk-label uk-label-success">Published</span></td>
-          <td>Today, 10:42</td>
-          <td>
-            <div class="pw-table-actions">
-              <span class="pw-pagelist-actions">
-                <a href="./edit/?id=101">Edit</a>
-                <a href="./view/?id=101">View</a>
-              </span>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+    <div class="pw-table-panel uk-overflow-auto">
+      <table class="uk-table uk-table-divider uk-table-hover uk-table-middle uk-table-small">
+        <thead>
+          <tr>
+            <th class="uk-table-shrink"><input class="uk-checkbox" type="checkbox" aria-label="Select all"></th>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Modified</th>
+            <th class="uk-text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input class="uk-checkbox" type="checkbox" name="ids[]" value="101"></td>
+            <td>
+              <a href="./edit/?id=101">Welcome Guide</a>
+              <div class="uk-text-small uk-text-muted">Started by admin</div>
+            </td>
+            <td><span class="uk-label">Article</span></td>
+            <td><span class="uk-label uk-label-success">Published</span></td>
+            <td>Today, 10:42</td>
+            <td class="uk-text-right">
+              <ul class="PageListActions actions">
+                <li><a href="./edit/?id=101">Edit</a></li>
+                <li><a href="./view/?id=101">View</a></li>
+              </ul>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </form>
 
-  <!-- 7. Empty State (When no records match) -->
-  <div class="pw-empty-state uk-margin-top">
+  <!-- 6. Empty State (When no records match) -->
+  <div class="pw-empty-state uk-text-center uk-padding uk-margin-top">
     <span uk-icon="icon:file-text;ratio:1.5"></span>
     <h4 class="uk-h4">No matching entries</h4>
     <p class="uk-margin-small-top">Clear the filters or create your first entry.</p>
@@ -241,13 +250,13 @@ Used for primary save actions with secondary options:
 </span>
 ```
 
-#### 2. Page Actions (`.pw-pagelist-actions`)
-Compact action badges that match ProcessWire page trees:
+#### 2. Page Actions (`PageListActions actions`)
+Compact inline action links matching ProcessWire core page trees (`wire/modules/Process/ProcessPageEdit/PageBookmarks.php`):
 ```html
-<span class="pw-pagelist-actions">
-  <a href="./edit/?id=1">Edit</a>
-  <a href="./view/?id=1">View</a>
-</span>
+<ul class="PageListActions actions">
+  <li><a href="./edit/?id=1">Edit</a></li>
+  <li><a href="./view/?id=1">View</a></li>
+</ul>
 ```
 
 #### 3. Alerts & Notes
@@ -278,8 +287,19 @@ On screens `< 640px`:
 ## 4. Custom CSS Scoping & Isolation
 
 Whenever writing module-specific CSS:
-1. **Scope under the module root class:**
+1. **Scope under the module root class** (including `.pw-module-workspace` helpers built on `var(--pw-*)`):
    ```css
+   .ProcessReportManager.pw-module-workspace .pw-module-actions,
+   .ProcessReportManager.pw-module-workspace .pw-bulk-bar {
+     gap: 0.5rem;
+   }
+   .ProcessReportManager.pw-module-workspace .pw-table-panel > table {
+     min-width: 680px;
+   }
+   .ProcessReportManager.pw-module-workspace .pw-empty-state {
+     background: var(--pw-blocks-background);
+     border: 1px dashed var(--pw-border-color);
+   }
    .ProcessReportManager .report-badge {
      background-color: var(--pw-main-color);
      color: var(--pw-blocks-background);
@@ -354,7 +374,7 @@ public function ___executePartial(): string
 
 ## Anti-Patterns to Avoid
 
-- ❌ **DO NOT use TailwindCSS or Bootstrap classes.** The admin is strictly UIkit 3 + PW overloads.
+- ❌ **DO NOT mix unprefixed Bootstrap or Tailwind classes into native `AdminThemeUikit` views.** Native ProcessWire admin markup uses UIkit 3 + `--pw-*` tokens.
 - ❌ **DO NOT use hardcoded colors (`#fff`, `#111`, `#eb1d61`).** Always use `var(--pw-*)` variables.
 - ❌ **DO NOT recreate Inputfields with `uk-card` markup.** Use the Inputfield Form API for settings and edit screens.
 - ❌ **DO NOT invent fake token names** (`--pw-input-bg-color`, `--pw-card-bg`). Use `--pw-inputs-background`, `--pw-blocks-background`.

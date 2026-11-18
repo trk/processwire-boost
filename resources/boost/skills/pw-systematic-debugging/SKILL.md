@@ -28,11 +28,14 @@ Read the ProcessWire logs (`pw_system_logs_tail_last` or `vendor/bin/wire log:ta
    - If a hook (`Pages::saved`, `Page::render`, URL hook) appears not to run, verify where it is registered (`site/init.php` vs `site/ready.php` vs module `init()`/`ready()`) and log its invocation:
 
 ```php
-$event->wire()->log->save('debug', sprintf(
-	'Hook fired for page %d (template=%s)',
-	(int) $event->arguments(0)->id,
-	(string) $event->arguments(0)->template?->name
-));
+$page = $event->arguments(0);
+if ($page instanceof Page) {
+	$event->wire()->log->save('debug', sprintf(
+		'Hook fired for page %d (template=%s)',
+		$page->id,
+		$page->template->name
+	));
+}
 ```
 
 ## Phase 2: Root-Cause Hypothesis
@@ -41,6 +44,8 @@ Check the most frequent ProcessWire failure modes against your evidence:
 - **`NullPage` dereference:** `$pages->get()` and `$pages->findOne()` return a `NullPage` object (`id === 0`) when no match is found, never `null`. Checking `if ($p !== null)` always evaluates to `true`! Always check `if ($p->id)` or `if (!$p instanceof NullPage)`.
 - **Access/Status exclusion in `$pages->find()`:** `$pages->find()` and `$pages->findOne()` exclude `hidden`, `unpublished`, and restricted pages unless `include=hidden|unpublished|all` is passed.
 - **Output formatting state (`$page->of()`):** Saving a loaded page on the frontend without calling `$page->of(false)` first can throw an exception or corrupt formatted field values.
+- **`Pageimage` vs `Pageimages` under `of(false)`:** In CLI scripts, hooks, and modules where `$page->of()` is `false`, a `maxFiles=1` image/file field returns a `Pageimages`/`Pagefiles` collection instead of `Pageimage|null`. Use `$page->getUnformatted('image')->first()` or `$page->getFormatted('image')`.
+- **Numeric-string RBAC lookup:** `$users->get('41')`, `$roles->get('41')`, and `$permissions->get('41')` look up page ID `41` rather than `name=41`. Reject `ctype_digit($raw)` and query `name={$sanitizer->selectorValue($sanitizer->pageName($raw))}` when resolving untrusted names.
 - **Internal property bypass in Custom Page Classes:** Accessing `$this->template` inside a `Page` subclass can bypass lazy loading; use `$this->get('template')` when inside a custom `Page` method if needed.
 
 ## Phase 3: Minimal Fix & Regression Verification

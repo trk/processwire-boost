@@ -118,12 +118,12 @@ project-root/
 ├── AGENTS.md                    # Universal guidelines block for AGENTS-based agents
 ├── CLAUDE.md                    # Claude Code specific guidelines
 ├── GEMINI.md                    # Gemini CLI specific guidelines
-├── .cursorrules                 # Cursor guidelines block
 ├── .mcp.json                    # Claude Code MCP config
 ├── .claude/
 │   └── skills/                  # Claude Code exported skills
 ├── .cursor/
 │   ├── mcp.json                 # Cursor MCP config
+│   ├── rules/                   # Cursor MDC rules (processwire-boost.mdc)
 │   └── skills/                  # Cursor exported skills
 ├── .gemini/
 │   └── settings.json            # Gemini CLI MCP config
@@ -196,33 +196,28 @@ Skills are **on-demand context** — the agent activates a specific skill when t
 
 Unlike guidelines (which are always present), skills are loaded only when relevant. This keeps the context window efficient while providing deep expertise when needed.
 
-#### Built-in Skills (23)
+#### Built-in Skills (18)
 
-| Skill                            | What It Teaches the Agent                                                                              |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `pw-admin-ui`                    | Building ProcessWire Admin interfaces, Process modules, and Inputfield UIs                             |
-| `pw-brainstorming`               | Validating architecture decisions before implementation (modules/templates/fields/hooks)               |
-| `pw-custom-page-classes`         | Building strongly-typed Page subclasses bound to specific templates                                    |
-| `pw-docs-architect`              | Writing/maintaining module docs, READMEs, architecture guides, CLI references                          |
-| `pw-expert`                      | Correct ProcessWire API usage patterns, console workflows, context-safe access to `$page/$pages/$user` |
-| `pw-maintenance`                 | Toggling maintenance mode safely (down/up) and managing downtime configuration                         |
-| `pw-migrations`                  | Safe, versioned schema changes and rollbacks (fields/templates/pages)                                  |
-| `pw-module-development`          | Native module architecture: `init()`, `ready()`, config, install/uninstall lifecycle                   |
-| `pw-module-fieldtype-inputfield` | Custom database fieldtypes and their corresponding input UI components                                 |
-| `pw-module-filevalidator`        | File upload validation, security normalization, MIME checking                                          |
-| `pw-module-markup`               | Frontend rendering systems using the ProcessWire Markup module pattern                                 |
-| `pw-module-process`              | Admin page pipelines, dashboards, routing, and RBAC within ProcessWire admin                           |
-| `pw-module-textformatter`        | Textformatter modules to safely transform field output at render time                                  |
-| `pw-pages`                       | Selectors + Page lifecycle: find/filter/create/edit/trash/delete, performance patterns                 |
-| `pw-queue`                       | Creating/dispatching/interacting with Queue jobs in ProcessWire                                        |
-| `pw-scheduling`                  | Time-based tasks using cron expressions and scheduling wrappers                                        |
-| `pw-security-audit`              | Security audits for modules/hooks/templates: OWASP, sanitization, RBAC, CSRF                           |
-| `pw-seeder`                      | Database seeding patterns using file-based seeders                                                     |
-| `pw-systematic-debugging`        | A disciplined approach to diagnosing bugs and unexpected behavior                                      |
-| `pw-test`                        | Writing and running Pest PHP and Playwright E2E tests in ProcessWire projects/modules                  |
-| `pw-url-routing`                 | URL/Path hooks for REST APIs, virtual pages, and custom endpoints                                      |
-| `pw-writing-plans`               | Turning specs into safe implementation plans (ProcessWire-native)                                      |
-| `pw-writing-skills`              | Creating and improving Boost skills (formatting, testing requirements, conventions)                    |
+| Skill                     | What It Teaches the Agent                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `pw-admin-ui`             | Building ProcessWire Admin interfaces, Process modules, and Inputfield UIs                                    |
+| `pw-brainstorming`        | Validating architecture decisions before implementation (modules/templates/fields/hooks)                      |
+| `pw-custom-page-classes`  | Building strongly-typed Page subclasses bound to specific templates                                           |
+| `pw-docs-architect`       | Writing/maintaining module docs, READMEs, architecture guides, CLI references                                 |
+| `pw-expert`               | Correct ProcessWire API usage patterns, console workflows, context-safe access to `$page/$pages/$user`        |
+| `pw-maintenance`          | Toggling maintenance mode safely (down/up) and managing downtime configuration                                |
+| `pw-migrations`           | Safe, versioned schema changes and rollbacks (fields/templates/pages)                                         |
+| `pw-module-development`   | Unified module playbook (`Module`, `ConfigurableModule`, `Markup`) + `references/` for `Fieldtype`/`Inputfield`, `Process`, `Textformatter`, and `FileValidatorModule` |
+| `pw-pages`                | Selectors + Page lifecycle: find/filter/create/edit/trash/delete, performance patterns                        |
+| `pw-queue`                | Creating/dispatching/interacting with Queue jobs in ProcessWire                                               |
+| `pw-scheduling`           | Time-based tasks using cron expressions and scheduling wrappers                                               |
+| `pw-security-audit`       | Security audits for modules/hooks/templates: OWASP, sanitization, RBAC, CSRF                                  |
+| `pw-seeder`               | Database seeding patterns using file-based seeders                                                            |
+| `pw-systematic-debugging` | A disciplined approach to diagnosing bugs and unexpected behavior                                             |
+| `pw-test`                 | Writing and running Pest PHP and Playwright E2E tests in ProcessWire projects/modules                         |
+| `pw-url-routing`          | URL/Path hooks for REST APIs, virtual pages, and custom endpoints                                             |
+| `pw-writing-plans`        | Turning specs into safe implementation plans (ProcessWire-native)                                             |
+| `pw-writing-skills`       | Creating and improving Boost skills (formatting, testing requirements, conventions)                           |
 
 #### Module-Provided Skills
 
@@ -402,11 +397,11 @@ Boost uses a polymorphic `Agent` class hierarchy. Each agent declares how it wan
 | ------------------ | --------------------------------- | ------------------ | ------------------------- | ----------------- |
 | **Amp**            | `AGENTS.md`                       | `—`                | `.amp/settings.json`      | `Relative`        |
 | **Antigravity**    | `AGENTS.md`                       | `.agents/skills`   | `.agents/mcp_config.json` | `Relative`        |
-| **Claude Code**    | `CLAUDE.md`                       | `.claude/skills`   | `.mcp.json`               | `Relative`        |
-| **Codex**          | `AGENTS.md`                       | `—`                | `.codex/config.toml`      | `Relative`        |
-| **Cursor**         | `.cursorrules`                    | `.cursor/skills`   | `.cursor/mcp.json`        | `Relative`        |
-| **Factory Droid**  | `AGENTS.md`                       | `.factory/skills`  | `.factory/mcp.json`       | `Relative`        |
-| **Gemini CLI**     | `GEMINI.md`                       | `—`                | `.gemini/settings.json`   | `Absolute`        |
+| **Claude Code**    | `CLAUDE.md`                           | `.claude/skills` | `.mcp.json`               | `Relative`        |
+| **Codex**          | `AGENTS.md`                           | `.agents/skills` | `.codex/config.toml`      | `Relative`        |
+| **Cursor**         | `.cursor/rules/processwire-boost.mdc` | `.cursor/skills` | `.cursor/mcp.json`        | `Relative`        |
+| **Factory Droid**  | `AGENTS.md`                           | `.factory/skills`| `.factory/mcp.json`       | `Relative`        |
+| **Gemini CLI**     | `GEMINI.md`                           | `.gemini/skills` | `.gemini/settings.json`   | `Absolute`        |
 | **GitHub Copilot** | `.github/copilot-instructions.md` | `.github/skills`   | `.vscode/mcp.json`        | `Relative`        |
 | **Grok Build**     | `AGENTS.md`                       | `.grok/skills`     | `.grok/config.toml`       | `Relative`        |
 | **Junie**          | `AGENTS.md`                       | `.junie/skills`    | `.junie/mcp/mcp.json`     | `Absolute`        |
@@ -454,29 +449,38 @@ final class MyAgent extends Agent
 
 ## Module Integration
 
-Third-party ProcessWire modules can expose their own guidelines and skills to Boost.
+Third-party ProcessWire modules in `site/modules/<Module>/` follow a **Single-Responsibility Contract** so documentation is written once without duplicating content across files:
+
+| File / Path | Level | Reader & Load Timing | Single Responsibility |
+|---|---|---|---|
+| `API.md` | **Level 1 (Baseline)** | `php index.php docs` & Agent (signature lookup) | **ProcessWire Core Standard.** Public class/method signatures, selectors, and settings dictionary (`# ClassName` H1). |
+| `.agents/skills/pw-<slug>/SKILL.md` | **Level 2 (Recommended)** | Host-project **consumer** agent (on-demand) | Playbook teaching how to **use** the module (`name: pw-<slug>`, `description: "Use when ..."`, `<= 500` lines, tab-indented PHP). |
+| `AGENTS.md` | **Optional (Contributor)** | Agent **developing the module itself** | Module **internal architecture** (`src/` layers, internal SQL tables, build/test commands). Begins with YAML frontmatter `description: "..."`. |
+| `.agents/guidelines/*.md` | **Exceptional (Default: None)** | Host-project agent (**every prompt**) | Strictly global project-wide invariants (`<= 30` non-empty lines). |
+| `.agents/schema/field-extenders.php` | **Conditional** | `pw_schema_read` & `.agents/map.json` | Returns concrete `FieldSchemaExtender` classes for compound `Fieldtype` modules with nested subfields. |
 
 ### Directory Structure
 
 ```
 site/modules/YourModule/
-├── AGENTS.md                  # Optional root module context index
+├── API.md                     # Public API reference (ProcessWire core standard)
+├── AGENTS.md                  # Optional internal contributor architecture (YAML description:)
 └── .agents/
-    ├── guidelines/
-    │   └── your-module-rules.md
-    ├── schema/
+    ├── guidelines/            # Optional <= 30-line global invariants
+    │   └── global-rules.md
+    ├── schema/                # Optional compound Fieldtype schema extenders
     │   └── field-extenders.php
-    └── skills/
-        └── your-module-skill/
+    └── skills/                # Consumer task playbooks (pw-<slug>)
+        └── pw-your-module/
             └── SKILL.md
 ```
 
-### Discovery
+### Discovery & Validation
 
-1. Boost scans `site/modules/` and `wire/modules/` for `.agents/` resource directories or a root `AGENTS.md` file
-2. Guidelines from `.agents/guidelines/*.md` are compiled into the agent instruction file
-3. Skills from `.agents/skills/*/SKILL.md` are synchronized into `.agents/skills` and exported to configured agent skill directories
-4. Modules with a root `AGENTS.md` file are indexed in the `Module Context Index` section of compiled guidelines
+1. Boost scans `site/modules/` for `API.md`, `AGENTS.md`, or `.agents/` (`wire/modules/` is scanned for `.agents/` or `AGENTS.md` without polluting selection lists with core `API.md` files).
+2. `Module Context Index` in compiled guidelines lists separate pointers for **Public API signatures (`API.md`)** and **Internal architecture (`AGENTS.md`)**.
+3. Guidelines from `.agents/guidelines/*.md` are merged into compiled guidelines, and skills from `.agents/skills/pw-*/SKILL.md` (including `references/*.md`) are exported to `.agents/skills` and configured IDE folders.
+4. Validate compliance at any time via `php vendor/bin/wire boost:validate --module=YourModule --strict`.
 
 > **Tip:** After installing a new module that provides Boost skills, run `php vendor/bin/wire boost:update` to sync the new guidelines and skills into your workspace.
 
@@ -558,6 +562,33 @@ php vendor/bin/wire boost:update --no-discover
 
 # Non-interactive discovery: persist newly discovered modules automatically
 php vendor/bin/wire boost:update --discover
+```
+
+### `boost:validate`
+
+Validate module (`site/modules/*`) and project (`site/.agents/`) Boost resources against the canonical contract (`API.md` H1 headings, `AGENTS.md` frontmatter `description:`, `pw-*` skill naming & `"Use when ..."` triggers, `<= 500`-line skill budget, `<= 30`-line guideline budget, tab-indented PHP code blocks, symlink rejection, Trojan Source Unicode checks, and `FieldSchemaExtender` manifests).
+
+**Usage:**
+
+```bash
+php vendor/bin/wire boost:validate [options]
+```
+
+**Options:**
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--module` | `-m` | `null` | Validate only a specific module in `site/modules/` (or `site-overrides`) |
+| `--strict` | | `false` | Promote best-practice and context-budget warnings to errors |
+| `--json` | | `false` | Output structured JSON |
+
+**Examples:**
+
+```bash
+# Validate all Boost-aware modules and site overrides
+php vendor/bin/wire boost:validate
+
+# Validate a single module strictly in CI
+php vendor/bin/wire boost:validate --module=YourModule --strict --json
 ```
 
 ### `boost:mcp`

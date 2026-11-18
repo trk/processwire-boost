@@ -45,7 +45,10 @@ NO SKILL OR SKILL EDIT WITHOUT OBSERVING THE BASELINE FAILURE FIRST
 
 ## 3. SKILL.md Frontmatter & Formatting Contract
 
-All Boost skills live in `resources/boost/skills/pw-<topic>/SKILL.md`:
+Boost skills live in one of three canonical discovery paths:
+- **Core Boost package:** `resources/boost/skills/pw-<topic>/SKILL.md`
+- **Module-bundled skill:** `site/modules/<Module>/.agents/skills/pw-<slug>/SKILL.md`
+- **Project-local skill:** `site/.agents/skills/pw-<slug>/SKILL.md`
 
 ```yaml
 ---
@@ -59,7 +62,7 @@ date_added: "YYYY-MM-DD"
 
 ### Mandatory Code Block Standards inside Skills
 Agents copy code patterns directly from skills. Every PHP code snippet inside a `SKILL.md` MUST obey:
-1. `declare(strict_types=1);` and `namespace ProcessWire;` (or the exact `Site\*` / `Totoglu\*` namespace).
+1. **Standalone PHP files (`<?php`):** Include `declare(strict_types=1);` and `namespace ProcessWire;` (or the exact `Site\*` / `Totoglu\*` namespace). Short method/statement fragments may omit the file header when context is unambiguous.
 2. **Tabs for indentation** (never 4 spaces).
 3. **Curly braces on all control structures**, even single-line `if` / `foreach` statements.
 4. Context-safe API access (`$this->wire()->apiVar` in `Wire` classes, `$event->wire()->apiVar` in hooks, `wire()->apiVar` in anonymous classes/closures).
@@ -67,11 +70,18 @@ Agents copy code patterns directly from skills. Every PHP code snippet inside a 
 
 ## 4. Deployment & Verification Checklist
 
-- [ ] `name` starts with `pw-` and matches the directory name in `resources/boost/skills/`.
+- [ ] `name` starts with `pw-` and matches the skill directory name.
 - [ ] `description` starts with `"Use when..."`, is under 500 characters, and contains zero workflow summaries.
-- [ ] All PHP code blocks use tabs, `declare(strict_types=1);`, and curly braces on all control structures.
-- [ ] All CLI commands, options, and table names match `trk/processwire-console` and `trk/processwire-boost` implementations.
-- [ ] Includes an `## Anti-Patterns & Loophole Closing` section countering real agent mistakes.
+- [ ] All PHP code blocks use tabs and curly braces on all control structures (and standalone `<?php` files declare `strict_types=1`).
+- [ ] All documented PHP method signatures, CLI options (`configure()`), and table names are verified against the real classes (via `ReflectionClass` or source inspection).
+- [ ] Includes an `## Anti-Patterns & Loophole Closing` (or `## Anti-Patterns to Avoid`) section countering real agent mistakes.
+- [ ] Passes `php vendor/bin/wire boost:validate --module=<Module|site-overrides> --strict --json` with zero errors or warnings.
+
+## Anti-Patterns & Loophole Closing
+
+- ❌ **Summarizing workflow steps inside `description:`:** Agents treat summary descriptions as shortcuts and skip loading `SKILL.md`. Keep `description:` strictly to trigger conditions (`"Use when ..."`).
+- ❌ **Space-indented PHP examples (`4 spaces`):** Agents mirror indentation from code blocks verbatim; always indent PHP blocks with tabs.
+- ❌ **Unverified CLI flags or ProcessWire class names:** Verify every cited `wire/` path, `php index.php docs` target, and `vendor/bin/wire` option before saving.
 
 ## Related Skills
 - `pw-docs-architect`

@@ -58,8 +58,17 @@ final class ExampleActionCommand extends Command
 			return $this->failCommand($output, $asJson, 'INVALID_NAME', 'A valid identifier is required.');
 		}
 
+		// Run target resolution and system-entity pre-validation BEFORE --dry-run / confirmation
+		$field = \ProcessWire\wire('fields')->get($name);
+		if (!$field) {
+			return $this->failCommand($output, $asJson, 'NOT_FOUND', "Field '{$name}' does not exist.");
+		}
+		if (($field->flags & (\ProcessWire\Field::flagSystem | \ProcessWire\Field::flagPermanent)) !== 0) {
+			return $this->failCommand($output, $asJson, 'SYSTEM_PROTECTED', "Field '{$name}' is system-protected.");
+		}
+
 		if (!$dryRun && !$force) {
-			if ($asJson || !$input->isInteractive()) {
+			if (!$this->canPrompt($input, $asJson, $force)) {
 				return $this->failCommand(
 					$output,
 					$asJson,
@@ -102,6 +111,12 @@ final class ExampleActionCommand extends Command
 | `parseKeyValueSets` | `$this->parseKeyValueSets(array\|string\|null $raw): array<string, string>` — Parses repeatable `--set="key=value"` options. |
 | `loadStub` | `$this->loadStub(string $stubFile, array $replacements = []): ?string` — Loads a stub from `resources/stubs/` and applies placeholder replacements. |
 | `failCommand` | `$this->failCommand(OutputInterface $output, bool $asJson, string $code, string $message): int` — Emits a structured JSON error when `$asJson` is `true`, otherwise renders `Laravel\Prompts\error($message)` and returns `Command::FAILURE`. |
+| `canPrompt` | `$this->canPrompt(InputInterface $input, bool $asJson, bool $force = false): bool` — Returns `true` only when `$input->isInteractive() && !$asJson && !$force`. |
+| `resolvePage` | `$this->resolvePage(int\|string\|null $id, ?string $path): ?Page` — Resolves a `Page` safely by strict `ctype_digit` ID or leading-slash path without selector injection. |
+| `findNamedSystemPage` | `$this->findNamedSystemPage(string $apiVar, string $rawName): ?Page` — Safely looks up `users`, `roles`, or `permissions` by exact `pageName` without numeric-string ID confusion. |
+| `isProtectedSystemPage` / `isRbacPage` / `isRbacContainerPage` | `$this->isProtectedSystemPage(Page $page): bool` (plus RBAC entity/container guards) — Protects root (`id=1`), admin, trash, 404, RBAC containers, and `Page::statusSystem*` pages from destructive commands. |
+| `selectorHasTopLevelLimit` / `clampSelectorTopLevelLimit` | `$this->clampSelectorTopLevelLimit(string $selector, int $defaultLimit = 50, int $maxLimit = 500): string` — Enforces a positive top-level `limit=N` while ignoring `limit=` inside nested `[...]` or `(...)` clauses and `limit=0`. |
+| `normalizeLogChannel` | `$this->normalizeLogChannel(string $rawName): string` — Validates ProcessWire log channel names and rejects path separators or `..` traversal tokens. |
 | `scaffoldFeatureClass` | `$this->scaffoldFeatureClass(InputInterface $input, OutputInterface $output, string $label, string $suffix, string $directory, string $defaultNamespace, string $stubFile, string $successMessagePrefix): int` — Shared generator pipeline for `make:queue`, `make:seeder`, and `make:task`. |
 
 ### Registering Commands from Composer Packages

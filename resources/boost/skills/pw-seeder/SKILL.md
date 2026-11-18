@@ -77,6 +77,11 @@ final class ArticlesSeeder extends Seeder
 			if ($article instanceof Page && $article->id) {
 				$article->setAndSave('summary', 'Seeded summary text.');
 			}
+
+			if ($i % 100 === 0) {
+				$pages->uncacheAll();
+				$parent = $pages->get('/articles/');
+			}
 		}
 	}
 }
@@ -122,6 +127,7 @@ php vendor/bin/wire db:seed --class=ArticlesSeeder --force --json
 
 - ❌ **Raw SQL inserts for Page data:** Always use `$this->wire->pages->new()` or `Page::save()` so ProcessWire populates `pages`, `pages_parents`, and field tables consistently and triggers hooks.
 - ❌ **Non-idempotent seeders:** Always check `$pages->has(...)` before creating records so re-running `wire db:seed` does not create duplicate pages or throw duplicate-name exceptions.
+- ❌ **Hydrating hundreds of pages without `$pages->uncacheAll()`:** Periodically call `$pages->uncacheAll()` in bulk seeding loops so PHP memory stays flat.
 - ❌ **Omitting `--force` with `--json`:** `db:seed` is a state-mutating command; when invoked with `--json`, always pass `--force`.
 
 ## Related Skills

@@ -22,7 +22,7 @@ Do NOT write implementation code, scaffold modules, or run migrations until you 
 
 ### 1. Ground in Live ProcessWire Context (Mandatory)
 Before asking the user questions, inspect the current deployment:
-- Run `pw_schema_read` (MCP) or read `.agents/map.json` to see existing templates, fields, roles, and permissions.
+- Run `pw_schema_read` (use targeted `section: "templates"` or `template: "<name>"` filters on large schemas) or read `.agents/map.json` to see existing templates, fields, roles, and permissions.
 - Check `site/modules/` and `site/classes/` for existing domain models and modules.
 - If the request spans multiple independent subsystems, decompose them and scope brainstorming to the first subsystem.
 - **Completion criterion:** You know which templates, fields, and modules already exist and have zero unanswered factual questions that the codebase itself can answer.

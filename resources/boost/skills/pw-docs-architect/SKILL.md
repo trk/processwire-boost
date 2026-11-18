@@ -20,7 +20,7 @@ Author accurate, developer-grade documentation (`README.md`, `API.md`, `[Type]Fi
 Inspect the implementation before writing a single line of documentation:
 1. Run `pw_schema_read` and `pw_module_list` (MCP) or inspect `getModuleInfo()` and `configure()` in the target source files.
 2. Check existing `API.md` conventions via `wire/core/Tools/WireApiDocs/HOWTO-API.md` or `php index.php docs get-text <Class>`.
-3. Verify every CLI command signature, option, and default value directly from its `configure()` method.
+3. Verify every public/hookable PHP method signature, parameter type, and default value directly from source or `ReflectionClass` (or `php index.php docs method <Class> <method>`), and every CLI command option from `configure()`.
 
 ## Phase 2: Document Templates by Artifact Type
 
@@ -110,6 +110,30 @@ Organize module `README.md` files in this exact order:
 7. **CLI / MCP Integration (if applicable):** Exact `vendor/bin/wire` commands, arguments, options (`--json`, `--dry-run`, `--force`), and example outputs.
 8. **Security & Permissions:** Required permissions, `$sanitizer` usage, and CSRF rules.
 
+### 5. Module Boost Self-Discovery Standard (`trk/processwire-boost`)
+Third-party ProcessWire modules in `site/modules/<Module>/` expose AI context using a **Single-Responsibility Contract** (zero duplication across files) automatically discovered by `wire boost:install` and `wire boost:update`:
+
+| Artifact | Level | Reader & Load Timing | Single Responsibility |
+|---|---|---|---|
+| `API.md` | **Level 1 (Baseline)** | `php index.php docs` & Agent (on signature lookup) | **Upstream ProcessWire Standard.** Public class/method signatures, selectors, and settings dictionary (`# ClassName` H1). Zero tutorial prose. |
+| `.agents/skills/pw-<slug>/SKILL.md` | **Level 2 (Recommended)** | Host-project **consumer** agent (on-demand) | Playbook teaching how to **use** the module in templates, hooks, or blueprints (`name: pw-<slug>`, `description: "Use when ..."`, `<= 500` lines; links to `API.md` for full signature tables). |
+| `AGENTS.md` | **Optional (Contributor)** | Agent **modifying the module's own code** | Module **internal architecture** (`src/` layers, internal SQL tables, build/test commands). Indexed as a pointer via YAML frontmatter `description:` without bloating host `AGENTS.md`. |
+| `.agents/guidelines/*.md` | **Exceptional (Default: None)** | Host-project agent (**every prompt — high cost!**) | Only global project-wide invariants (`<= 30` non-empty lines). Never put usage tutorials here. |
+| `.agents/schema/field-extenders.php` | **Conditional** | `pw_schema_read` & `.agents/map.json` | Returns `list<class-string<FieldSchemaExtender>\|FieldSchemaExtender>` for compound `Fieldtype` modules with nested subfields. |
+
+```php
+<?php
+
+declare(strict_types=1);
+
+return [
+	\Vendor\MyModule\Boost\MyCompoundFieldSchemaExtender::class,
+];
+```
+
+Verify module documentation and Boost compliance before finishing:
+`php vendor/bin/wire boost:validate --module=<Module> --strict --json`
+
 ## Quality Checklist
 
 - [ ] Every PHP example uses **tabs**, `declare(strict_types=1);`, curly braces on all control structures, and context-safe API access (`$this->wire()->apiVar` or `$event->wire()->apiVar`).
@@ -117,7 +141,12 @@ Organize module `README.md` files in this exact order:
 - [ ] Zero placeholders (`TODO`, `TBD`, `"see source code"`).
 - [ ] Zero foreign framework terminology (no non-ProcessWire ORM, CLI runner, templating engine, or service container references).
 
+## Anti-Patterns & Loophole Closing
+
+- ❌ **Duplicating full tutorial prose across `API.md`, `SKILL.md`, and `AGENTS.md`:** Keep `API.md` strictly as a signature/settings reference, `SKILL.md` for consumer workflows, and `AGENTS.md` for internal module architecture.
+- ❌ **Putting usage tutorials into `.agents/guidelines/*.md`:** Guidelines load on every turn (`<= 30` non-empty lines max); move workflows to `.agents/skills/pw-<slug>/SKILL.md`.
+- ❌ **Extending `Field` with the `Fieldtype*` class name (`class FieldtypeMyCustom extends Field`):** Companion IDE classes drop the `Fieldtype` prefix and append `Field` (`class MyCustomField extends Field`).
+
 ## Related Skills
 - `pw-module-development`
-- `pw-module-fieldtype-inputfield`
 - `pw-writing-skills`

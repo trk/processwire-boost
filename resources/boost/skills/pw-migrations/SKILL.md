@@ -112,7 +112,9 @@ return new class {
 - **Run `pw_schema_read` first:** Check existing fields and templates before creating migrations to avoid collisions.
 - **Make `up()` idempotent:** Check `$fields->get('name')` or `$templates->get('name')` before instantiating `new Field()` / `new Template()`.
 - **Guard `down()` against data loss:** Check `$field->getFieldgroups()->count()` before deleting a field, and `$pages->count("template={$tpl->name}, include=all")` before deleting a template.
+- **Never wrap DDL schema calls in `$database->beginTransaction()`:** `$fields->save()`, `$fields->delete()`, `$templates->save()`, and `$modules->install()` execute MySQL `CREATE TABLE` / `ALTER TABLE` / `DROP TABLE` statements that trigger an implicit commit and cause subsequent `commit()` / `rollBack()` calls to throw `PDOException: There is no active transaction`. Reserve `$database->beginTransaction()` strictly for pure `INSERT`/`UPDATE`/`DELETE` data migrations.
 - ❌ **Calling `$this->wire()` inside a migration anonymous class:** Throws `Call to undefined method class@anonymous::wire()`. Always use `wire()->apiVar`.
+- ❌ **Wrapping `$fields->save()` or `$modules->install()` inside `$database->beginTransaction()`:** MySQL DDL statements implicitly commit active transactions.
 - ❌ **Skipping `--force` when running `migrate:reset` or `migrate:fresh` with `--json`:** Always pass `--force` with `--json` on destructive commands.
 
 ## Related Skills

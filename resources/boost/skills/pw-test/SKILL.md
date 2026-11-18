@@ -47,8 +47,10 @@ php vendor/bin/wire test --filter=AuthFlowTest --json
 
 ### Canonical Pest Test Example
 
+Mark every PHP test file under `site/` with `<?php // __(file-not-translatable)` on line 1 so ProcessWire's `LanguagePorter` / `ProcessLanguageTranslator` scanner skips test files when searching for translatable strings:
+
 ```php
-<?php
+<?php // __(file-not-translatable)
 
 declare(strict_types=1);
 

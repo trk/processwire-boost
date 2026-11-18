@@ -9,15 +9,15 @@ date_added: "2026-04-08"
 # ProcessWire Pages & Selectors Playbook
 
 Consult the local documentation ladder before using unfamiliar `Pages` or `Page` methods:
-1. Core CLI: `php index.php docs get-text Pages`, `php index.php docs get-text Page`, `php index.php docs methods-text Pages`
-2. Core Markdown: `wire/core/Pages/API.md`, `wire/core/Page/API.md`, `wire/core/PageArray/API.md`, `wire/core/Selectors/API.md`
-3. MCP Server: `pw_schema_read` and `pw_query`
+1. MCP Server / Schema Map: `pw_schema_read(template: "article")` (or `.agents/map.json`) and `pw_query`
+2. Core CLI: `php index.php docs get-text Pages`, `php index.php docs get-text Page`, `php index.php docs methods-text Pages`
+3. Core Markdown: `wire/core/Pages/API.md`, `wire/core/Page/API.md`, `wire/core/PageArray/API.md`, `wire/core/Selectors/API.md`
 
 ## 1. Page Retrieval Methods Matrix
 
 | Method | Return Type | Access & Status Filtering | Primary Use Case |
 |---|---|---|---|
-| `$pages->find($selector)` | `PageArray` | Excludes `hidden`, `unpublished`, `trash`, and restricted pages | Standard multi-page query (always include `limit=` and `sort=`) |
+| `$pages->find($selector)` | `PageArray` | Excludes `hidden`, `unpublished`, `trash`, and restricted pages | Standard multi-page query (always include positive top-level `limit=N` and `sort=`; `limit=0` means unlimited and nested `limit=` inside `[...]`/`(...)` does not cap the outer query) |
 | `$pages->findOne($selector)` | `Page\|NullPage` | Same exclusions as `find()` | Fetch single visible page matching selector |
 | `$pages->get($selector)` | `Page\|NullPage` | **No exclusions** (includes `hidden`, `unpublished`, `trash`, restricted) | Fetch known page by ID, path, or internal system lookup |
 | `$pages->findMany($selector)` | `PageArray` iterator | Same exclusions as `find()` | Memory-safe chunked iteration over thousands of pages |
@@ -113,7 +113,52 @@ if ($article->id) {
 }
 ```
 
-## 5. Trashing & Deleting Pages
+## 5. Multi-Language Pages (`LanguageSupport`)
+
+When `LanguageSupport` is installed (`$languages = $this->wire()->languages`), read and mutate non-default language values explicitly via `getLanguageValue()` / `setLanguageValue()`, activate the secondary language via `status{$lang->id}`, and resolve localized URLs via `localUrl()` (`LanguageSupportPageNames`):
+
+```php
+$languages = $this->wire()->languages;
+$article = $pages->get(1234);
+
+if ($article->id && $languages) {
+	$tr = $languages->get('tr');
+	if ($tr && $tr->id && !$tr->isDefault()) {
+		$article->of(false);
+		$article->setLanguageValue($tr, 'title', 'Yeni Makale Başlığı');
+		$article->setLanguageValue($tr, 'name', $sanitizer->pageName('Yeni Makale Başlığı', Sanitizer::translate));
+		$article->set("status{$tr->id}", 1); // Activate page in 'tr' language
+		$article->save();
+
+		$trTitle = (string) $article->getLanguageValue($tr, 'title');
+		$trUrl = $article->localUrl($tr);
+	}
+}
+```
+
+## 6. File & Image Fields (`Pageimages` / `Pagefiles`)
+
+Never assign a string path directly to a file or image field (`$page->images = $path`). Mutate the unformatted `Pageimages` / `Pagefiles` collection with `$page->of(false)` (and call `deleteAll()` before replacing a `maxFiles=1` field):
+
+```php
+$article = $pages->get(1234);
+if ($article->id && is_file($uploadPath)) {
+	$article->of(false);
+
+	// Multi-image field: append file/URL to Pageimages collection
+	$article->images->add($uploadPath);
+
+	// Single-image field (maxFiles=1): clear previous file before adding replacement
+	/** @var Pageimages $featured */
+	$featured = $article->getUnformatted('featured_image');
+	$featured->deleteAll();
+	$featured->add($uploadPath);
+
+	$article->save();
+}
+```
+
+## 7. Trashing & Deleting Pages
 
 Prefer `$pages->trash($page)` over `$pages->delete($page)` unless permanent deletion is explicitly required:
 
@@ -124,7 +169,7 @@ if ($article->id && $article->trashable()) {
 }
 ```
 
-## 6. CLI Page Administration (`vendor/bin/wire page:*`)
+## 8. CLI Page Administration (`vendor/bin/wire page:*`)
 
 For administrative tasks from the terminal, use `vendor/bin/wire`:
 - `php vendor/bin/wire page:list --template=article --limit=10 --json`
@@ -140,4 +185,5 @@ For administrative tasks from the terminal, use `vendor/bin/wire`:
 - ❌ **Checking `if ($page)` or `if ($page !== null)` on `$pages->get()`:** `NullPage` is a truthy object. Always check `if ($page->id)`.
 - ❌ **Interpolating raw `$input` into selectors:** Always wrap user input in `$sanitizer->selectorValue()`.
 - ❌ **Calling `count($pages->find($selector))`:** Hydrates every matching page into memory. Always use `$pages->count($selector)`.
+- ❌ **Assigning `$page->images = '/path/photo.jpg'`:** Always call `$page->of(false)` and `$page->images->add('/path/photo.jpg')` followed by `$page->save('images')`.
 - ❌ **Mutating and saving a loaded page without `$page->of(false)`:** Corrupts formatted fields; call `$page->of(false)` or `$page->setAndSave()`.

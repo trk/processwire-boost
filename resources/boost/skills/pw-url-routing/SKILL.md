@@ -103,6 +103,41 @@ if ($input->is('POST')) {
 }
 ```
 
+### JSON Request Body Endpoints (`application/json`)
+
+ProcessWire's `$input->post` only populates form-encoded payloads. For `application/json` endpoints, enforce a byte-length cap on `php://input` before calling `json_decode(..., JSON_THROW_ON_ERROR)`:
+
+```php
+if ($input->is('POST')) {
+	$wire->addHook('/api/v1/webhooks/orders/?', function(HookEvent $event): array {
+		$sanitizer = $event->wire()->sanitizer;
+		$raw = (string) file_get_contents('php://input');
+
+		if ($raw === '' || strlen($raw) > 65536) {
+			http_response_code(413);
+			return ['ok' => false, 'error' => 'Payload empty or exceeds 64 KB limit.'];
+		}
+
+		try {
+			/** @var mixed $decoded */
+			$decoded = json_decode($raw, true, 64, JSON_THROW_ON_ERROR);
+		} catch (\JsonException) {
+			http_response_code(400);
+			return ['ok' => false, 'error' => 'Malformed JSON payload.'];
+		}
+
+		if (!is_array($decoded)) {
+			http_response_code(400);
+			return ['ok' => false, 'error' => 'JSON object expected.'];
+		}
+
+		$externalId = $sanitizer->text((string) ($decoded['id'] ?? ''));
+
+		return ['ok' => $externalId !== '', 'id' => $externalId];
+	});
+}
+```
+
 ## Anti-Patterns & Loophole Closing
 
 - ❌ **Trailing-slash redirects on POST/Webhook URLs:** Defining `/webhooks/stripe/` causes `POST /webhooks/stripe` to `301` redirect to `GET /webhooks/stripe/`. Always use `/webhooks/stripe/?` for POST/PUT/DELETE endpoints.

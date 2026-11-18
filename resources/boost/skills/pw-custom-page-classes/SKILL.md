@@ -1,6 +1,6 @@
 ---
 name: pw-custom-page-classes
-description: "Use when extending ProcessWire's Page, User, Role, or RepeaterPage classes in site/classes/ to build strongly-typed domain models for templates."
+description: "Use when extending ProcessWire's Page, DefaultPage, User, Role, or RepeaterPage classes in site/classes/ or structuring frontend template views in site/templates/."
 risk: safe
 source: processwire-boost
 date_added: "2026-04-08"
@@ -18,10 +18,13 @@ Custom Page Classes map ProcessWire templates to strongly-typed PHP classes in `
 ## 1. Naming & Directory Mapping (`site/classes/`)
 
 Convert the template name to `PascalCase` and append `Page`:
-- Template `home` -> `site/classes/HomePage.php` (`class HomePage extends Page`)
-- Template `blog-post` -> `site/classes/BlogPostPage.php` (`class BlogPostPage extends Page`)
 - Universal fallback -> `site/classes/DefaultPage.php` (`class DefaultPage extends Page`)
+- Template `home` -> `site/classes/HomePage.php` (`class HomePage extends DefaultPage` when `DefaultPage.php` exists in `site/classes/`, otherwise `extends Page`)
+- Template `blog-post` -> `site/classes/BlogPostPage.php` (`class BlogPostPage extends DefaultPage` when `DefaultPage.php` exists, otherwise `extends Page`)
 - Core specialized types -> `UserPage extends User`, `RolePage extends Role`, `LanguagePage extends Language`, `QuotesRepeaterPage extends RepeaterPage`, `SeoFieldsetPage extends FieldsetPage`
+
+> [!TIP]
+> Check `site/classes/DefaultPage.php` (or `.agents/map.json` `templates.*.pageClass`) first: if the project defines `DefaultPage`, extend `DefaultPage` on content page classes so shared site-wide helpers and interfaces are inherited consistently.
 
 ## 2. Canonical Implementation Pattern
 
@@ -38,13 +41,21 @@ namespace ProcessWire;
  * @property string $title
  * @property string $summary
  * @property string $body
- * @property Pageimages $images
+ * @property Pageimage|null $featured_image Single image when output formatting is on (`maxFiles=1`)
+ * @property Pageimages $images Multi-image collection
  * @property PageArray|CategoryPage[] $categories
  * @property-read string $authorName
  * @method string renderSummary(int $maxLength = 160)
  */
-class BlogPostPage extends Page
+class BlogPostPage extends DefaultPage
 {
+	public function getFeaturedImageSafe(): ?Pageimage
+	{
+		$unformatted = $this->getUnformatted('featured_image');
+
+		return $unformatted instanceof Pageimages ? $unformatted->first() : null;
+	}
+
 	public function getAuthorName(): string
 	{
 		$author = $this->createdUser;
@@ -134,7 +145,35 @@ protected function inventory(): ProductInventoryService
 | Shared helper methods without inheritance hierarchy | Trait (cannot be used with `instanceof`) |
 | External cross-cutting side effects | Hooks in `site/ready.php` or a Module |
 
-## 4. Anti-Patterns & Loophole Closing
+## 4. Frontend Template Pipeline (`site/templates/*.php`)
+
+Pair custom page classes with thin template views by checking the active project profile (`AGENTS.md` / `site/config.php`):
+- **Execution lifecycle:** `prependTemplateFile` (typically `_init.php` for shared layout defaults/helpers) -> `site/templates/<template>.php` -> `appendTemplateFile` (typically `_main.php` when delayed output or Markup Regions are active).
+- **Output mode check:** Emit `<div id="content" pw-append>` region tags **only** when `$config->useMarkupRegions === true`; otherwise render directly or populate the variables expected by `appendTemplateFile`.
+- **Reusable partials & i18n:** Render isolated sub-views via `$files->render()` (resolves relative to `site/templates/`) and wrap static UI strings in `__('...')`:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace ProcessWire;
+
+/** @var BlogPostPage $page */
+/** @var WireFileTools $files */
+/** @var Sanitizer $sanitizer */
+?>
+<article>
+	<h1><?= $sanitizer->entities($page->title) ?></h1>
+	<p class="lead"><?= $page->renderSummary(180) ?></p>
+	<?= $files->render('partials/author-card', [
+		'authorName' => $page->authorName,
+		'readMoreLabel' => __('Read more'),
+	]) ?>
+</article>
+```
+
+## 5. Anti-Patterns & Loophole Closing
 
 - ❌ **Registering hooks inside a Custom Page class (`$this->addHook(...)` in `__construct` or methods):** A `Page` class is instantiated once per loaded row; registering hooks inside it attaches duplicate hooks for every loaded page. Always register hooks in `site/ready.php` or a singular `Module`.
 - ❌ **Accessing `$this->pages` or `$this->sanitizer` directly:** Always use `$this->wire()->pages` and `$this->wire()->sanitizer`.

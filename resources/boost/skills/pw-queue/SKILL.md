@@ -67,6 +67,16 @@ final class SendEmailQueue extends Queue
 }
 ```
 
+When a job operates on a `Page`, pass only scalar identifiers (`page_id`) in `$payload`, guard idempotently if the page was deleted while queued, and remember `$page->of()` is `false` inside CLI workers:
+
+```php
+$pageId = (int) ($payload['page_id'] ?? 0);
+$page = \ProcessWire\wire()->pages->get($pageId);
+if (!$page->id) {
+	return; // Page was deleted before worker ran; acknowledge without failing
+}
+```
+
 ## Dispatching Jobs
 
 Ensure the queue tables exist first via `php vendor/bin/wire queue:table` (or `(new QueueManager())->ensureTables()`), then dispatch jobs with `Queue::push()` from templates, hooks, modules, or scheduled tasks:
