@@ -143,6 +143,31 @@ final class McpCommandTest extends TestCase
 		$this->assertArrayHasKey('modules', $decoded);
 		$this->assertArrayHasKey('roles', $decoded);
 		$this->assertArrayHasKey('permissions', $decoded);
+
+		// Section filter returns only requested section
+		$secRes = $server->handleRequest([
+			'jsonrpc' => '2.0',
+			'id' => 4,
+			'method' => 'tools/call',
+			'params' => [
+				'name' => 'pw_schema_read',
+				'arguments' => ['section' => 'templates'],
+			],
+		]);
+		$secDecoded = json_decode($secRes['result']['content'][0]['text'] ?? '', true);
+		$this->assertSame(['templates'], array_keys($secDecoded));
+
+		// Invalid section returns MCP tool error
+		$badSecRes = $server->handleRequest([
+			'jsonrpc' => '2.0',
+			'id' => 5,
+			'method' => 'tools/call',
+			'params' => [
+				'name' => 'pw_schema_read',
+				'arguments' => ['section' => 'invalid_section'],
+			],
+		]);
+		$this->assertTrue($badSecRes['result']['isError'] ?? false);
 	}
 
 	public function test_security_guards_and_jsonrpc_request_validation(): void

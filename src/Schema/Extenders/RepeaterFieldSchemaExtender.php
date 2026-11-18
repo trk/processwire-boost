@@ -38,7 +38,7 @@ final class RepeaterFieldSchemaExtender implements FieldSchemaExtender
 	}
 
 	/**
-	 * @return array<string,array{id:int,type:string,label:string}>
+	 * @return array<string, array<string, mixed>>
 	 */
 	private function resolveSchemasFromTemplate(Field $field): array
 	{
@@ -59,13 +59,21 @@ final class RepeaterFieldSchemaExtender implements FieldSchemaExtender
 			return [];
 		}
 
+		$coreExtender = new CoreFieldSchemaExtender();
 		$schemas = [];
 		foreach ($template->fieldgroup as $subfield) {
 			if (!$subfield || !$subfield->id || $subfield->name === '') {
 				continue;
 			}
 
-			$schemas[$subfield->name] = BoostManager::buildFieldBaseSchema($subfield);
+			$base = BoostManager::buildFieldBaseSchema($subfield);
+			if ($subfield instanceof Field && $coreExtender->supports($subfield)) {
+				$extra = $coreExtender->extend($subfield, $base);
+				if ($extra !== []) {
+					$base['extra'] = $extra;
+				}
+			}
+			$schemas[$subfield->name] = $base;
 		}
 
 		return $schemas;

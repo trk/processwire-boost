@@ -150,10 +150,28 @@ final class McpServer
 			],
 			[
 				'name' => 'pw_schema_read',
-				'description' => 'Read current site schema (templates/fields).',
+				'description' => 'Read current site schema (templates, fields, modules, roles, permissions). Supports optional section, template, field, and deep filters.',
 				'inputSchema' => [
 					'type' => 'object',
-					'properties' => (object) [],
+					'properties' => [
+						'section' => [
+							'type' => 'string',
+							'enum' => ['templates', 'fields', 'modules', 'roles', 'permissions'],
+							'description' => 'Optional section filter to return only one schema section.',
+						],
+						'template' => [
+							'type' => 'string',
+							'description' => 'Optional template name to return only that template and its attached field definitions.',
+						],
+						'field' => [
+							'type' => 'string',
+							'description' => 'Optional field name to return only that field schema (automatically expands nested blocks).',
+						],
+						'deep' => [
+							'type' => 'boolean',
+							'description' => 'Expand deeply nested recursive block trees inside compound fields (default: false).',
+						],
+					],
 				],
 			],
 			[
@@ -614,7 +632,7 @@ final class McpServer
 				return $this->jsonResult(['result' => $result, 'output' => $out]);
 
 			case 'pw_schema_read':
-				return $this->jsonResult((new BoostManager())->buildSchemaMap());
+				return $this->handleSchemaRead($args);
 
 			case 'pw_schema_field_create':
 				$type = trim(self::argString($args, 'type'));
@@ -1491,6 +1509,58 @@ final class McpServer
 
 	/**
 	 * @param array<string, mixed> $args
+	 * @return array<string, mixed>
+	 */
+	private function handleSchemaRead(array $args): array
+	{
+		$fieldFilter = trim(self::argString($args, 'field'));
+		$templateFilter = trim(self::argString($args, 'template'));
+		$sectionFilter = trim(self::argString($args, 'section'));
+		$deep = !empty($args['deep']) || $fieldFilter !== '';
+
+		$map = (new BoostManager())->buildSchemaMap($deep);
+
+		if ($fieldFilter !== '') {
+			if (!isset($map['fields'][$fieldFilter])) {
+				return $this->errorResult("Field '{$fieldFilter}' not found in schema.");
+			}
+			return $this->jsonResult([
+				'field' => $fieldFilter,
+				'schema' => $map['fields'][$fieldFilter],
+			]);
+		}
+
+		if ($templateFilter !== '') {
+			if (!isset($map['templates'][$templateFilter])) {
+				return $this->errorResult("Template '{$templateFilter}' not found in schema.");
+			}
+			$tplSchema = $map['templates'][$templateFilter];
+			$attachedFields = [];
+			$fieldNames = is_array($tplSchema) && is_array($tplSchema['fields'] ?? null) ? $tplSchema['fields'] : [];
+			foreach ($fieldNames as $fname) {
+				if (is_string($fname) && isset($map['fields'][$fname])) {
+					$attachedFields[$fname] = $map['fields'][$fname];
+				}
+			}
+			return $this->jsonResult([
+				'template' => $templateFilter,
+				'schema' => $tplSchema,
+				'fields' => $attachedFields,
+			]);
+		}
+
+		if ($sectionFilter !== '') {
+			if (!array_key_exists($sectionFilter, $map)) {
+				return $this->errorResult("Invalid schema section '{$sectionFilter}'. Valid sections: templates, fields, modules, roles, permissions.");
+			}
+			return $this->jsonResult([$sectionFilter => $map[$sectionFilter]]);
+		}
+
+		return $this->jsonResult($map);
+	}
+
+	/**
+	 * @param array<string, mixed> $args
 	 */
 	private static function argString(array $args, string $key, string $default = ''): string
 	{
@@ -1743,7 +1813,7 @@ final class McpServer
 	{
 		$encoded = json_encode(
 			$data,
-			JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR
+			JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR
 		);
 		return $this->textResult(is_string($encoded) ? $encoded : '{}');
 	}

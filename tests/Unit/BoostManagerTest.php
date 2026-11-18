@@ -175,4 +175,48 @@ final class BoostManagerTest extends TestCase
 		$this->assertDirectoryDoesNotExist($this->tempDir . '/.github');
 		$this->assertSame([], $manager->detectProjectAgents($this->tempDir));
 	}
+
+	public function test_instantiate_extender_entry_validates_concrete_field_schema_extender_via_reflection(): void
+	{
+		$manager = new BoostManager($this->tempDir);
+		$method = new \ReflectionMethod(BoostManager::class, 'instantiateExtenderEntry');
+
+		$this->assertNull($method->invoke($manager, ''));
+		$this->assertNull($method->invoke($manager, 'Invalid-Class-Name!'));
+		$this->assertNull($method->invoke($manager, \stdClass::class));
+		$this->assertNull($method->invoke($manager, \Totoglu\Console\Boost\Schema\FieldSchemaExtender::class));
+
+		$valid = $method->invoke($manager, \Totoglu\Console\Boost\Schema\Extenders\RepeaterFieldSchemaExtender::class);
+		$this->assertInstanceOf(\Totoglu\Console\Boost\Schema\FieldSchemaExtender::class, $valid);
+
+		$coreExtender = $method->invoke($manager, \Totoglu\Console\Boost\Schema\Extenders\CoreFieldSchemaExtender::class);
+		$this->assertInstanceOf(\Totoglu\Console\Boost\Schema\FieldSchemaExtender::class, $coreExtender);
+	}
+
+	public function test_encode_compact_schema_map_produces_valid_one_entry_per_line_json(): void
+	{
+		$sampleMap = [
+			'templates' => [
+				'home' => ['id' => 1, 'pageClass' => 'HomePage', 'fields' => ['title', 'image']],
+				'article' => ['id' => 29, 'pageClass' => 'DefaultPage', 'urlSegments' => true, 'allowPageNum' => true, 'fields' => ['title']],
+			],
+			'fields' => [
+				'image' => [
+					'id' => 612,
+					'type' => 'FieldtypeImage',
+					'label' => 'Image',
+					'extra' => ['maxFiles' => 1, 'outputFormat' => 'auto', 'valueType' => 'Pageimage|null'],
+				],
+			],
+			'modules' => [],
+		];
+
+		$encoded = BoostManager::encodeCompactSchemaMap($sampleMap);
+		$decoded = json_decode($encoded, true, 512, JSON_THROW_ON_ERROR);
+
+		$this->assertSame($sampleMap, $decoded);
+		$this->assertLessThan(15, substr_count($encoded, "\n"));
+		$this->assertStringContainsString('"image": {"id":612,"type":"FieldtypeImage"', $encoded);
+	}
+
 }
