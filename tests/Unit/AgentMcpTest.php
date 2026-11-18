@@ -173,4 +173,21 @@ final class AgentMcpTest extends TestCase
 		$updatedContent = (string) file_get_contents($targetFile);
 		$this->assertStringNotContainsString('[mcp_servers.processwire]', $updatedContent);
 	}
+
+	public function test_json_mcp_preserves_empty_objects_on_merge_and_removal(): void
+	{
+		$zedDir = $this->tempDir . '/.zed';
+		mkdir($zedDir, 0755, true);
+		$settingsPath = $zedDir . '/settings.json';
+		file_put_contents($settingsPath, "{\n    \"theme\": {},\n    \"context_servers\": {}\n}\n");
+
+		$zed = new \Totoglu\Console\Boost\Install\Agents\Zed();
+		$zed->installMcp('processwire', 'php', ['vendor/bin/wire', 'boost:mcp'], [], $this->tempDir);
+		$zed->uninstallMcp('processwire', $this->tempDir);
+
+		$decodedObj = json_decode((string) file_get_contents($settingsPath), false);
+		$this->assertInstanceOf(\stdClass::class, $decodedObj);
+		$this->assertInstanceOf(\stdClass::class, $decodedObj->theme);
+		$this->assertInstanceOf(\stdClass::class, $decodedObj->context_servers);
+	}
 }

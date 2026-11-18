@@ -8,6 +8,7 @@ use Totoglu\Console\Boost\Install\Agents\Antigravity;
 use Totoglu\Console\Boost\Install\Agents\ClaudeCode;
 use Totoglu\Console\Boost\Install\Agents\Cursor;
 use Totoglu\Console\Boost\Install\Agents\Trae;
+use Totoglu\Console\Boost\Install\Agents\Zed;
 use Totoglu\Console\Boost\Install\SkillWriter;
 use Totoglu\Console\Boost\Tests\TestCase;
 
@@ -161,5 +162,29 @@ final class SkillWriterTest extends TestCase
 			'Use when testing "quoted" YAML descriptions.',
 			SkillWriter::extractFrontmatterDescription($markdown)
 		);
+	}
+
+	public function test_remove_agent_skills_preserves_user_authored_skills_and_zed_claude_omit_cwd(): void
+	{
+		$projectRoot = $this->tempDir;
+		$targetDir = $projectRoot . '/.agents';
+		mkdir($targetDir, 0755, true);
+
+		$claude = new ClaudeCode();
+		$zed = new Zed();
+
+		$this->assertArrayNotHasKey('cwd', $claude->mcpServerConfig('php', ['vendor/bin/wire', 'boost:mcp'], [], '/tmp/project'));
+		$this->assertArrayNotHasKey('cwd', $zed->mcpServerConfig('php', ['vendor/bin/wire', 'boost:mcp'], [], '/tmp/project'));
+
+		$writer = new SkillWriter($targetDir, []);
+		$writer->sync([], [$claude]);
+
+		mkdir($projectRoot . '/.claude/skills/my-team-custom-skill', 0755, true);
+		file_put_contents($projectRoot . '/.claude/skills/my-team-custom-skill/SKILL.md', "# Custom\n");
+
+		$writer->removeAgentSkills($claude);
+
+		$this->assertDirectoryDoesNotExist($projectRoot . '/.claude/skills/pw-pages');
+		$this->assertFileExists($projectRoot . '/.claude/skills/my-team-custom-skill/SKILL.md');
 	}
 }

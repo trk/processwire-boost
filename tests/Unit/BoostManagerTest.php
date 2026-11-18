@@ -42,7 +42,7 @@ final class BoostManagerTest extends TestCase
 			'guidelines' => true,
 			'skills' => true,
 			'mcp' => false,
-			'modules' => ['Htmx'],
+			'modules' => ['MockModule'],
 			'agents' => ['Cursor', 'Claude Code'],
 		]);
 
@@ -52,7 +52,7 @@ final class BoostManagerTest extends TestCase
 		$this->assertTrue($loaded['guidelines']);
 		$this->assertTrue($loaded['skills']);
 		$this->assertFalse($loaded['mcp']);
-		$this->assertSame(['Htmx'], $loaded['modules']);
+		$this->assertSame(['MockModule'], $loaded['modules']);
 		$this->assertSame(['claude_code', 'cursor'], $loaded['agents']);
 		$this->assertIsString($loaded['generated_at']);
 	}
@@ -147,5 +147,32 @@ final class BoostManagerTest extends TestCase
 		mkdir($this->tempDir . '/.claude', 0755, true);
 		$detected = $manager->detectProjectAgents($this->tempDir);
 		$this->assertContains('claude_code', $detected);
+
+		mkdir($this->tempDir . '/.agents/skills', 0755, true);
+		$detected = $manager->detectProjectAgents($this->tempDir);
+		$this->assertNotContains('antigravity', $detected);
+
+		file_put_contents($this->tempDir . '/.agents/mcp_config.json', '{}');
+		$detected = $manager->detectProjectAgents($this->tempDir);
+		$this->assertContains('antigravity', $detected);
+	}
+
+	public function test_uninstall_agent_without_mcp_removes_empty_parent_directory(): void
+	{
+		$manager = new BoostManager($this->tempDir);
+		$cursor = new Cursor();
+		$copilot = new \Totoglu\Console\Boost\Install\Agents\Copilot();
+
+		$manager->install(['guidelines', 'skills'], [], [$cursor, $copilot]);
+		$this->assertDirectoryExists($this->tempDir . '/.cursor/skills/pw-pages');
+		$this->assertFileExists($this->tempDir . '/.github/copilot-instructions.md');
+		$this->assertDirectoryExists($this->tempDir . '/.github/skills/pw-pages');
+
+		$manager->uninstallAgent($cursor);
+		$manager->uninstallAgent($copilot);
+
+		$this->assertDirectoryDoesNotExist($this->tempDir . '/.cursor');
+		$this->assertDirectoryDoesNotExist($this->tempDir . '/.github');
+		$this->assertSame([], $manager->detectProjectAgents($this->tempDir));
 	}
 }

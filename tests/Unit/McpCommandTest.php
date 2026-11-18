@@ -162,6 +162,10 @@ final class McpCommandTest extends TestCase
 		$this->assertIsArray($badIdReq);
 		$this->assertSame(-32600, $badIdReq['error']['code']);
 
+		$infIdReq = $server->handleRequest(['jsonrpc' => '2.0', 'id' => INF, 'method' => 'ping']);
+		$this->assertIsArray($infIdReq);
+		$this->assertSame(-32600, $infIdReq['error']['code']);
+
 		$badParamsReq = $server->handleRequest(['jsonrpc' => '2.0', 'id' => 12, 'method' => 'tools/call', 'params' => ['positional']]);
 		$this->assertIsArray($badParamsReq);
 		$this->assertSame(-32602, $badParamsReq['error']['code']);
@@ -176,8 +180,23 @@ final class McpCommandTest extends TestCase
 				'arguments' => ['name' => 'page-view'],
 			],
 		]);
+		$this->assertIsArray($delSysPerm);
 		$this->assertTrue($delSysPerm['result']['isError'] ?? false);
 		$this->assertStringContainsString('built-in ProcessWire permission', $delSysPerm['result']['content'][0]['text']);
+
+		// Non-scalar argument types return clean tool error without PHP warnings
+		$badArgType = $server->handleRequest([
+			'jsonrpc' => '2.0',
+			'id' => 13,
+			'method' => 'tools/call',
+			'params' => [
+				'name' => 'pw_permission_delete',
+				'arguments' => ['name' => ['nested']],
+			],
+		]);
+		$this->assertIsArray($badArgType);
+		$this->assertTrue($badArgType['result']['isError'] ?? false);
+		$this->assertStringContainsString("Argument 'name' must be a string", $badArgType['result']['content'][0]['text']);
 
 		// Zero or negative backup purge days is blocked
 		$purgeZero = $server->handleRequest([
@@ -189,10 +208,12 @@ final class McpCommandTest extends TestCase
 				'arguments' => ['days' => 0],
 			],
 		]);
+		$this->assertIsArray($purgeZero);
 		$this->assertTrue($purgeZero['result']['isError'] ?? false);
 
-		// Top-level selector limit detection & clamping ignores bracketed sub-selectors and clamps explicit > maxLimit
+		// Top-level selector limit detection & clamping ignores bracketed sub-selectors and parenthesized OR-groups
 		$this->assertFalse(McpServer::selectorHasTopLevelLimit('template=product, items=[limit=5]'));
+		$this->assertFalse(McpServer::selectorHasTopLevelLimit('(template=product, limit=5, id>0)'));
 		$this->assertFalse(McpServer::selectorHasTopLevelLimit('template=product, limit=0'));
 		$this->assertTrue(McpServer::selectorHasTopLevelLimit('template=product, limit=25'));
 		$this->assertSame(
@@ -203,9 +224,27 @@ final class McpCommandTest extends TestCase
 			'template=basic-page, items=[limit=5000], limit=100',
 			McpServer::enforceBoundedTopLevelLimit('template=basic-page, items=[limit=5000], limit=0', 100, 500)
 		);
+		$this->assertSame(
+			'(template=basic-page, limit=5, id>0), limit=100',
+			McpServer::enforceBoundedTopLevelLimit('(template=basic-page, limit=5, id>0), limit=-5', 100, 500)
+		);
+		$this->assertSame(
+			'template=basic-page, limit=10',
+			McpServer::enforceBoundedTopLevelLimit('template=basic-page, limit=10, limit>=999999', 100, 500)
+		);
+		$this->assertSame(
+			'id>0, limit=2',
+			McpServer::enforceBoundedTopLevelLimit('id>0, limit=2, !limit=0, @limit=99999, foo@limit=99999', 100, 500)
+		);
+		$this->assertSame(
+			'id>0, title={a, limit=9999}, limit=2',
+			McpServer::enforceBoundedTopLevelLimit('id>0, title={a, limit=9999}, limit=2, !!limit=0, !@limit=0, limit&=0', 100, 500)
+		);
 
-		// Log name normalization strips .txt and rejects traversal
-		$this->assertSame('errors', McpServer::normalizeLogName('errors.txt'));
+		// Log name normalization lowercases, strips .txt, allows internal dots, and rejects traversal
+		$this->assertSame('errors', McpServer::normalizeLogName('Errors.TXT'));
+		$this->assertSame('my.module', McpServer::normalizeLogName('my.module.txt'));
+		$this->assertSame('', McpServer::normalizeLogName('.hidden'));
 		$this->assertSame('', McpServer::normalizeLogName('..'));
 		$this->assertSame('', McpServer::normalizeLogName('../errors'));
 		$this->assertSame('', McpServer::normalizeLogName('../errors.txt'));
