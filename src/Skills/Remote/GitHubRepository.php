@@ -11,14 +11,15 @@ final readonly class GitHubRepository
 	public function __construct(
 		public string $owner,
 		public string $repo,
-		public string $path = ''
+		public string $path = '',
+		public ?string $ref = null
 	) {
 	}
 
 	public static function fromInput(string $input): self
 	{
-		$normalized = self::normalizeUrl(trim($input));
-		return self::parseOwnerRepoPath($normalized);
+		[$normalized, $ref] = self::normalizeUrl(trim($input));
+		return self::parseOwnerRepoPath($normalized, $ref);
 	}
 
 	public function fullName(): string
@@ -26,14 +27,17 @@ final readonly class GitHubRepository
 		return $this->owner . '/' . $this->repo;
 	}
 
-	private static function normalizeUrl(string $input): string
+	/**
+	 * @return array{0: string, 1: ?string}
+	 */
+	private static function normalizeUrl(string $input): array
 	{
 		if (str_starts_with($input, 'http://')) {
 			throw new InvalidArgumentException('Insecure HTTP GitHub URLs are not supported; use https://.');
 		}
 
 		if (!str_starts_with($input, 'https://')) {
-			return $input;
+			return [$input, null];
 		}
 
 		$parsed = parse_url($input);
@@ -45,21 +49,26 @@ final readonly class GitHubRepository
 
 		$path = trim((string) ($parsed['path'] ?? ''), '/');
 
-		if (preg_match('#^([^/]+/[^/]+)/(?:tree|blob)/[^/]+(?:/(.*))?$#', $path, $matches)) {
-			$subPath = $matches[2] ?? '';
-			return $subPath !== '' ? $matches[1] . '/' . $subPath : $matches[1];
+		if (preg_match('#^([^/]+/[^/]+)/(?:tree|blob)/([^/]+)(?:/(.*))?$#', $path, $matches)) {
+			$rawRef = rawurldecode($matches[2]);
+			if ($rawRef === '' || str_contains($rawRef, '..') || str_contains($rawRef, '\\') || str_contains($rawRef, "\0") || preg_match('/\s/', $rawRef) === 1) {
+				throw new InvalidArgumentException('Invalid Git reference in repository URL.');
+			}
+			$subPath = $matches[3] ?? '';
+			return [$subPath !== '' ? $matches[1] . '/' . $subPath : $matches[1], $rawRef];
 		}
 
-		return $path;
+		return [$path, null];
 	}
 
-	private static function parseOwnerRepoPath(string $input): self
+	private static function parseOwnerRepoPath(string $input, ?string $ref = null): self
 	{
-		if (str_contains($input, '\\') || str_contains($input, "\0")) {
+		$decodedInput = rawurldecode($input);
+		if (str_contains($decodedInput, '\\') || str_contains($decodedInput, "\0")) {
 			throw new InvalidArgumentException('Invalid characters in repository path.');
 		}
 
-		$parts = explode('/', trim($input, '/'));
+		$parts = explode('/', trim($decodedInput, '/'));
 
 		if (count($parts) < 2 || $parts[0] === '' || $parts[1] === '') {
 			throw new InvalidArgumentException('Invalid repository format. Expected: owner/repo, owner/repo/path, or GitHub URL');
@@ -89,7 +98,8 @@ final readonly class GitHubRepository
 		return new self(
 			owner: $owner,
 			repo: $repo,
-			path: implode('/', $subSegments)
+			path: implode('/', $subSegments),
+			ref: $ref
 		);
 	}
 }

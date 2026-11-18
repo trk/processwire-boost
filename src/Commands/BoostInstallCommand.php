@@ -122,6 +122,15 @@ final class BoostInstallCommand extends Command
 		$modulesOpt = $input->getOption('modules');
 		if ($modulesOpt !== null) {
 			$selectedModules = array_values(array_filter(array_map('trim', explode(',', (string) $modulesOpt))));
+			$unknownModules = array_values(array_diff($selectedModules, $moduleChoices));
+			if ($unknownModules !== []) {
+				return $this->failCommand(
+					$output,
+					$asJson,
+					'INVALID_MODULES',
+					'Unknown or non-discoverable module(s) in --modules: ' . implode(', ', $unknownModules)
+				);
+			}
 		} elseif ($explicitMode) {
 			$selectedModules = $installedModules;
 		} elseif ($moduleChoices !== []) {
@@ -145,11 +154,22 @@ final class BoostInstallCommand extends Command
 		$selectedAgents = [];
 		$agentsOpt = $input->getOption('agents');
 		if ($agentsOpt !== null) {
-			$rawAgentNames = array_values(array_filter(array_map('trim', explode(',', (string) $agentsOpt))));
-			$selectedAgents = $manager->normalizeAgentNames($rawAgentNames);
-			if ($rawAgentNames !== [] && $selectedAgents === []) {
-				return $this->failCommand($output, $asJson, 'INVALID_AGENTS', "No valid agent names provided in --agents: {$agentsOpt}");
+			$rawAgentNames = array_values(array_unique(array_filter(array_map('trim', explode(',', (string) $agentsOpt)))));
+			$unknownAgents = [];
+			foreach ($rawAgentNames as $rawAgentName) {
+				if ($manager->normalizeAgentNames([$rawAgentName]) === []) {
+					$unknownAgents[] = $rawAgentName;
+				}
 			}
+			if ($unknownAgents !== []) {
+				return $this->failCommand(
+					$output,
+					$asJson,
+					'INVALID_AGENTS',
+					'Invalid agent name(s) in --agents: ' . implode(', ', $unknownAgents)
+				);
+			}
+			$selectedAgents = $manager->normalizeAgentNames($rawAgentNames);
 		} elseif ($explicitMode) {
 			$selectedAgents = $installedAgents !== []
 				? $installedAgents
@@ -182,8 +202,12 @@ final class BoostInstallCommand extends Command
 			$output->writeln("\n  <fg=yellow>Processing changes...</>\n");
 		}
 
-		$transition = $manager->applyConfiguration($selectedFeatures, $selectedModules, $selectedAgents);
-		$savedConfig = $manager->loadConfig();
+		try {
+			$transition = $manager->applyConfiguration($selectedFeatures, $selectedModules, $selectedAgents);
+			$savedConfig = $manager->loadConfig();
+		} catch (\Throwable $e) {
+			return $this->failCommand($output, $asJson, 'INSTALL_FAILED', $e->getMessage());
+		}
 
 		if ($asJson) {
 			return $this->outputJsonSuccess($output, [
@@ -237,10 +261,10 @@ final class BoostInstallCommand extends Command
 
 		$resolvedAgents = $manager->resolveConfiguredAgents($selectedAgents);
 		$guidelineCount = (is_file($projectRoot . '/AGENTS.md') ? 1 : 0)
-			+ count(array_filter(array_map(
+			+ count(array_unique(array_filter(array_map(
 				static fn(Agent $agent): ?string => $agent->guidelinesPath() !== 'AGENTS.md' ? $agent->guidelinesPath() : null,
 				$resolvedAgents
-			)));
+			))));
 		$skillCount = count(glob($projectRoot . '/.agents/skills/*/SKILL.md') ?: []);
 
 		$featureLabels = [];

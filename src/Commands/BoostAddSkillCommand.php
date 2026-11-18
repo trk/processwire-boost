@@ -43,7 +43,7 @@ final class BoostAddSkillCommand extends Command
 			->addArgument('repo', InputArgument::OPTIONAL, 'GitHub repository (owner/repo or full URL)')
 			->addOption('list', 'l', InputOption::VALUE_NONE, 'List available skills')
 			->addOption('all', 'a', InputOption::VALUE_NONE, 'Install all skills')
-			->addOption('skill', 's', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_OPTIONAL, 'Specific skills to install')
+			->addOption('skill', 's', InputOption::VALUE_IS_ARRAY | InputOption::VALUE_REQUIRED, 'Specific skills to install')
 			->addOption('force', 'f', InputOption::VALUE_NONE, 'Overwrite existing skills')
 			->addOption('skip-audit', null, InputOption::VALUE_NONE, 'Skip heuristic security audit')
 			->addOption('skip-update', null, InputOption::VALUE_NONE, 'Skip running boost:update after installation')
@@ -107,14 +107,21 @@ final class BoostAddSkillCommand extends Command
 			return Command::SUCCESS;
 		}
 
-		$requestedSkillNames = array_values(array_filter(array_map('strval', (array) $input->getOption('skill')), static fn(string $s): bool => trim($s) !== ''));
+		$requestedSkillNames = array_values(array_unique(array_filter(
+			array_map(static fn(mixed $s): string => trim((string) $s), (array) $input->getOption('skill')),
+			static fn(string $s): bool => $s !== ''
+		)));
+		if (!$input->getOption('all') && $requestedSkillNames !== []) {
+			$missingSkills = array_values(array_diff($requestedSkillNames, array_keys($skills)));
+			if ($missingSkills !== []) {
+				$missingList = implode(', ', $missingSkills);
+				return $this->failCommand($output, $asJson, 'SKILL_NOT_FOUND', "Requested skill(s) not found in repository: {$missingList}");
+			}
+		}
+
 		$selectedSkills = $this->selectSkills($skills, $input, $asJson);
 
 		if ($selectedSkills === []) {
-			if ($requestedSkillNames !== []) {
-				$missingList = implode(', ', $requestedSkillNames);
-				return $this->failCommand($output, $asJson, 'SKILL_NOT_FOUND', "Requested skill(s) not found in repository: {$missingList}");
-			}
 			if ($asJson || !$input->isInteractive()) {
 				return $this->failCommand($output, $asJson, 'NO_SKILLS_SELECTED', 'Specify --all or --skill=<name> when running non-interactively.');
 			}
@@ -135,7 +142,13 @@ final class BoostAddSkillCommand extends Command
 			return Command::SUCCESS;
 		}
 
-		if (!$this->runAuditBeforeInstall($provider, $skillsToInstall, $output, $asJson)) {
+		try {
+			$auditPassed = $this->runAuditBeforeInstall($provider, $skillsToInstall, $output, $asJson);
+		} catch (\Throwable $e) {
+			return $this->failCommand($output, $asJson, 'AUDIT_FAILED', $e->getMessage());
+		}
+
+		if (!$auditPassed) {
 			if ($asJson) {
 				return $this->outputJsonError($output, 'AUDIT_BLOCKED', 'Security audit detected medium or higher risk signals. Re-run interactively or pass --skip-audit if trusted.');
 			}
@@ -146,7 +159,10 @@ final class BoostAddSkillCommand extends Command
 		$results = $this->downloadSkills($provider, $skillsToInstall, $projectRoot);
 
 		if ($results['installed'] !== [] && !$input->getOption('skip-update')) {
-			$this->runBoostUpdate();
+			try {
+				$this->runBoostUpdate();
+			} catch (\Throwable) {
+			}
 		}
 
 		if ($asJson) {
@@ -235,10 +251,16 @@ final class BoostAddSkillCommand extends Command
 		}
 
 		if (is_array($skillOptions) && $skillOptions !== []) {
-			return array_filter(
-				$skills,
-				static fn(RemoteSkill $skill): bool => in_array($skill->name, $skillOptions, true)
-			);
+			$trimmedOptions = array_values(array_filter(
+				array_map(static fn(mixed $s): string => trim((string) $s), $skillOptions),
+				static fn(string $s): bool => $s !== ''
+			));
+			if ($trimmedOptions !== []) {
+				return array_filter(
+					$skills,
+					static fn(RemoteSkill $skill): bool => in_array($skill->name, $trimmedOptions, true)
+				);
+			}
 		}
 
 		if (!$input->isInteractive() || $asJson) {
@@ -267,6 +289,13 @@ final class BoostAddSkillCommand extends Command
 	private function downloadSkills(GitHubSkillProvider $provider, array $skills, string $projectRoot): array
 	{
 		$skillsPath = $projectRoot . '/.agents/skills';
+		if (is_link($projectRoot . '/.agents') || is_link($skillsPath)) {
+			return [
+				'installed' => [],
+				'failed' => array_fill_keys(array_keys($skills), 'Skills directory is a symbolic link'),
+			];
+		}
+
 		if (!is_dir($skillsPath)) {
 			@mkdir($skillsPath, 0755, true);
 		}
@@ -281,17 +310,30 @@ final class BoostAddSkillCommand extends Command
 			}
 
 			$targetPath = $skillsPath . '/' . $safeSkillName;
-			if (is_dir($targetPath)) {
-				SkillWriter::deleteTree($targetPath);
+			if (is_link($targetPath)) {
+				$results['failed'][$skill->name] = 'Target skill path is a symbolic link';
+				continue;
 			}
 
+			$stagingPath = $targetPath . '.staging_' . bin2hex(random_bytes(4));
+
 			try {
-				if ($provider->downloadSkill($skill, $targetPath)) {
-					$results['installed'][] = $skill->name;
+				if ($provider->downloadSkill($skill, $stagingPath)) {
+					if (is_dir($targetPath)) {
+						SkillWriter::deleteTree($targetPath);
+					}
+					if (@rename($stagingPath, $targetPath)) {
+						$results['installed'][] = $skill->name;
+					} else {
+						SkillWriter::deleteTree($stagingPath);
+						$results['failed'][$skill->name] = 'Failed to finalize skill directory';
+					}
 				} else {
+					SkillWriter::deleteTree($stagingPath);
 					$results['failed'][$skill->name] = 'Download failed';
 				}
 			} catch (\Throwable $e) {
+				SkillWriter::deleteTree($stagingPath);
 				$results['failed'][$skill->name] = $e->getMessage();
 			}
 		}
@@ -307,9 +349,10 @@ final class BoostAddSkillCommand extends Command
 	{
 		$existing = array_filter(
 			$skills,
-			static fn(RemoteSkill $skill): bool => is_dir(
-				$projectRoot . '/.agents/skills/' . SkillWriter::sanitizeSkillName(basename(str_replace('\\', '/', $skill->name)))
-			)
+			static function (RemoteSkill $skill) use ($projectRoot): bool {
+				$safe = SkillWriter::sanitizeSkillName(basename(str_replace('\\', '/', $skill->name)));
+				return $safe !== '' && is_dir($projectRoot . '/.agents/skills/' . $safe);
+			}
 		);
 
 		if ($existing === [] || $force) {
@@ -350,7 +393,7 @@ final class BoostAddSkillCommand extends Command
 			return true;
 		}
 
-		$auditResults = $asJson
+		$auditResults = ($asJson || !$this->currentInput->isInteractive())
 			? (new SkillAuditor())->audit($provider, $skills)
 			: spin(
 				callback: static fn(): array => (new SkillAuditor())->audit($provider, $skills),

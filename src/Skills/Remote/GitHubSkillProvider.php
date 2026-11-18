@@ -41,15 +41,20 @@ final class GitHubSkillProvider
 		$skillMarkers = array_filter(
 			$tree['tree'],
 			static fn(array $item): bool => ($item['type'] ?? null) === 'blob'
+				&& ($item['mode'] ?? '') !== '120000'
 				&& str_contains((string) ($item['path'] ?? ''), '/')
 				&& basename((string) ($item['path'] ?? '')) === 'SKILL.md'
 		);
 
 		if ($basePath !== '') {
-			$prefix = $basePath . '/';
-			$skillMarkers = array_filter($skillMarkers, static function (array $item) use ($prefix): bool {
+			$normalizedBase = (basename($basePath) === 'SKILL.md' && str_contains($basePath, '/'))
+				? dirname($basePath)
+				: $basePath;
+			$prefix = $normalizedBase . '/';
+			$skillMarkers = array_filter($skillMarkers, static function (array $item) use ($normalizedBase, $prefix): bool {
 				$skillDir = dirname((string) $item['path']);
-				return str_starts_with($skillDir, $prefix) && !str_contains(substr($skillDir, strlen($prefix)), '/');
+				return $skillDir === $normalizedBase
+					|| (str_starts_with($skillDir, $prefix) && !str_contains(substr($skillDir, strlen($prefix)), '/'));
 			});
 		}
 
@@ -114,7 +119,7 @@ final class GitHubSkillProvider
 		$totalBytes = 0;
 
 		foreach ($skillFiles as $item) {
-			if (($item['type'] ?? null) !== 'blob') {
+			if (($item['type'] ?? null) !== 'blob' || ($item['mode'] ?? '') === '120000') {
 				continue;
 			}
 
@@ -203,10 +208,10 @@ final class GitHubSkillProvider
 			return false;
 		}
 		$path = str_replace('\\', '/', $path);
-		if (str_starts_with($path, '/') || preg_match('/^[a-zA-Z]:\//', $path)) {
+		if (str_starts_with($path, '/') || str_ends_with($path, '/') || preg_match('/^[a-zA-Z]:\//', $path)) {
 			return false;
 		}
-		if (preg_match('#(^|/)\.\.(/|$)#', $path)) {
+		if (preg_match('#(^|/)(\.|\.\.)(/|$)#', $path)) {
 			return false;
 		}
 		return true;
@@ -239,12 +244,20 @@ final class GitHubSkillProvider
 
 	private function ensureDirectoryExists(string $path): bool
 	{
+		if (is_link($path)) {
+			return false;
+		}
 		return is_dir($path) || @mkdir($path, 0755, true);
 	}
 
 	private function resolveDefaultBranch(): string
 	{
 		if ($this->defaultBranch !== null) {
+			return $this->defaultBranch;
+		}
+
+		if ($this->repository->ref !== null && $this->repository->ref !== '') {
+			$this->defaultBranch = $this->repository->ref;
 			return $this->defaultBranch;
 		}
 
@@ -293,6 +306,7 @@ final class GitHubSkillProvider
 				'header' => $headers,
 				'timeout' => $timeout,
 				'follow_location' => 0,
+				'ignore_errors' => true,
 			],
 			'ssl' => [
 				'verify_peer' => true,
@@ -300,6 +314,30 @@ final class GitHubSkillProvider
 			],
 		]);
 
-		return @file_get_contents($url, false, $context);
+		$stream = @fopen($url, 'rb', false, $context);
+		if (!is_resource($stream)) {
+			return false;
+		}
+
+		try {
+			$meta = stream_get_meta_data($stream);
+			$wrapperData = $meta['wrapper_data'] ?? [];
+			$statusLine = '';
+			if (is_array($wrapperData)) {
+				foreach ($wrapperData as $headerLine) {
+					if (is_string($headerLine) && str_starts_with($headerLine, 'HTTP/')) {
+						$statusLine = $headerLine;
+					}
+				}
+			}
+			if ($statusLine !== '' && preg_match('#^HTTP/\S+\s+200\b#', $statusLine) !== 1) {
+				return false;
+			}
+
+			$body = stream_get_contents($stream);
+			return is_string($body) ? $body : false;
+		} finally {
+			fclose($stream);
+		}
 	}
 }

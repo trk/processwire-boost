@@ -76,14 +76,18 @@ final class BoostUpdateCommand extends Command
 
 		$agents = $manager->resolveConfiguredAgents($config['agents']);
 
-		$manager->install(
-			features: $features,
-			modules: $modules,
-			agents: $agents,
-		);
+		try {
+			$manager->install(
+				features: $features,
+				modules: $modules,
+				agents: $agents,
+			);
 
-		$config['modules'] = $modules;
-		$manager->saveConfig($config);
+			$config['modules'] = $modules;
+			$manager->saveConfig($config);
+		} catch (\Throwable $e) {
+			return $this->failCommand($output, $asJson, 'UPDATE_FAILED', $e->getMessage());
+		}
 
 		if ($asJson) {
 			return $this->outputJsonSuccess($output, [
