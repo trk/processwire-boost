@@ -57,7 +57,8 @@
 				"Totoglu\\Console\\Boost\\Commands\\BoostInstallCommand",
 				"Totoglu\\Console\\Boost\\Commands\\McpCommand",
 				"Totoglu\\Console\\Boost\\Commands\\BoostUpdateCommand",
-				"Totoglu\\Console\\Boost\\Commands\\BoostAddSkillCommand"
+				"Totoglu\\Console\\Boost\\Commands\\BoostAddSkillCommand",
+				"Totoglu\\Console\\Boost\\Commands\\BoostValidateCommand"
 			]
 		}
 	}
