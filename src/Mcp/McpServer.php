@@ -20,13 +20,21 @@ final class McpServer
 		'page-sort',
 		'page-template',
 		'page-lock',
+		'page-hide',
 		'page-publish',
+		'page-edit-created',
+		'page-edit-trash-created',
+		'page-edit-images',
+		'page-edit-recent',
+		'page-clone',
+		'page-clone-tree',
 		'page-lister',
 		'profile-edit',
 		'user-admin',
 		'user-admin-all',
 		'logs-view',
 		'logs-edit',
+		'lang-edit',
 	];
 
 	/**
@@ -44,7 +52,7 @@ final class McpServer
 		$hasId = array_key_exists('id', $request);
 		$id = $request['id'] ?? null;
 
-		if ($hasId && $id !== null && !is_string($id) && !is_int($id) && !is_float($id)) {
+		if ($hasId && $id !== null && !is_string($id) && !is_int($id) && !(is_float($id) && is_finite($id))) {
 			return $this->invalidRequest();
 		}
 
@@ -563,20 +571,20 @@ final class McpServer
 	{
 		switch ($name) {
 			case 'pw_query':
-				$selector = trim((string) ($args['selector'] ?? 'id>0'));
+				$selector = trim(self::argString($args, 'selector', 'id>0'));
 				if ($selector === '') {
 					$selector = 'id>0';
 				}
-				$defaultLimit = max(1, min(500, (int) ($args['limit'] ?? 100)));
+				$defaultLimit = max(1, min(500, self::argInt($args, 'limit', 100)));
 				$selector = self::enforceBoundedTopLevelLimit($selector, $defaultLimit, 500);
-				$pages = \ProcessWire\wire('pages')->find($selector);
+				$pages = $this->requireWire('pages')->find($selector);
 				$data = [];
 				foreach ($pages as $p) {
 					$data[] = [
 						'id' => $p->id,
 						'name' => $p->name,
 						'path' => $p->path,
-						'template' => $p->template->name,
+						'template' => (string) ($p->template->name ?? ''),
 					];
 				}
 				return $this->jsonResult($data);
@@ -585,30 +593,59 @@ final class McpServer
 				if (!self::isEnvEnabled('PW_MCP_ALLOW_EXECUTE')) {
 					return $this->errorResult('pw_execute is disabled. Set PW_MCP_ALLOW_EXECUTE=1 to enable.');
 				}
-				$code = (string) ($args['code'] ?? '');
-				if ($code === '') {
+				$code = trim(self::argString($args, 'code'));
+				$code = (string) preg_replace('/^\s*<\?(?:php)?\s*/i', '', $code);
+				if (trim($code) === '') {
 					return $this->errorResult("Missing 'code' argument.");
 				}
+				$this->requireWire('pages');
+				$apiVars = self::collectProcessWireContext();
+				$runner = static function (string $__pwExecSnippet, array $__pwApiVars): mixed {
+					extract($__pwApiVars, EXTR_SKIP);
+					unset($__pwApiVars);
+					return eval($__pwExecSnippet);
+				};
 				ob_start();
-				$result = eval($code);
-				$out = trim((string) ob_get_clean());
+				try {
+					$result = $runner($code, $apiVars);
+				} finally {
+					$out = trim((string) ob_get_clean());
+				}
 				return $this->jsonResult(['result' => $result, 'output' => $out]);
 
 			case 'pw_schema_read':
 				return $this->jsonResult((new BoostManager())->buildSchemaMap());
 
 			case 'pw_schema_field_create':
-				$type = trim((string) ($args['type'] ?? ''));
-				$rawName = trim((string) ($args['name'] ?? ''));
+				$type = trim(self::argString($args, 'type'));
+				$rawName = trim(self::argString($args, 'name'));
 				if ($type === '' || $rawName === '') {
 					return $this->errorResult('Required args: type, name');
 				}
-				$sanitizer = \ProcessWire\wire('sanitizer');
+				$sanitizer = $this->requireWire('sanitizer');
 				$nameArg = (string) $sanitizer->fieldName($rawName);
-				if ($nameArg === '' || $nameArg !== $rawName) {
+				if (
+					$nameArg === ''
+					|| $nameArg !== $rawName
+					|| preg_match('/^(_|\d)/', $nameArg) === 1
+					|| str_contains($nameArg, '__')
+				) {
 					return $this->errorResult("Invalid field machine name '{$rawName}'.");
 				}
-				$fieldsApi = \ProcessWire\wire('fields');
+				$languagesApi = \ProcessWire\wire('languages');
+				if (is_object($languagesApi) && method_exists($languagesApi, 'get')) {
+					$langCollision = $languagesApi->get($nameArg);
+					if (is_object($langCollision) && !empty($langCollision->id)) {
+						return $this->errorResult("Field machine name '{$nameArg}' collides with an installed language name.");
+					}
+				}
+				$fieldsApi = $this->requireWire('fields');
+				if (
+					(($fieldsApi->isNative($nameArg) || \ProcessWire\wire($nameArg) !== null)
+						&& !in_array($nameArg, ['files', 'datetime'], true))
+				) {
+					return $this->errorResult("Field machine name '{$nameArg}' is a reserved ProcessWire name.");
+				}
 				if ($fieldsApi->get($nameArg)?->id) {
 					return $this->errorResult("Field '{$nameArg}' already exists.");
 				}
@@ -616,45 +653,73 @@ final class McpServer
 				if (preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $pwType) !== 1) {
 					return $this->errorResult("Invalid Fieldtype class name '{$pwType}'.");
 				}
-				$fieldtypeModule = \ProcessWire\wire('modules')->get($pwType);
-				if (!($fieldtypeModule instanceof \ProcessWire\Fieldtype)) {
+				$disallowedFieldtypes = [
+					'FieldtypeFieldsetClose',
+					'FieldtypePageTitle',
+					'FieldtypePageTitleLanguage',
+					'FieldtypeModule',
+				];
+				if (in_array($pwType, $disallowedFieldtypes, true)) {
+					return $this->errorResult("Field type '{$pwType}' is an internal/system Fieldtype and cannot be created standalone.");
+				}
+				$modulesApi = $this->requireWire('modules');
+				if (!$modulesApi->isInstalled($pwType)) {
 					return $this->errorResult("Field type '{$pwType}' not installed.");
+				}
+				$fieldtypeModule = $modulesApi->get($pwType);
+				if (!($fieldtypeModule instanceof \ProcessWire\Fieldtype)) {
+					return $this->errorResult("Module '{$pwType}' is not a valid Fieldtype.");
 				}
 				$f = new \ProcessWire\Field();
 				$f->type = $fieldtypeModule;
 				$f->name = $nameArg;
 				$f->label = ucfirst(str_replace('_', ' ', $nameArg));
-				$fieldsApi->save($f);
+				if (!$fieldsApi->save($f) || !$f->id) {
+					return $this->errorResult("Failed to save field '{$nameArg}'.");
+				}
 				return $this->jsonResult(['ok' => true, 'field' => $nameArg, 'type' => $pwType]);
 
 			case 'pw_schema_template_create':
-				$rawTplName = trim((string) ($args['name'] ?? ''));
+				$rawTplName = trim(self::argString($args, 'name'));
 				if ($rawTplName === '') {
 					return $this->errorResult('Required arg: name');
 				}
-				$tplName = (string) \ProcessWire\wire('sanitizer')->templateName($rawTplName);
-				if ($tplName === '' || $tplName !== $rawTplName) {
+				$tplName = (string) $this->requireWire('sanitizer')->templateName($rawTplName);
+				if ($tplName === '' || $tplName !== $rawTplName || ctype_digit($tplName)) {
 					return $this->errorResult("Invalid template machine name '{$rawTplName}'.");
 				}
-				$templatesApi = \ProcessWire\wire('templates');
+				$templatesApi = $this->requireWire('templates');
 				if ($templatesApi->get($tplName)?->id) {
 					return $this->errorResult("Template '{$tplName}' already exists.");
 				}
-				$fieldgroups = \ProcessWire\wire('fieldgroups');
-				$fg = $fieldgroups->get($tplName);
-				if (!$fg || !$fg->id) {
-					$fg = new \ProcessWire\Fieldgroup();
-					$fg->name = $tplName;
-					$titleField = \ProcessWire\wire('fields')->get('title');
-					if ($titleField && $titleField->id) {
-						$fg->add($titleField);
-					}
-					$fieldgroups->save($fg);
+				$fieldgroups = $this->requireWire('fieldgroups');
+				if ($fieldgroups->get($tplName)?->id) {
+					return $this->errorResult("A fieldgroup named '{$tplName}' already exists.");
 				}
-				$t = new \ProcessWire\Template();
-				$t->name = $tplName;
-				$t->fieldgroup = $fg;
-				$templatesApi->save($t);
+				$fg = new \ProcessWire\Fieldgroup();
+				$fg->name = $tplName;
+				$titleField = $this->requireWire('fields')->get('title');
+				if ($titleField && $titleField->id) {
+					$fg->add($titleField);
+				}
+				if (!$fieldgroups->save($fg) || !$fg->id) {
+					return $this->errorResult("Failed to create fieldgroup '{$tplName}'.");
+				}
+				try {
+					$t = new \ProcessWire\Template();
+					$t->name = $tplName;
+					$t->setFieldgroup($fg);
+					if (!$templatesApi->save($t) || !$t->id) {
+						$fieldgroups->delete($fg);
+						return $this->errorResult("Failed to create template '{$tplName}'.");
+					}
+				} catch (\Throwable $e) {
+					try {
+						$fieldgroups->delete($fg);
+					} catch (\Throwable) {
+					}
+					return $this->errorResult('Error: ' . $e->getMessage());
+				}
 				return $this->jsonResult(['ok' => true, 'template' => $tplName]);
 
 			default:
@@ -670,34 +735,38 @@ final class McpServer
 	{
 		switch ($name) {
 			case 'pw_module_list':
-				$modules = \ProcessWire\wire('modules');
+				$modules = $this->requireWire('modules');
 				$installed = $modules->getAll();
 				$list = [];
 				foreach ($installed as $modName => $_m) {
 					$modNameStr = (string) $modName;
-					$info = $modules->getModuleInfo($modNameStr);
+					$info = $modules->getModuleInfoVerbose($modNameStr);
 					$modFile = str_replace('\\', '/', (string) $modules->getModuleFile($modNameStr));
 					$list[] = [
 						'name' => $modNameStr,
-						'title' => $info['title'] ?? '',
+						'title' => (string) ($info['title'] ?? ''),
 						'version' => $modules->formatVersion($info['version'] ?? 0),
-						'summary' => $info['summary'] ?? '',
+						'summary' => (string) ($info['summary'] ?? ''),
 						'core' => str_contains($modFile, '/wire/modules/'),
 					];
 				}
 				return $this->jsonResult($list);
 
 			case 'pw_module_info':
-				$modName = trim((string) ($args['name'] ?? ''));
+				$modName = trim(self::argString($args, 'name'));
 				if ($modName === '') {
 					return $this->errorResult('Required arg: name');
 				}
 				if (preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $modName) !== 1) {
 					return $this->errorResult("Invalid module class name '{$modName}'.");
 				}
-				$modules = \ProcessWire\wire('modules');
-				$info = $modules->getModuleInfo($modName);
-				if (!$info) {
+				$modules = $this->requireWire('modules');
+				$info = $modules->getModuleInfoVerbose($modName);
+				if (
+					!$info
+					|| !empty($info['error'])
+					|| (($info['name'] ?? '') === '' && !$modules->isInstalled($modName) && !$modules->getModuleFile($modName))
+				) {
 					return $this->errorResult("Module not found: {$modName}");
 				}
 				$payload = $info;
@@ -705,19 +774,25 @@ final class McpServer
 				return $this->jsonResult($payload);
 
 			case 'pw_module_install':
-				$modName = trim((string) ($args['name'] ?? ''));
+				$modName = trim(self::argString($args, 'name'));
 				if ($modName === '') {
 					return $this->errorResult('Required arg: name');
 				}
 				if (preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $modName) !== 1) {
 					return $this->errorResult("Invalid module class name '{$modName}'.");
 				}
-				$modules = \ProcessWire\wire('modules');
+				$modules = $this->requireWire('modules');
 				if ($modules->isInstalled($modName)) {
 					return $this->jsonResult(['ok' => true, 'installed' => true, 'note' => 'already']);
 				}
+				if (!$modules->getModuleFile($modName) || !$modules->isInstallable($modName)) {
+					$modules->refresh();
+				}
 				if (!$modules->getModuleFile($modName)) {
 					return $this->errorResult("Module not found: {$modName}");
+				}
+				if (!$modules->isInstallable($modName)) {
+					return $this->errorResult("Module '{$modName}' is not currently installable (check module requirements).");
 				}
 				$installedObj = $modules->install($modName);
 				if ($installedObj === null) {
@@ -726,14 +801,14 @@ final class McpServer
 				return $this->jsonResult(['ok' => true, 'installed' => true]);
 
 			case 'pw_module_uninstall':
-				$modName = trim((string) ($args['name'] ?? ''));
+				$modName = trim(self::argString($args, 'name'));
 				if ($modName === '') {
 					return $this->errorResult('Required arg: name');
 				}
 				if (preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $modName) !== 1) {
 					return $this->errorResult("Invalid module class name '{$modName}'.");
 				}
-				$modules = \ProcessWire\wire('modules');
+				$modules = $this->requireWire('modules');
 				if (!$modules->isInstalled($modName)) {
 					return $this->jsonResult(['ok' => true, 'uninstalled' => true, 'note' => 'already']);
 				}
@@ -757,23 +832,31 @@ final class McpServer
 				return $this->jsonResult(['ok' => true, 'uninstalled' => true]);
 
 			case 'pw_module_refresh':
-				\ProcessWire\wire('modules')->refresh();
+				$this->requireWire('modules')->refresh();
 				return $this->textResult('Modules refreshed.');
 
 			case 'pw_module_upgrade':
-				$modName = trim((string) ($args['name'] ?? ''));
+				$modName = trim(self::argString($args, 'name'));
 				if ($modName === '') {
 					return $this->errorResult('Required arg: name');
 				}
 				if (preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $modName) !== 1) {
 					return $this->errorResult("Invalid module class name '{$modName}'.");
 				}
-				$modules = \ProcessWire\wire('modules');
+				$modules = $this->requireWire('modules');
 				$modules->refresh();
 				if (!$modules->isInstalled($modName)) {
 					return $this->errorResult("Module '{$modName}' is not installed.");
 				}
-				$modules->get($modName);
+				$upgradedModule = $modules->getModule($modName, [
+					'noPermissionCheck' => true,
+					'noInit' => true,
+					'configOnly' => true,
+					'noInstall' => true,
+				]);
+				if ($upgradedModule === null) {
+					return $this->errorResult("Failed to load module '{$modName}' for upgrade check.");
+				}
 				return $this->jsonResult(['ok' => true, 'upgraded' => true]);
 
 			default:
@@ -789,14 +872,17 @@ final class McpServer
 	{
 		switch ($name) {
 			case 'pw_access_user_create':
-				$rawUname = trim((string) ($args['name'] ?? ''));
-				$rawEmail = trim((string) ($args['email'] ?? ''));
-				$pass = (string) ($args['password'] ?? '');
+				$rawUname = trim(self::argString($args, 'name'));
+				$rawEmail = trim(self::argString($args, 'email'));
+				$pass = self::argString($args, 'password');
 				$rolesIn = $args['roles'] ?? [];
+				if (!is_array($rolesIn)) {
+					return $this->errorResult("Argument 'roles' must be an array of role names.");
+				}
 				if ($rawUname === '' || $pass === '') {
 					return $this->errorResult('Required args: name, password (email optional)');
 				}
-				$sanitizer = \ProcessWire\wire('sanitizer');
+				$sanitizer = $this->requireWire('sanitizer');
 				$uname = (string) $sanitizer->pageName($rawUname);
 				if ($uname === '' || $uname !== $rawUname || ctype_digit($uname)) {
 					return $this->errorResult("Invalid user name '{$rawUname}'.");
@@ -809,72 +895,97 @@ final class McpServer
 					}
 				}
 				$resolvedRolesToAssign = [];
-				if (is_array($rolesIn)) {
-					$superRoleId = (int) (\ProcessWire\wire('config')->superUserRolePageID ?? 38);
-					foreach ($rolesIn as $r) {
-						$roleCandidate = trim((string) $r);
-						if ($roleCandidate === '') {
-							continue;
-						}
-						if (strtolower($roleCandidate) === 'superuser' || (ctype_digit($roleCandidate) && (int) $roleCandidate === $superRoleId)) {
-							return $this->errorResult('Refusing to assign superuser role via MCP.');
-						}
-						$role = $this->findNamedSystemItem('roles', $roleCandidate);
-						if ($role instanceof \ProcessWire\Role && $role->id) {
-							if ((string) $role->name === 'superuser' || (int) $role->id === $superRoleId) {
-								return $this->errorResult('Refusing to assign superuser role via MCP.');
-							}
-							$resolvedRolesToAssign[] = $role;
-						}
+				$superRoleId = (int) ($this->requireWire('config')->superUserRolePageID ?? 38);
+				foreach ($rolesIn as $r) {
+					if (!is_string($r) && !is_int($r)) {
+						return $this->errorResult("Each entry in 'roles' must be a string.");
 					}
+					$roleCandidate = trim((string) $r);
+					if ($roleCandidate === '') {
+						continue;
+					}
+					if (strtolower($roleCandidate) === 'superuser' || (ctype_digit($roleCandidate) && (int) $roleCandidate === $superRoleId)) {
+						return $this->errorResult('Refusing to assign superuser role via MCP.');
+					}
+					$role = $this->findNamedSystemItem('roles', $roleCandidate);
+					if (!($role instanceof \ProcessWire\Role) || !$role->id) {
+						return $this->errorResult("Role not found: '{$roleCandidate}'.");
+					}
+					if ((string) $role->name === 'superuser' || (int) $role->id === $superRoleId) {
+						return $this->errorResult('Refusing to assign superuser role via MCP.');
+					}
+					$resolvedRolesToAssign[] = $role;
 				}
-				$users = \ProcessWire\wire('users');
+				$users = $this->requireWire('users');
 				if ($this->findNamedSystemItem('users', $uname) !== null) {
 					return $this->errorResult("User '{$uname}' already exists.");
 				}
 				$u = $users->add($uname);
-				$u->of(false);
-				if ($email !== '') {
-					$u->email = $email;
+				if (!($u instanceof \ProcessWire\User) || !$u->id) {
+					return $this->errorResult("Failed to create user '{$uname}'.");
 				}
-				$u->pass = $pass;
-				foreach ($resolvedRolesToAssign as $role) {
-					$u->addRole($role);
+				try {
+					$u->of(false);
+					if ($email !== '') {
+						$u->email = $email;
+					}
+					$u->pass = $pass;
+					foreach ($resolvedRolesToAssign as $role) {
+						$u->addRole($role);
+					}
+					if (!$users->save($u)) {
+						$users->delete($u);
+						return $this->errorResult("Failed to save user '{$uname}'.");
+					}
+				} catch (\Throwable $e) {
+					try {
+						$users->delete($u);
+					} catch (\Throwable) {
+					}
+					return $this->errorResult('Error: ' . $e->getMessage());
 				}
-				$users->save($u);
 				return $this->jsonResult(['ok' => true, 'userId' => $u->id]);
 
 			case 'pw_access_role_create':
-				$rawRoleName = trim((string) ($args['name'] ?? ''));
+				$rawRoleName = trim(self::argString($args, 'name'));
 				if ($rawRoleName === '') {
 					return $this->errorResult('Required arg: name');
 				}
-				$rname = (string) \ProcessWire\wire('sanitizer')->pageName($rawRoleName);
+				$rname = (string) $this->requireWire('sanitizer')->pageName($rawRoleName);
 				if ($rname === '' || $rname !== $rawRoleName || ctype_digit($rname)) {
 					return $this->errorResult("Invalid role name '{$rawRoleName}'.");
 				}
-				$roles = \ProcessWire\wire('roles');
+				$roles = $this->requireWire('roles');
 				if ($this->findNamedSystemItem('roles', $rname) !== null) {
 					return $this->errorResult("Role '{$rname}' already exists.");
 				}
 				$role = $roles->add($rname);
+				if (!($role instanceof \ProcessWire\Role) || !$role->id) {
+					return $this->errorResult("Failed to create role '{$rname}'.");
+				}
 				return $this->jsonResult(['ok' => true, 'roleId' => $role->id]);
 
 			case 'pw_access_user_update':
 				$id = $args['id'] ?? null;
-				$uname = trim((string) ($args['name'] ?? ''));
-				$rawEmail = trim((string) ($args['email'] ?? ''));
-				$pass = (string) ($args['password'] ?? '');
+				$uname = trim(self::argString($args, 'name'));
+				$rawEmail = trim(self::argString($args, 'email'));
+				$pass = self::argString($args, 'password');
 				$addRoles = $args['addRoles'] ?? [];
 				$removeRoles = $args['removeRoles'] ?? [];
+				if (!is_array($addRoles) || !is_array($removeRoles)) {
+					return $this->errorResult("Arguments 'addRoles' and 'removeRoles' must be arrays.");
+				}
 				if (($id === null || $id === '') && $uname === '') {
 					return $this->errorResult("Provide 'id' or 'name'.");
 				}
-				$sanitizer = \ProcessWire\wire('sanitizer');
-				$users = \ProcessWire\wire('users');
+				$sanitizer = $this->requireWire('sanitizer');
+				$users = $this->requireWire('users');
 				if ($id !== null && $id !== '') {
+					if (!is_int($id) && !is_string($id)) {
+						return $this->errorResult("Invalid user ID.");
+					}
 					$idStr = trim((string) $id);
-					if (!ctype_digit($idStr)) {
+					if (!ctype_digit($idStr) || (int) $idStr < 1) {
 						return $this->errorResult("Invalid user ID '{$idStr}'.");
 					}
 					$user = $users->get((int) $idStr);
@@ -890,25 +1001,45 @@ final class McpServer
 				if ($user->isGuest() || (string) $user->name === 'guest') {
 					return $this->errorResult('Refusing to modify the built-in guest user via MCP.');
 				}
-				$superRoleId = (int) (\ProcessWire\wire('config')->superUserRolePageID ?? 38);
+				$superRoleId = (int) ($this->requireWire('config')->superUserRolePageID ?? 38);
 				$rolesToAdd = [];
-				if (is_array($addRoles)) {
-					foreach ($addRoles as $r) {
-						$roleCandidate = trim((string) $r);
-						if ($roleCandidate === '') {
-							continue;
-						}
-						if (strtolower($roleCandidate) === 'superuser' || (ctype_digit($roleCandidate) && (int) $roleCandidate === $superRoleId)) {
-							return $this->errorResult('Refusing to grant superuser role via MCP.');
-						}
-						$role = $this->findNamedSystemItem('roles', $roleCandidate);
-						if ($role instanceof \ProcessWire\Role && $role->id) {
-							if ((string) $role->name === 'superuser' || (int) $role->id === $superRoleId) {
-								return $this->errorResult('Refusing to grant superuser role via MCP.');
-							}
-							$rolesToAdd[] = $role;
-						}
+				foreach ($addRoles as $r) {
+					if (!is_string($r) && !is_int($r)) {
+						return $this->errorResult("Each entry in 'addRoles' must be a string.");
 					}
+					$roleCandidate = trim((string) $r);
+					if ($roleCandidate === '') {
+						continue;
+					}
+					if (strtolower($roleCandidate) === 'superuser' || (ctype_digit($roleCandidate) && (int) $roleCandidate === $superRoleId)) {
+						return $this->errorResult('Refusing to grant superuser role via MCP.');
+					}
+					$role = $this->findNamedSystemItem('roles', $roleCandidate);
+					if (!($role instanceof \ProcessWire\Role) || !$role->id) {
+						return $this->errorResult("Role not found: '{$roleCandidate}'.");
+					}
+					if ((string) $role->name === 'superuser' || (int) $role->id === $superRoleId) {
+						return $this->errorResult('Refusing to grant superuser role via MCP.');
+					}
+					$rolesToAdd[] = $role;
+				}
+				$rolesToRemove = [];
+				foreach ($removeRoles as $r) {
+					if (!is_string($r) && !is_int($r)) {
+						return $this->errorResult("Each entry in 'removeRoles' must be a string.");
+					}
+					$roleCandidate = trim((string) $r);
+					if ($roleCandidate === '') {
+						continue;
+					}
+					$role = $this->findNamedSystemItem('roles', $roleCandidate);
+					if (!($role instanceof \ProcessWire\Role) || !$role->id) {
+						return $this->errorResult("Role not found: '{$roleCandidate}'.");
+					}
+					if ((string) $role->name === 'guest' || (string) $role->name === 'superuser') {
+						return $this->errorResult("Refusing to remove protected system role '{$role->name}' via MCP.");
+					}
+					$rolesToRemove[] = $role;
 				}
 				$user->of(false);
 				if ($rawEmail !== '') {
@@ -926,33 +1057,29 @@ final class McpServer
 						$user->addRole($role);
 					}
 				}
-				if (is_array($removeRoles)) {
-					foreach ($removeRoles as $r) {
-						$role = $this->findNamedSystemItem('roles', (string) $r);
-						if (!($role instanceof \ProcessWire\Role) || !$role->id) {
-							continue;
-						}
-						if ((string) $role->name === 'guest' || (string) $role->name === 'superuser') {
-							continue;
-						}
-						if ($user->hasRole($role)) {
-							$user->removeRole($role);
-						}
+				foreach ($rolesToRemove as $role) {
+					if ($user->hasRole($role)) {
+						$user->removeRole($role);
 					}
 				}
-				$users->save($user);
+				if (!$users->save($user)) {
+					return $this->errorResult("Failed to save user '{$user->name}'.");
+				}
 				return $this->jsonResult(['ok' => true, 'userId' => $user->id]);
 
 			case 'pw_access_user_delete':
 				$id = $args['id'] ?? null;
-				$uname = trim((string) ($args['name'] ?? ''));
+				$uname = trim(self::argString($args, 'name'));
 				if (($id === null || $id === '') && $uname === '') {
 					return $this->errorResult("Provide 'id' or 'name'.");
 				}
-				$users = \ProcessWire\wire('users');
+				$users = $this->requireWire('users');
 				if ($id !== null && $id !== '') {
+					if (!is_int($id) && !is_string($id)) {
+						return $this->errorResult("Invalid user ID.");
+					}
 					$idStr = trim((string) $id);
-					if (!ctype_digit($idStr)) {
+					if (!ctype_digit($idStr) || (int) $idStr < 1) {
 						return $this->errorResult("Invalid user ID '{$idStr}'.");
 					}
 					$user = $users->get((int) $idStr);
@@ -968,25 +1095,34 @@ final class McpServer
 				if ($user->isGuest() || (string) $user->name === 'guest') {
 					return $this->errorResult('Refusing to delete the built-in guest user.');
 				}
-				$users->delete($user);
+				if (!$users->delete($user)) {
+					return $this->errorResult("Failed to delete user '{$user->name}'.");
+				}
 				return $this->jsonResult(['ok' => true, 'deleted' => true]);
 
 			case 'pw_access_user_list':
-				$search = (string) ($args['search'] ?? '');
-				$roleFilter = (string) ($args['role'] ?? '');
-				$limit = max(1, min(500, (int) ($args['limit'] ?? 50)));
-				$sanitizer = \ProcessWire\wire('sanitizer');
+				$search = trim(self::argString($args, 'search'));
+				$roleFilter = trim(self::argString($args, 'role'));
+				$limit = max(1, min(500, self::argInt($args, 'limit', 50)));
+				$sanitizer = $this->requireWire('sanitizer');
 				$selector = [];
 				if ($search !== '') {
-					$search = $sanitizer->selectorValue($search);
-					$selector[] = "name%={$search}";
+					$nameProbe = (string) $sanitizer->pageName($search, true);
+					$safeSearch = (string) $sanitizer->selectorValue($search);
+					if ($nameProbe === '' || $safeSearch === '') {
+						return $this->jsonResult([]);
+					}
+					$selector[] = "name%={$safeSearch}";
 				}
 				if ($roleFilter !== '') {
-					$roleFilter = $sanitizer->selectorValue($roleFilter);
-					$selector[] = "roles={$roleFilter}";
+					$safeRole = (string) $sanitizer->selectorValue($roleFilter);
+					if ($safeRole === '') {
+						return $this->jsonResult([]);
+					}
+					$selector[] = "roles={$safeRole}";
 				}
 				$selector[] = "limit={$limit}";
-				$users = \ProcessWire\wire('users')->find(implode(', ', $selector));
+				$users = $this->requireWire('users')->find(implode(', ', $selector));
 				$list = [];
 				foreach ($users as $u) {
 					$roles = [];
@@ -1009,7 +1145,7 @@ final class McpServer
 				return $this->mutateRolePermission($args, false);
 
 			case 'pw_permission_delete':
-				$permName = trim((string) ($args['name'] ?? ''));
+				$permName = trim(self::argString($args, 'name'));
 				if ($permName === '') {
 					return $this->errorResult('Arg required: name');
 				}
@@ -1020,10 +1156,13 @@ final class McpServer
 				if (!($perm instanceof \ProcessWire\Permission) || !$perm->id) {
 					return $this->errorResult('Permission not found.');
 				}
-				if (in_array((string) $perm->name, self::SYSTEM_PERMISSIONS, true)) {
+				$isSystemPerm = (((int) $perm->status) & (\ProcessWire\Page::statusSystem | \ProcessWire\Page::statusSystemID)) !== 0;
+				if ($isSystemPerm || in_array((string) $perm->name, self::SYSTEM_PERMISSIONS, true)) {
 					return $this->errorResult("Refusing to delete built-in ProcessWire permission '{$perm->name}'.");
 				}
-				\ProcessWire\wire('permissions')->delete($perm);
+				if (!$this->requireWire('permissions')->delete($perm)) {
+					return $this->errorResult("Failed to delete permission '{$perm->name}'.");
+				}
 				return $this->jsonResult(['ok' => true, 'deleted' => true]);
 
 			default:
@@ -1039,11 +1178,11 @@ final class McpServer
 	{
 		switch ($name) {
 			case 'pw_system_logs_clear':
-				$logName = self::normalizeLogName((string) ($args['name'] ?? 'errors'));
+				$logName = self::normalizeLogName(self::argString($args, 'name', 'errors'));
 				if ($logName === '') {
 					return $this->errorResult('Invalid log name.');
 				}
-				$logsDir = (string) \ProcessWire\wire('config')->paths->logs;
+				$logsDir = (string) $this->requireWire('config')->paths->logs;
 				$path = $logsDir . $logName . '.txt';
 				$realLogsDir = realpath($logsDir);
 				$realPath = realpath($path);
@@ -1056,11 +1195,13 @@ final class McpServer
 				) {
 					return $this->errorResult('Log not found.');
 				}
-				@file_put_contents($realPath, '');
+				if (@file_put_contents($realPath, '') === false) {
+					return $this->errorResult("Failed to clear log '{$logName}'.");
+				}
 				return $this->jsonResult(['ok' => true, 'cleared' => $logName]);
 
 			case 'pw_system_backup_list':
-				$dir = (string) \ProcessWire\wire('config')->paths->assets . 'backups/database/';
+				$dir = (string) $this->requireWire('config')->paths->assets . 'backups/database/';
 				if (!is_dir($dir)) {
 					return $this->jsonResult([]);
 				}
@@ -1072,12 +1213,12 @@ final class McpServer
 				return $this->jsonResult($files);
 
 			case 'pw_system_backup_purge':
-				$days = (int) ($args['days'] ?? 30);
+				$days = self::argInt($args, 'days', 30);
 				if ($days < 1) {
 					return $this->errorResult('Argument "days" must be at least 1.');
 				}
 				$threshold = time() - ($days * 86400);
-				$dir = (string) \ProcessWire\wire('config')->paths->assets . 'backups/database/';
+				$dir = (string) $this->requireWire('config')->paths->assets . 'backups/database/';
 				if (!is_dir($dir)) {
 					return $this->jsonResult(['ok' => true, 'deleted' => 0]);
 				}
@@ -1099,22 +1240,25 @@ final class McpServer
 				if (!self::isEnvEnabled('PW_MCP_ALLOW_RESTORE')) {
 					return $this->errorResult('pw_system_restore disabled. Set PW_MCP_ALLOW_RESTORE=1 to enable.');
 				}
-				$file = (string) ($args['file'] ?? '');
+				$file = trim(self::argString($args, 'file'));
 				if ($file === '') {
 					return $this->errorResult('Required arg: file');
 				}
-				$assetsDir = (string) \ProcessWire\wire('config')->paths->assets . 'backups/database/';
+				$assetsDir = (string) $this->requireWire('config')->paths->assets . 'backups/database/';
+				$candidatePath = (!str_contains($file, '/') && !str_contains($file, '\\'))
+					? $assetsDir . $file
+					: $file;
 				$realAssetsDir = realpath($assetsDir);
-				$real = realpath($file);
+				$real = realpath($candidatePath);
 				if (
-					is_link($file)
+					is_link($candidatePath)
 					|| $real === false
 					|| $realAssetsDir === false
-					|| !str_starts_with($real, rtrim($realAssetsDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
+					|| dirname($real) !== rtrim($realAssetsDir, DIRECTORY_SEPARATOR)
 					|| !is_file($real)
 					|| !is_readable($real)
 				) {
-					return $this->errorResult('File not permitted: must reside under backups/database and be readable.');
+					return $this->errorResult('File not permitted: must reside directly under backups/database and be readable.');
 				}
 				if (!str_ends_with(strtolower($real), '.sql')) {
 					return $this->errorResult('Only .sql files are accepted.');
@@ -1131,7 +1275,7 @@ final class McpServer
 				if (trim($headSample) === '' && $size <= 4096) {
 					return $this->errorResult('SQL file is empty.');
 				}
-				$db = \ProcessWire\wire('database');
+				$db = $this->requireWire('database');
 				try {
 					$backups = $db->backups();
 					if (!$backups) {
@@ -1150,31 +1294,51 @@ final class McpServer
 				return $this->jsonResult(['ok' => true, 'restored' => basename($real)]);
 
 			case 'pw_system_cache_wire_clear':
-				$rawKey = $args['key'] ?? null;
-				$rawPattern = $args['pattern'] ?? null;
-				$key = ($rawKey !== null && $rawKey !== '') ? (string) $rawKey : '';
-				$pattern = ($rawPattern !== null && $rawPattern !== '') ? (string) $rawPattern : '';
+				$key = self::argString($args, 'key');
+				$pattern = self::argString($args, 'pattern');
 				if ($key === '' && $pattern === '') {
 					return $this->errorResult("Provide 'key' or 'pattern'.");
 				}
-				if ($key !== '') {
-					$deleted = \ProcessWire\wire('cache')->delete($key) ? 1 : 0;
-					return $this->jsonResult(['ok' => true, 'deleted' => $deleted]);
-				}
-				$db = \ProcessWire\wire('database');
+				$db = $this->requireWire('database');
 				$table = '`' . $db->escapeTable('caches') . '`';
-				$stmt = $db->prepare("DELETE FROM {$table} WHERE name LIKE :p");
+				$reserved = defined('\ProcessWire\WireCache::expireReserved') ? \ProcessWire\WireCache::expireReserved : '2010-04-08 03:10:01';
+				if ($key !== '') {
+					$stmt = $db->prepare("DELETE FROM {$table} WHERE name = :k AND expires != :reserved");
+					$stmt->bindValue(':k', $key);
+					$stmt->bindValue(':reserved', $reserved);
+					$stmt->execute();
+					return $this->jsonResult(['ok' => true, 'deleted' => $stmt->rowCount()]);
+				}
+				$stmt = $db->prepare("DELETE FROM {$table} WHERE name LIKE :p AND expires != :reserved");
 				$stmt->bindValue(':p', $pattern);
+				$stmt->bindValue(':reserved', $reserved);
 				$stmt->execute();
 				return $this->jsonResult(['ok' => true, 'deleted' => $stmt->rowCount()]);
 
 			case 'pw_system_get_logs':
-				$logName = self::normalizeLogName((string) ($args['name'] ?? 'errors'));
+				$logName = self::normalizeLogName(self::argString($args, 'name', 'errors'));
 				if ($logName === '') {
 					return $this->errorResult('Invalid log name.');
 				}
-				$limit = max(1, min(1000, (int) ($args['limit'] ?? 10)));
-				$entries = \ProcessWire\wire('log')->getEntries($logName, ['limit' => $limit]);
+				$limit = max(1, min(1000, self::argInt($args, 'limit', 10)));
+				$logsDir = (string) $this->requireWire('config')->paths->logs;
+				$logPath = $logsDir . $logName . '.txt';
+				if (is_link($logPath)) {
+					return $this->errorResult('Refusing to read symbolic link log file.');
+				}
+				if (!is_file($logPath)) {
+					return $this->textResult('No entries found.');
+				}
+				$realLogsDir = realpath($logsDir);
+				$realLogPath = realpath($logPath);
+				if (
+					$realLogsDir === false
+					|| $realLogPath === false
+					|| !str_starts_with($realLogPath, rtrim($realLogsDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
+				) {
+					return $this->errorResult('Invalid log file path.');
+				}
+				$entries = $this->requireWire('log')->getEntries($logName, ['limit' => $limit]);
 				$text = '';
 				foreach ($entries as $e) {
 					if (is_array($e)) {
@@ -1186,12 +1350,12 @@ final class McpServer
 				return $this->textResult($text !== '' ? $text : 'No entries found.');
 
 			case 'pw_system_logs_tail_last':
-				$logName = self::normalizeLogName((string) ($args['name'] ?? 'errors'));
+				$logName = self::normalizeLogName(self::argString($args, 'name', 'errors'));
 				if ($logName === '') {
 					return $this->errorResult('Invalid log name.');
 				}
-				$lines = max(1, min(5000, (int) ($args['lines'] ?? 200)));
-				$logsDir = (string) \ProcessWire\wire('config')->paths->logs;
+				$lines = max(1, min(5000, self::argInt($args, 'lines', 200)));
+				$logsDir = (string) $this->requireWire('config')->paths->logs;
 				$path = $logsDir . $logName . '.txt';
 				$realLogsDir = realpath($logsDir);
 				$realPath = realpath($path);
@@ -1208,11 +1372,29 @@ final class McpServer
 				return $this->textResult(implode("\n", $slice));
 
 			case 'pw_system_cache_clear':
-				\ProcessWire\wire('modules')->refresh();
+				$this->requireWire('modules')->refresh();
+				$compiledPath = (string) $this->requireWire('config')->paths->cache . 'FileCompiler/';
+				if (is_dir($compiledPath) && !is_link(rtrim($compiledPath, '/'))) {
+					$iterator = new \RecursiveIteratorIterator(
+						new \RecursiveDirectoryIterator($compiledPath, \RecursiveDirectoryIterator::SKIP_DOTS),
+						\RecursiveIteratorIterator::CHILD_FIRST
+					);
+					foreach ($iterator as $fileInfo) {
+						/** @var \SplFileInfo $fileInfo */
+						$pathname = $fileInfo->getPathname();
+						if ($fileInfo->isLink()) {
+							@unlink($pathname);
+						} elseif ($fileInfo->isDir()) {
+							@rmdir($pathname);
+						} else {
+							@unlink($pathname);
+						}
+					}
+				}
 				return $this->textResult('Caches cleared and modules refreshed.');
 
 			case 'pw_system_backup':
-				$backup = \ProcessWire\wire('database')->backups();
+				$backup = $this->requireWire('database')->backups();
 				if (!$backup) {
 					return $this->errorResult('Backup tool not available.');
 				}
@@ -1233,8 +1415,8 @@ final class McpServer
 	 */
 	private function mutateRolePermission(array $args, bool $grant): array
 	{
-		$roleName = trim((string) ($args['role'] ?? ''));
-		$permName = trim((string) ($args['permission'] ?? ''));
+		$roleName = trim(self::argString($args, 'role'));
+		$permName = trim(self::argString($args, 'permission'));
 		if ($roleName === '' || $permName === '') {
 			return $this->errorResult('Args required: role, permission');
 		}
@@ -1257,7 +1439,7 @@ final class McpServer
 		if (!$grant && $resolvedRoleName === 'guest' && $resolvedPermName === 'page-view') {
 			return $this->errorResult("Refusing to revoke mandatory 'page-view' permission from the guest role via MCP.");
 		}
-		$roles = \ProcessWire\wire('roles');
+		$roles = $this->requireWire('roles');
 		$role->of(false);
 		if ($grant && !$role->hasPermission($permission)) {
 			$role->addPermission($permission);
@@ -1279,7 +1461,7 @@ final class McpServer
 		if ($trimmed === '' || ctype_digit($trimmed)) {
 			return null;
 		}
-		$sanitizer = \ProcessWire\wire('sanitizer');
+		$sanitizer = $this->requireWire('sanitizer');
 		$clean = (string) $sanitizer->pageName($trimmed, true);
 		if ($clean === '' || $clean !== strtolower($trimmed)) {
 			$exact = (string) $sanitizer->pageName($trimmed);
@@ -1289,9 +1471,60 @@ final class McpServer
 			$clean = $exact;
 		}
 		$safeVal = $sanitizer->selectorValue($clean);
-		$item = \ProcessWire\wire($apiVar)->get("name={$safeVal}");
+		$item = $this->requireWire($apiVar)->get("name={$safeVal}");
 
 		return ($item instanceof \ProcessWire\Page && $item->id) ? $item : null;
+	}
+
+	private function requireWire(string $apiVar): mixed
+	{
+		if (!function_exists('\ProcessWire\wire')) {
+			throw new \RuntimeException('ProcessWire runtime is not booted.');
+		}
+		$instance = \ProcessWire\wire($apiVar);
+		if ($instance === null) {
+			throw new \RuntimeException("ProcessWire API variable '{$apiVar}' is unavailable.");
+		}
+
+		return $instance;
+	}
+
+	/**
+	 * @param array<string, mixed> $args
+	 */
+	private static function argString(array $args, string $key, string $default = ''): string
+	{
+		if (!array_key_exists($key, $args) || $args[$key] === null) {
+			return $default;
+		}
+		$val = $args[$key];
+		if (is_string($val)) {
+			return $val;
+		}
+		if (is_int($val) || (is_float($val) && is_finite($val))) {
+			return (string) $val;
+		}
+
+		throw new \InvalidArgumentException("Argument '{$key}' must be a string.");
+	}
+
+	/**
+	 * @param array<string, mixed> $args
+	 */
+	private static function argInt(array $args, string $key, int $default): int
+	{
+		if (!array_key_exists($key, $args) || $args[$key] === null || $args[$key] === '') {
+			return $default;
+		}
+		$val = $args[$key];
+		if (is_int($val)) {
+			return $val;
+		}
+		if (is_string($val) && preg_match('/^-?\d+$/', trim($val)) === 1) {
+			return (int) trim($val);
+		}
+
+		throw new \InvalidArgumentException("Argument '{$key}' must be an integer.");
 	}
 
 	public static function isEnvEnabled(string $name): bool
@@ -1304,7 +1537,7 @@ final class McpServer
 	public static function selectorHasTopLevelLimit(string $selector): bool
 	{
 		foreach (self::splitTopLevelSelectorClauses($selector) as $clause) {
-			if (preg_match('/^\s*limit\s*=\s*([1-9]\d*)\s*$/i', $clause) === 1) {
+			if (preg_match('/^\s*limit\s*=\s*0*([1-9]\d*)\s*$/i', $clause) === 1) {
 				return true;
 			}
 		}
@@ -1322,14 +1555,15 @@ final class McpServer
 		$rebuilt = [];
 
 		foreach ($clauses as $clause) {
-			if (preg_match('/^(\s*limit\s*=\s*)(\d+)(\s*)$/i', $clause, $m) === 1) {
-				$num = (int) $m[2];
-				if ($num <= 0) {
-					continue;
+			if (preg_match('/^(\s*)(?:!+\s*|[A-Za-z0-9_.-]*@\s*)*limit(?![A-Za-z0-9_.])\s*(.*)$/i', $clause) === 1) {
+				if (preg_match('/^(\s*)limit\s*=\s*0*([1-9]\d*)\s*$/i', $clause, $m) === 1) {
+					$num = (int) $m[2];
+					if ($num > 0) {
+						$foundPositiveLimit = true;
+						$clamped = min($maxLimit, $num);
+						$rebuilt[] = $m[1] . 'limit=' . $clamped;
+					}
 				}
-				$foundPositiveLimit = true;
-				$clamped = min($maxLimit, $num);
-				$rebuilt[] = $m[1] . $clamped . $m[3];
 				continue;
 			}
 			$rebuilt[] = $clause;
@@ -1350,7 +1584,9 @@ final class McpServer
 	{
 		$clauses = [];
 		$current = '';
-		$depth = 0;
+		$bracketDepth = 0;
+		$parenDepth = 0;
+		$braceDepth = 0;
 		$quote = '';
 		$len = strlen($selector);
 
@@ -1374,19 +1610,43 @@ final class McpServer
 				continue;
 			}
 
+			if ($ch === '{') {
+				$braceDepth++;
+				$current .= $ch;
+				continue;
+			}
+
+			if ($ch === '}') {
+				$braceDepth = max(0, $braceDepth - 1);
+				$current .= $ch;
+				continue;
+			}
+
 			if ($ch === '[') {
-				$depth++;
+				$bracketDepth++;
 				$current .= $ch;
 				continue;
 			}
 
 			if ($ch === ']') {
-				$depth = max(0, $depth - 1);
+				$bracketDepth = max(0, $bracketDepth - 1);
 				$current .= $ch;
 				continue;
 			}
 
-			if ($ch === ',' && $depth === 0) {
+			if ($ch === '(') {
+				$parenDepth++;
+				$current .= $ch;
+				continue;
+			}
+
+			if ($ch === ')') {
+				$parenDepth = max(0, $parenDepth - 1);
+				$current .= $ch;
+				continue;
+			}
+
+			if ($ch === ',' && $bracketDepth === 0 && $parenDepth === 0 && $braceDepth === 0) {
 				$clauses[] = $current;
 				$current = '';
 				continue;
@@ -1408,14 +1668,64 @@ final class McpServer
 		if ($trimmed === '' || str_contains($trimmed, '/') || str_contains($trimmed, '\\') || str_contains($trimmed, '..')) {
 			return '';
 		}
-		$base = (string) preg_replace('/\.txt$/i', '', $trimmed);
-		if ($base === '' || $base === '.' || $base === '..') {
+		$base = strtolower((string) preg_replace('/\.txt$/i', '', $trimmed));
+		if ($base === '' || $base === '.' || $base === '..' || str_starts_with($base, '.') || str_ends_with($base, '.')) {
 			return '';
 		}
-		if (preg_match('/^[A-Za-z0-9_-]+$/', $base) !== 1) {
+		if (preg_match('/^[a-z0-9._-]+$/', $base) !== 1) {
 			return '';
 		}
 		return $base;
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private static function collectProcessWireContext(): array
+	{
+		if (
+			!class_exists('\\ProcessWire\\ProcessWire', false)
+			|| !function_exists('ProcessWire\\wire')
+		) {
+			return [];
+		}
+
+		$wireInstance = \ProcessWire\ProcessWire::getCurrentInstance();
+		if ($wireInstance === null) {
+			return [];
+		}
+
+		$vars = ['wire' => $wireInstance];
+		$names = [
+			'pages',
+			'page',
+			'user',
+			'users',
+			'templates',
+			'fields',
+			'roles',
+			'permissions',
+			'config',
+			'modules',
+			'database',
+			'sanitizer',
+			'session',
+			'input',
+			'log',
+			'cache',
+			'files',
+			'datetime',
+			'languages',
+		];
+
+		foreach ($names as $varName) {
+			$val = \ProcessWire\wire($varName);
+			if ($val !== null) {
+				$vars[$varName] = $val;
+			}
+		}
+
+		return $vars;
 	}
 
 	/**
@@ -1431,8 +1741,11 @@ final class McpServer
 	 */
 	private function jsonResult(mixed $data): array
 	{
-		$encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-		return $this->textResult($encoded !== false ? $encoded : '{}');
+		$encoded = json_encode(
+			$data,
+			JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR
+		);
+		return $this->textResult(is_string($encoded) ? $encoded : '{}');
 	}
 
 	/**
