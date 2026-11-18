@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/PHP-8.3+-8892BF?style=flat-square&logo=php" alt="PHP 8.3+">
   <img src="https://img.shields.io/badge/ProcessWire-3.x-ea6a1a?style=flat-square" alt="ProcessWire 3.x">
-  <img src="https://img.shields.io/badge/Version-0.3.1-blue?style=flat-square" alt="Version 0.3.1">
+  <img src="https://img.shields.io/badge/Version-0.3.2-blue?style=flat-square" alt="Version 0.3.2">
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License">
 </p>
 
@@ -245,7 +245,7 @@ Without this skill, the agent would guess at the API and likely produce unsafe o
 
 #### Skill Sync Model
 
-ProcessWire Boost `v0.3.1` stages canonical skills in `.agents/skills/{skillName}/SKILL.md` and exports per-agent skill directories when an agent declares a dedicated `skillsPath()`:
+ProcessWire Boost `v0.3.2` stages canonical skills in `.agents/skills/{skillName}/SKILL.md` and exports per-agent skill directories when an agent declares a dedicated `skillsPath()`:
 
 - Canonical skills are always written to `.agents/skills/{skillName}/SKILL.md` first so the foundation guideline `{{ SKILLS_MENU }}` is populated on fresh installs.
 - Agents with dedicated skill folders (e.g. `.cursor/skills`, `.claude/skills`, `.trae/skills`, `.opencode/skills`) receive exported skill directories via `exportSkill()`.
@@ -636,7 +636,7 @@ The installer stores its state in `.agents/boost.json`:
 
 ```json
 {
-  "version": "0.3.1",
+  "version": "0.3.2",
   "guidelines": true,
   "skills": true,
   "mcp": true,
