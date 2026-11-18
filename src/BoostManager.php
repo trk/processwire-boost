@@ -29,7 +29,7 @@ use Totoglu\Console\Boost\Schema\FieldSchemaExtender;
 
 final class BoostManager
 {
-	public const VERSION = '0.3.2';
+	public const VERSION = '0.4.0';
 
 	private string $targetDir;
 
